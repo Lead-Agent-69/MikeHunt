@@ -33,6 +33,10 @@ export interface Prefs {
     sellerType?: string;
     maxPrice?: number;
     minPrice?: number;
+    maxMileage?: number | null;
+    minYear?: number | null;
+    maxYear?: number | null;
+    model?: string;
     targetProfit?: number;
     timeline?: "now" | "month" | "research";
     repairCapability?: "none" | "basic" | "advanced";

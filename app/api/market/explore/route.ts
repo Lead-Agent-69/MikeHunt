@@ -42,8 +42,15 @@ import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import { marketSourceCoverage } from "@/lib/market/source-coverage";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
+import {
+  parseTitleTypes,
+  titleCategoryOrFilter,
+} from "@/lib/deals/title-category";
 import {
   applyVehicleDetails,
+  applyRepairEligibility,
+  applySellerTypes,
   applySelectedSources,
   validateInventoryRanges,
   VEHICLE_CATEGORY_FILTERS,
@@ -64,7 +71,7 @@ function csv(p: string | null): string[] {
 }
 
 const MARKET_PRICE_BANDS: MarketRangeBand[] = [
-  { from: 1, to: 9_999, label: "Under $10k" },
+  { from: 1, to: 9_999, label: "Below $10k" },
   { from: 10_000, to: 19_999, label: "$10k–$20k" },
   { from: 20_000, to: 29_999, label: "$20k–$30k" },
   { from: 30_000, to: 49_999, label: "$30k–$50k" },
@@ -277,6 +284,7 @@ export async function GET(req: NextRequest) {
           q = applyLiveAuctionWindow(
             applyCustomerInventory(q, Date.now(), {
               includeWithoutPhotos: true,
+              observedDays: Number(sp.get("seenWithin")),
             }),
           );
 
@@ -298,6 +306,11 @@ export async function GET(req: NextRequest) {
           if (verdicts.length) q = q.in("deal_verdict", verdicts);
           q = applySelectedSources(q, sources);
           q = applyVehicleDetails(q, detailParams);
+          q = applyRepairEligibility(q, detailParams.get("includeRepairable"));
+          const titleFilter = titleCategoryOrFilter(
+            parseTitleTypes(detailParams.get("titleType")),
+          );
+          if (titleFilter) q = q.or(titleFilter);
           if (categories.length)
             q = q.or(
               categories
@@ -316,7 +329,7 @@ export async function GET(req: NextRequest) {
           if (model) q = q.ilike("model", `%${model}%`);
           // deals has no seller_type column (it lives in options.sellerType); selecting or filtering
           // the bare column 500'd the whole endpoint. Alias + JSON-path filter instead.
-          if (sellerTypes.length) q = q.in("options->>sellerType", sellerTypes);
+          q = applySellerTypes(q, sellerTypes);
           if (yearMin > 0) q = q.gte("year", yearMin);
           if (yearMax > 0) q = q.lte("year", yearMax);
           if (minProfit > 0) q = q.gte("true_net_profit", minProfit);
@@ -436,6 +449,12 @@ export async function GET(req: NextRequest) {
             mileage: d.mileage ?? undefined,
             valuationEvidence: valuation,
             sellEstimate: valuation.supported ? d.sell_estimate : undefined,
+            priceGap:
+              economicsSupported &&
+              price.kind === "asking" &&
+              d.deal_analysis?.priceImplausible !== true
+                ? d.sell_estimate - Number(d.ask_price)
+                : undefined,
             profitEstimate: economicsNumber(d.true_net_profit),
             profitScore: economicsNumber(d.profit_score),
             dealVerdict: economicsSupported
@@ -445,7 +464,7 @@ export async function GET(req: NextRequest) {
             locationState: d.location_state || undefined,
             condition: d.condition || undefined,
             damageType: d.damage_type || undefined,
-            sellerType: d.seller_type || undefined,
+            sellerType: sellerTypeEvidence(d),
             roi: economicsNumber(d.deal_analysis?.roi),
             lane: dealLane(d),
           };
@@ -628,6 +647,7 @@ export async function GET(req: NextRequest) {
             mileage: "mileage",
             sellEstimate: "sellEstimate",
             profitEstimate: "profitEstimate",
+            priceGap: "priceGap",
             profitScore: "profitScore",
             year: "year",
             distanceMiles: "distanceMiles",

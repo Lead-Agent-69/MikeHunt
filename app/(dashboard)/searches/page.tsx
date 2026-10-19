@@ -345,7 +345,7 @@ export default function SearchesPage() {
                   aria-label="Search name"
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="e.g. F-150s under $25k"
+                  placeholder="e.g. F-150s up to $25k"
                   className={inputClass}
                 />
               </div>
@@ -443,10 +443,10 @@ export default function SearchesPage() {
               </div>
               <div>
                 <label className="block text-sm text-[var(--t2)] mb-1">
-                  Min Year
+                  Year from
                 </label>
                 <input
-                  aria-label="Min Year"
+                  aria-label="Year from"
                   min="1886"
                   max={new Date().getFullYear() + 2}
                   step="1"
@@ -459,10 +459,10 @@ export default function SearchesPage() {
               </div>
               <div>
                 <label className="block text-sm text-[var(--t2)] mb-1">
-                  Max Year
+                  Year to
                 </label>
                 <input
-                  aria-label="Max Year"
+                  aria-label="Year to"
                   min="1886"
                   max={new Date().getFullYear() + 2}
                   step="1"
@@ -475,10 +475,10 @@ export default function SearchesPage() {
               </div>
               <div>
                 <label className="block text-sm text-[var(--t2)] mb-1">
-                  Max reported price ($)
+                  Price up to ($)
                 </label>
                 <input
-                  aria-label="Max reported price ($)"
+                  aria-label="Price up to ($)"
                   min="0"
                   step="1"
                   type="number"
@@ -491,10 +491,10 @@ export default function SearchesPage() {
               {flipDesk && (
                 <div>
                   <label className="block text-sm text-[var(--t2)] mb-1">
-                    Min Net Profit ($)
+                    Net profit from ($)
                   </label>
                   <input
-                    aria-label="Min Net Profit ($)"
+                    aria-label="Net profit from ($)"
                     min="0"
                     step="1"
                     type="number"

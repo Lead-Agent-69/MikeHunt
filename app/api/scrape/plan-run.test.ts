@@ -168,8 +168,8 @@ describe("scrape plan/run source scoping", () => {
     expect(body.links.sourceHealthHref).toContain("makes=Ford%2CToyota");
     expect(body.links.sourceHealthHref).toContain("minPrice=5000");
     expect(body.nextActions.verifySources).toContain("makes=Ford%2CToyota");
-    expect(body.links.scopeLabel).toContain("over $5,000");
-    expect(body.links.scopeLabel).toContain("under $10,000");
+    expect(body.links.scopeLabel).toContain("from $5,000");
+    expect(body.links.scopeLabel).toContain("up to $10,000");
     expect(body.links.scopeLabel).toContain("2 make focus");
     expect(body.contract).toMatchObject({
       canImport: true,

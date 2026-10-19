@@ -15,11 +15,17 @@ import { Layers, RefreshCw } from "lucide-react";
 import { SwipeCardStack } from "@/components/ui/framer-components";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
-import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
+import {
+  InventoryViewLinks,
+  InventoryViewNotice,
+} from "@/components/search/InventoryViewLinks";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
 import { savedScopeStates } from "@/lib/preferences/location-form";
-import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import {
+  inventoryScopeLabel,
+  inventoryViewUnavailableReason,
+} from "@/lib/search/inventory-view-scope";
 import {
   titleFilterOptions,
   titleTypeFromQuery,
@@ -98,10 +104,12 @@ export default function SwipePage() {
       params.set("state", homeState);
     return params.toString();
   }, [sharedQuery, homeState, titleFilter]);
-  const swipeReady = ready && !prefsLoading;
-  const scopeLabel =
-    inventoryScopeStates(new URLSearchParams(query))?.join(", ") ||
-    "Nationwide";
+  const viewIssue = inventoryViewUnavailableReason(
+    new URLSearchParams(query),
+    true,
+  );
+  const swipeReady = ready && !prefsLoading && !viewIssue;
+  const scopeLabel = inventoryScopeLabel(new URLSearchParams(query));
   const [batch, setBatch] = useState(0);
   // Bumped by "Start over" so a repeat of batch 0 still remounts the stack and clears counters.
   const [runId, setRunId] = useState(0);
@@ -242,6 +250,10 @@ export default function SwipePage() {
     decided >= cards.length &&
     !error;
 
+  if (ready && !prefsLoading && viewIssue)
+    return (
+      <InventoryViewNotice title="Swipe" query={query} message={viewIssue} />
+    );
   return (
     <div className="mx-auto w-full max-w-md space-y-5 pb-24 md:pb-8">
       {/* Header */}

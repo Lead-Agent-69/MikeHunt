@@ -163,15 +163,15 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <input
-          aria-label="Max price"
-          placeholder="Max price"
+          aria-label="Price up to"
+          placeholder="Price up to"
           inputMode="numeric"
           value={priceMax}
           onChange={(e) => setPriceMax(e.target.value)}
           className={FIELD}
         />
         <input
-          aria-label="ZIP"
+          aria-label="Search ZIP code"
           placeholder="ZIP"
           inputMode="numeric"
           maxLength={5}
@@ -180,7 +180,7 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <select
-          aria-label="Radius"
+          aria-label="Distance from ZIP"
           value={radius}
           onChange={(e) => setRadius(e.target.value)}
           className={FIELD}
@@ -205,16 +205,16 @@ export function AlsoSearchOn({
             className={FIELD}
           />
           <input
-            aria-label="Min price"
-            placeholder="Min price"
+            aria-label="Price from"
+            placeholder="Price from"
             inputMode="numeric"
             value={priceMin}
             onChange={(e) => setPriceMin(e.target.value)}
             className={FIELD}
           />
           <input
-            aria-label="Max miles"
-            placeholder="Max miles"
+            aria-label="Mileage up to"
+            placeholder="Mileage up to"
             inputMode="numeric"
             value={milesMax}
             onChange={(e) => setMilesMax(e.target.value)}

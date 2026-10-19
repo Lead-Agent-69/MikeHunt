@@ -69,7 +69,7 @@ export function NearbyDeals() {
       value={zip}
       onChange={(e) => setZip(e.target.value.replace(/\D/g, "").slice(0, 5))}
       placeholder="ZIP"
-      aria-label="Nearby ZIP code"
+      aria-label="Search ZIP code"
       className="min-h-12 w-24 rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
     />
   );
@@ -80,7 +80,7 @@ export function NearbyDeals() {
         <div className="mb-2 flex items-center gap-2">
           {zipBox}
           <span>
-            Enter a ZIP code to find vehicles within driving distance.
+            Enter a ZIP code to find vehicles within a selected distance.
           </span>
         </div>
       </div>
@@ -96,9 +96,7 @@ export function NearbyDeals() {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-[var(--t1)]">
-            {zipMode
-              ? `Within ${radius} miles of ${zip}`
-              : `${label} inventory`}
+            {zipMode ? `Within ${radius} mi of ${zip}` : `${label} inventory`}
           </h2>
           <p className="text-xs text-[var(--t4)]">
             City and state from each listing. Miles show only when distance is
@@ -108,7 +106,7 @@ export function NearbyDeals() {
         <div className="flex flex-wrap gap-2">
           {zipBox}
           <select
-            aria-label="Nearby radius"
+            aria-label="Distance from ZIP"
             value={radius}
             disabled={!zipMode}
             onChange={(event) => setRadius(event.target.value)}
@@ -143,7 +141,7 @@ export function NearbyDeals() {
       ) : deals.length === 0 ? (
         <p className="py-6 text-center text-xs text-[var(--t4)]">
           {zipMode
-            ? `No indexed vehicles within ${radius} miles yet.`
+            ? `No indexed vehicles within ${radius} mi yet.`
             : `No listings in ${label} yet.`}
         </p>
       ) : (
@@ -156,7 +154,7 @@ export function NearbyDeals() {
               .join(", ");
             const where =
               miles != null
-                ? `About ${Math.round(miles)} miles${zipMode ? ` from ${zip}` : ""}`
+                ? `About ${Math.round(miles)} mi${zipMode ? ` from ${zip}` : ""}`
                 : cityState || label;
             return (
               <Link

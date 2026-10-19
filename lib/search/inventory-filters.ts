@@ -13,6 +13,10 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import type { Database } from "@/types/supabase";
+import {
+  isListingSellerType,
+  SELLER_TYPE_SOURCE_DEFAULTS,
+} from "@/lib/deals/seller-type";
 
 const STORED_SOURCE_IDS = [
   "copart",
@@ -103,6 +107,24 @@ export function sellerTypeSourceValues(sellerType: string) {
     return ["craigslist", "facebook_marketplace", "offerup"];
   }
   return [];
+}
+
+/** A mixed marketplace is not seller evidence. Explicit listing data wins over source defaults. */
+export function applySellerTypes(query: any, types: string[]) {
+  const selected = Array.from(new Set(types)).filter(isListingSellerType);
+  if (!selected.length) return query;
+  return query.or(
+    selected
+      .flatMap((type) => [
+        `options->>sellerType.eq.${type}`,
+        ...(SELLER_TYPE_SOURCE_DEFAULTS[type].length
+          ? [
+              `and(options->>sellerType.is.null,source.in.(${SELLER_TYPE_SOURCE_DEFAULTS[type].join(",")}))`,
+            ]
+          : []),
+      ])
+      .join(","),
+  );
 }
 
 export function sourceUrlNeedles(sourceId: string) {
@@ -229,6 +251,9 @@ export function applyInventoryLane(query: any, lane: string) {
       "source",
       lane === "auction" ? sellerTypeSourceValues("auction") : ["gov_auction"],
     );
+  // Lanes describe acquisition channels. Seller-type filters are a separate,
+  // evidence-only constraint, so mixed marketplace inventory still belongs to
+  // its channel lane without being mislabeled as a private or dealer seller.
   if (lane === "private")
     return query.in("source", sellerTypeSourceValues("private"));
   if (lane === "clean-retail")

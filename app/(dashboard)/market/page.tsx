@@ -55,6 +55,7 @@ import {
 } from "@/components/shared/PriceRangeSelector";
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { sourceMatchLabel } from "@/lib/search/source-coverage";
+import { parseTitleTypes } from "@/lib/deals/title-category";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -168,6 +169,8 @@ function toggle(arr: string[], v: string): string[] {
 
 /** Keep shared legacy Scan/Discover links useful while Market Explorer becomes the one workspace. */
 function normalizeLegacyMarketParams(params: URLSearchParams) {
+  const titleTypes = parseTitleTypes(params.get("titleType"));
+  if (titleTypes.length) params.set("titleType", titleTypes.join(","));
   const copy = (legacy: string, current: string) => {
     const value = params.get(legacy);
     if (value != null && !params.has(current)) params.set(current, value);
@@ -195,22 +198,6 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
     else if (["private", "clean-retail"].includes(lane))
       params.set("lanes", lane);
   }
-  if (!params.has("conditions")) {
-    const conditions = (params.get("titleType") || "")
-      .split(",")
-      .map(
-        (value) =>
-          ({
-            clean: "clean_title",
-            rebuilt: "rebuilt_title",
-            salvage: "salvage_title",
-            rebuildable: "repairable",
-          })[value.trim().toLowerCase()],
-      )
-      .filter(Boolean);
-    if (conditions.length) params.set("conditions", conditions.join(","));
-  }
-
   const legacySort = params.get("sort");
   const sortMap: Record<string, [string, "asc" | "desc"]> = {
     price: ["askPrice", "asc"],
@@ -218,7 +205,7 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
     "price-desc": ["askPrice", "desc"],
     newest: ["lastSeenAt", "desc"],
     profit: ["profitEstimate", "desc"],
-    margin: ["profitEstimate", "desc"],
+    margin: ["priceGap", "desc"],
     score: ["profitScore", "desc"],
     mileage: ["mileage", "asc"],
     year: ["year", "desc"],
@@ -258,6 +245,8 @@ export default function MarketPage() {
   const [showMap, setShowMap] = React.useState(false);
   const set = (patch: Partial<Filters>) => {
     setPage(0);
+    if (patch.conditions)
+      setDetails((current) => ({ ...current, titleType: "" }));
     setF((p) => {
       const next = { ...p, ...patch };
       const area = normalizeMarketArea(next);
@@ -272,6 +261,8 @@ export default function MarketPage() {
   };
   const setDetail = (key: string, value: string) => {
     setPage(0);
+    if (key === "titleType")
+      setF((current) => ({ ...current, conditions: [] }));
     setDetails((current) => ({ ...current, [key]: value }));
   };
   const reset = () => {
@@ -286,6 +277,30 @@ export default function MarketPage() {
       normalizeLegacyMarketParams(params);
       const next = { ...EMPTY };
       if (!params.toString()) {
+        const buying = prefs.buyerScope;
+        for (const key of [
+          "minPrice",
+          "maxPrice",
+          "maxMileage",
+          "minYear",
+          "maxYear",
+        ] as const) {
+          const value = buying?.[key];
+          if (
+            value != null &&
+            Number.isFinite(value) &&
+            value >= (key === "maxMileage" ? 0 : 1)
+          )
+            params.set(key, String(value));
+        }
+        if (buying?.model) params.set("model", buying.model);
+        if (buying?.titleType) params.set("titleType", buying.titleType);
+        if (buying?.sellerType) params.set("sellerType", buying.sellerType);
+        const makes = buying?.makes || buying?.preferredMakes;
+        if (makes?.length) params.set("makes", makes.join(","));
+        if (typeof buying?.includeRepairable === "boolean")
+          params.set("includeRepairable", buying.includeRepairable ? "1" : "0");
+        normalizeLegacyMarketParams(params);
         if (/^\d{5}$/.test(prefs.homeLocation?.zip || "")) {
           next.near = prefs.homeLocation!.zip!;
           next.radius = String(prefs.homeLocation?.radiusMi || 100);
@@ -301,7 +316,14 @@ export default function MarketPage() {
         const value = params.get(key);
         if (value == null) continue;
         if (Array.isArray(EMPTY[key]))
-          (next as any)[key] = value.split(",").filter(Boolean);
+          (next as any)[key] = value
+            .split(",")
+            .map((entry) => entry.trim())
+            .filter(
+              (entry) =>
+                entry &&
+                !["all", "any", "nationwide"].includes(entry.toLowerCase()),
+            );
         else (next as any)[key] = value;
       }
       next.mode = next.mode === "curated" ? "curated" : "all";
@@ -310,6 +332,7 @@ export default function MarketPage() {
         ![
           "askPrice",
           "profitEstimate",
+          "priceGap",
           "profitScore",
           "sellEstimate",
           "mileage",
@@ -336,7 +359,13 @@ export default function MarketPage() {
       window.removeEventListener("popstate", restore);
       window.removeEventListener("inventory-scope-change", restore);
     };
-  }, [prefsLoading, prefs.homeLocation, prefs.carsStates, prefs.carsState]);
+  }, [
+    prefsLoading,
+    prefs.homeLocation,
+    prefs.carsStates,
+    prefs.carsState,
+    prefs.buyerScope,
+  ]);
 
   const qs = React.useMemo(() => {
     const p = new URLSearchParams();
@@ -391,8 +420,7 @@ export default function MarketPage() {
       const vehicle = [f.makes.filter(Boolean).join(" + "), f.model]
         .filter(Boolean)
         .join(" ");
-      const location =
-        f.near || (f.states.length ? f.states.join(" + ") : "Nationwide");
+      const location = searchAreaLabel(f);
       const saved = saveLocalSavedSearch({
         name: [vehicle || f.q.trim() || "All vehicles", location]
           .filter(Boolean)
@@ -447,6 +475,17 @@ export default function MarketPage() {
     laneColors: {},
   };
   const total: number = data?.total ?? 0;
+  const areaSummary = searchAreaLabel(f);
+  const quickSourceOptions = INVENTORY_SOURCE_FILTERS.filter(
+    (source) =>
+      (data?.sourceCoverage?.counts?.[source.id] ?? 0) > 0 ||
+      f.sources.includes(source.id),
+  ).sort((left, right) => {
+    const countDifference =
+      (data?.sourceCoverage?.counts?.[right.id] ?? 0) -
+      (data?.sourceCoverage?.counts?.[left.id] ?? 0);
+    return countDifference || left.name.localeCompare(right.name);
+  });
   const activeCount =
     Object.values(details).filter(Boolean).length +
     (f.priceKind ? 1 : 0) +
@@ -493,15 +532,15 @@ export default function MarketPage() {
     makes: "Makes",
     sources: "Sources",
     model: "Model",
-    minMileage: "Miles from",
-    mileageMax: "Miles to",
+    minMileage: "Mileage from",
+    mileageMax: "Mileage up to",
     categories: "Vehicle types",
     conditions: "Condition",
     verdicts: "Verdict",
     sellerTypes: "Sellers",
     minRoi: "ROI from (%)",
-    priceMin: "Listed price from ($)",
-    priceMax: "Listed price to ($)",
+    priceMin: "Price from ($)",
+    priceMax: "Price up to ($)",
     yearMin: "Year from",
     yearMax: "Year to",
     minProfit: "Profit from ($)",
@@ -632,6 +671,7 @@ export default function MarketPage() {
         </div>
         <MarketSearchActions
           onSave={saveCurrentSearch}
+          disabled={!ready}
           onReset={reset}
           onCopy={async () => {
             try {
@@ -662,6 +702,103 @@ export default function MarketPage() {
             },
           }}
         />
+      )}
+      <section
+        aria-label="Everyday search filters"
+        aria-busy={!ready}
+        className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-3 lg:grid-cols-6"
+      >
+        {(
+          [
+            ["makes", "Make", f.makes.join(","), "Any make"],
+            ["model", "Model", f.model, "Any model"],
+            ["priceMax", "Price up to ($)", f.priceMax, "Any price"],
+            ["mileageMax", "Mileage up to", f.mileageMax, "Any mileage"],
+          ] as const
+        ).map(([key, label, value, placeholder]) => (
+          <label
+            key={key}
+            className="min-w-0 text-xs font-semibold text-[var(--t2)]"
+          >
+            {label}
+            <input
+              aria-label={`Quick ${label.toLowerCase()}`}
+              disabled={!ready}
+              value={value}
+              placeholder={placeholder}
+              type={
+                key === "priceMax" || key === "mileageMax" ? "number" : "text"
+              }
+              min={key === "priceMax" || key === "mileageMax" ? "0" : undefined}
+              className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+              onChange={(event) =>
+                set({
+                  [key]:
+                    key === "makes"
+                      ? event.target.value.split(",")
+                      : event.target.value,
+                })
+              }
+            />
+          </label>
+        ))}
+        <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+          Source or dealer
+          <select
+            aria-label="Quick source or dealer"
+            disabled={!ready || busy}
+            value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
+            onChange={(event) =>
+              set({ sources: event.target.value ? [event.target.value] : [] })
+            }
+            className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+          >
+            {f.sources.length > 1 && (
+              <option value="__selected" disabled>
+                {f.sources.length} selected sources
+              </option>
+            )}
+            <option value="">All sources</option>
+            {quickSourceOptions.map((source) => (
+              <option key={source.id} value={source.id}>
+                {source.name} -{" "}
+                {sourceMatchLabel(source.id, data?.sourceCoverage, {
+                  busy,
+                  error: !!error,
+                })}
+                {data?.sourceCoverage?.accessReviewIds?.includes(source.id)
+                  ? " - Access review"
+                  : ""}
+              </option>
+            ))}
+            {!data?.sourceCoverage ? (
+              <option value="__loading" disabled>
+                Source matches load with results
+              </option>
+            ) : quickSourceOptions.length < INVENTORY_SOURCE_FILTERS.length ? (
+              <option value="__browse" disabled>
+                Browse every source in All filters
+              </option>
+            ) : null}
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={() => {
+            setShowFilters(true);
+            setShowInsights(false);
+          }}
+          disabled={!ready}
+          className="min-h-11 self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
+        >
+          All filters
+        </button>
+      </section>
+      {["7", "30"].includes(details.seenWithin) && (
+        <p role="status" className="text-xs text-[var(--t3)]">
+          Includes older observations. Confirm current price and availability
+          with the seller.
+        </p>
       )}
       <nav
         aria-label="Market workspace"
@@ -1171,18 +1308,18 @@ export default function MarketPage() {
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <NumIn
-                    ph="miles ≥"
+                    label="Mileage from"
                     v={f.minMileage}
                     on={(value) => set({ minMileage: value })}
                   />
                   <NumIn
-                    ph="miles ≤"
+                    label="Mileage up to"
                     v={f.mileageMax}
                     on={(value) => set({ mileageMax: value })}
                   />
                   {flipDesk && (
                     <NumIn
-                      ph="profit ≥"
+                      label="Profit from ($)"
                       v={f.minProfit}
                       on={(value) => set({ minProfit: value })}
                       full
@@ -1306,11 +1443,7 @@ export default function MarketPage() {
                       {total.toLocaleString()}
                     </strong>{" "}
                     {data?.mode === "curated" ? "curated" : "market"} matches
-                    {data?.location?.radius
-                      ? ` · ${data.location.radius} mi radius`
-                      : f.states.length
-                        ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
-                        : " · all states"}
+                    {` · ${areaSummary}`}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
                 )}
@@ -1318,7 +1451,7 @@ export default function MarketPage() {
             </div>
             <div
               aria-label="Result view"
-              className="col-start-2 row-start-2 flex gap-1 sm:row-start-1"
+              className="col-span-2 row-start-3 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
             >
               <button
                 type="button"
@@ -1355,9 +1488,10 @@ export default function MarketPage() {
                 const [sort, sortDir] = e.target.value.split(":");
                 set({ sort, sortDir: sortDir as "asc" | "desc" });
               }}
-              className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-start-3 sm:row-start-1 sm:!w-52"
+              className="field col-span-2 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
             >
-              <option value="lastSeenAt:desc">Last seen ↓</option>
+              <option value="lastSeenAt:desc">Recently seen</option>
+              <option value="priceGap:desc">Below estimate ↓</option>
               {(f.near || f.lat) && (
                 <option value="distanceMiles:asc">Nearest first</option>
               )}
@@ -1592,25 +1726,30 @@ function FilterPanel({
 }
 
 function NumIn({
-  ph,
+  label,
   v,
   on,
   full,
 }: {
-  ph: string;
+  label: string;
   v: string;
   on: (v: string) => void;
   full?: boolean;
 }) {
   return (
-    <input
-      aria-label={ph}
-      inputMode="numeric"
-      placeholder={ph}
-      value={v}
-      onChange={(e) => on(e.target.value.replace(/[^0-9]/g, ""))}
-      className={`field text-xs ${full ? "col-span-2" : ""}`}
-    />
+    <label
+      className={`flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--t3)] ${full ? "col-span-2" : ""}`}
+    >
+      {label}
+      <input
+        aria-label={label}
+        inputMode="numeric"
+        placeholder="Any"
+        value={v}
+        onChange={(e) => on(e.target.value.replace(/[^0-9]/g, ""))}
+        className="field min-h-11 min-w-0 !w-full text-sm"
+      />
+    </label>
   );
 }
 

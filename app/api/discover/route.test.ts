@@ -138,6 +138,42 @@ const baseRow = {
 };
 
 describe("GET /api/discover scoped feed contract", () => {
+  it("applies model, year and mileage limits to every rail, rejecting unknown mileage", async () => {
+    const row = {
+      ...baseRow,
+      source: "independent_dealer",
+      source_url: "https://dealer.example/car",
+      auction_end_at: null,
+      condition: "clean_title",
+      damage_type: null,
+      model: "Escape",
+      year: 2021,
+      mileage: 45000,
+    };
+    rpc.mockResolvedValue({
+      data: [
+        row,
+        { ...row, id: "high-miles", mileage: 80000 },
+        { ...row, id: "unknown-miles", mileage: null },
+        { ...row, id: "old", year: 2010 },
+        { ...row, id: "wrong-model", model: "Bronco" },
+      ],
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const body = await (
+      await GET(
+        req(
+          "/api/discover?model=Escape&minYear=2020&maxYear=2026&maxMileage=50000",
+        ),
+      )
+    ).json();
+    expect(body.uniqueVehicles).toBe(1);
+    for (const rail of body.rails)
+      for (const deal of rail.deals) expect(deal.id).toBe("deal-1");
+    const invalid = await GET(req("/api/discover?minYear=2026&maxYear=2020"));
+    expect(invalid.status).toBe(400);
+  });
   it("preserves unknown aggregator seller types and keeps explicit bids out of ordinary feeds", async () => {
     const row = {
       ...baseRow,
@@ -194,6 +230,47 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(
       (await (await GET(req("/api/discover"))).json()).uniqueVehicles,
     ).toBe(0);
+  });
+
+  it("uses seller evidence consistently instead of guessing from a mixed marketplace", async () => {
+    const mixed = {
+      ...baseRow,
+      source: "facebook_marketplace",
+      source_url: "https://www.facebook.com/marketplace/item/123",
+      condition: "clean_title",
+      damage_type: null,
+      seller: null,
+      seller_type: null,
+      auction_end_at: null,
+      options: {},
+    };
+    rpc.mockResolvedValue({ data: [mixed], error: null });
+    const { GET } = await import("./route");
+    const all = await (await GET(req("/api/discover?sellerType=all"))).json();
+    expect(all.uniqueVehicles).toBe(1);
+    expect(all.rails.flatMap((rail: any) => rail.deals)[0].sellerType).toBe("");
+    expect(
+      (await (await GET(req("/api/discover?sellerType=private"))).json())
+        .uniqueVehicles,
+    ).toBe(0);
+
+    rpc.mockResolvedValue({
+      data: [{ ...mixed, options: { sellerType: "private" } }],
+      error: null,
+    });
+    expect(
+      (await (await GET(req("/api/discover?sellerType=private"))).json())
+        .uniqueVehicles,
+    ).toBe(1);
+
+    rpc.mockResolvedValue({
+      data: [{ ...mixed, source: "carvana", source_url: "" }],
+      error: null,
+    });
+    expect(
+      (await (await GET(req("/api/discover?sellerType=dealer"))).json())
+        .uniqueVehicles,
+    ).toBe(1);
   });
   it("excludes ended auctions from rails and coverage while keeping unknown closing times", async () => {
     rpc.mockResolvedValueOnce({

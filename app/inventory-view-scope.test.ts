@@ -1,7 +1,10 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { inventoryScopeStates } from "@/lib/search/inventory-view-scope";
+import {
+  inventoryScopeStates,
+  inventoryScopeLabel,
+} from "@/lib/search/inventory-view-scope";
 const saved = vi.hoisted(() => ({ states: undefined as string[] | undefined }));
 
 vi.mock("@/hooks/useBuyerIntent", () => ({
@@ -38,6 +41,42 @@ afterEach(() => {
 });
 
 describe("cross-view scope preservation", () => {
+  it("labels a radius search as local rather than nationwide", () => {
+    expect(
+      inventoryScopeLabel(new URLSearchParams("zip=63101&radius=50")),
+    ).toBe("Within 50 mi of 63101");
+    expect(
+      inventoryScopeLabel(new URLSearchParams("zip=63101&radius=-1")),
+    ).toBe("Within 100 mi of 63101");
+    expect(inventoryScopeLabel(new URLSearchParams("states=MO,IL"))).toBe(
+      "MO, IL",
+    );
+  });
+  it("keeps unsupported wider searches in Results instead of silently narrowing other views", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/map?scope=explicit&zip=63101&radius=1000",
+    );
+    await act(async () => root.render(React.createElement(Surface)));
+    expect(
+      host.querySelector('a[href^="/map"]')!.getAttribute("aria-disabled"),
+    ).toBe("true");
+    expect(
+      host.querySelector('a[href^="/market"]')!.getAttribute("aria-disabled"),
+    ).toBeNull();
+    expect(host.textContent).toContain(
+      "wider search stays available in Results",
+    );
+  });
+  it("explains photo-only views without silently removing the no-photo constraint", async () => {
+    window.history.replaceState(null, "", "/map?scope=explicit&hasPhotos=no");
+    await act(async () => root.render(React.createElement(Surface)));
+    const feed = host.querySelector('a[href^="/feed"]')!;
+    expect(feed.getAttribute("aria-disabled")).toBe("true");
+    expect(feed.getAttribute("href")).toContain("hasPhotos=no");
+    expect(host.textContent).toContain("Feed and Swipe require photos");
+  });
   it("preserves every selected market rather than just the onboarding state", async () => {
     saved.states = ["MO", "TX", "IL", "FL"];
     await act(async () => root.render(React.createElement(Surface)));

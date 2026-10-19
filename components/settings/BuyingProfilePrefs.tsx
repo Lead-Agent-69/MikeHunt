@@ -68,6 +68,26 @@ export function BuyingProfilePrefs() {
   }, [prefs.buyerScope, isLoading]);
 
   async function submit() {
+    const numeric = [draft.maxMileage, draft.minYear, draft.maxYear];
+    if (
+      numeric.some(
+        (value) => value != null && (!Number.isSafeInteger(value) || value < 0),
+      ) ||
+      [draft.minYear, draft.maxYear].some(
+        (value) =>
+          value != null &&
+          (value < 1886 || value > new Date().getFullYear() + 2),
+      ) ||
+      (draft.minYear != null &&
+        draft.maxYear != null &&
+        draft.minYear > draft.maxYear)
+    ) {
+      setFailed(true);
+      setStatus(
+        "Enter valid whole-number mileage and years. The earliest year must not exceed the latest.",
+      );
+      return;
+    }
     const min = draft.minPrice ?? 0;
     const max = draft.maxPrice ?? 0;
     if (
@@ -158,7 +178,7 @@ export function BuyingProfilePrefs() {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            Minimum price ($)
+            Budget from ($)
             <input
               className={field}
               type="number"
@@ -171,7 +191,7 @@ export function BuyingProfilePrefs() {
             />
           </label>
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            Maximum price ($)
+            Budget up to ($)
             <input
               className={field}
               type="number"
@@ -184,15 +204,58 @@ export function BuyingProfilePrefs() {
             />
           </label>
         </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="min-w-0 text-sm text-[var(--t2)]">
+            Preferred model
+            <input
+              className={field}
+              value={draft.model || ""}
+              maxLength={60}
+              placeholder="Any model"
+              onChange={(event) =>
+                setDraft({ ...draft, model: event.target.value })
+              }
+            />
+          </label>
+          {(
+            [
+              ["maxMileage", "Mileage up to"],
+              ["minYear", "Earliest year"],
+              ["maxYear", "Latest year"],
+            ] as const
+          ).map(([key, label]) => (
+            <label key={key} className="min-w-0 text-sm text-[var(--t2)]">
+              {label}
+              <input
+                className={field}
+                type="number"
+                min={key === "maxMileage" ? 0 : 1886}
+                step="1"
+                value={draft[key] ?? ""}
+                placeholder="Any"
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    [key]:
+                      event.target.value === ""
+                        ? null
+                        : Number(event.target.value),
+                  })
+                }
+              />
+            </label>
+          ))}
+        </div>
         <div className="grid gap-3 lg:grid-cols-2">
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
               Title status
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
                 ["all", "Any"],
                 ["clean", "Clean"],
+                ["rebuilt", "Rebuilt"],
                 ["salvage", "Salvage"],
               ].map(([value, label]) => (
                 <Choice

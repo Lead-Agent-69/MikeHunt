@@ -19,6 +19,7 @@ import {
   sourceMeta,
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import {
   TOS_RESTRICTED_SOURCES,
@@ -285,24 +286,7 @@ function matchesScope(row: any, scope: HealthScope) {
 }
 
 function rowSellerType(row: any) {
-  const explicit = String(
-    row.seller_type || row.sellerType || "",
-  ).toLowerCase();
-  if (["dealer", "auction", "private"].includes(explicit)) return explicit;
-  const sourceKey =
-    sourceFromUrl(String(row.source_url || "")) || String(row.source || "");
-  const meta = sourceMeta(sourceKey);
-  if (
-    meta.channel === "gov" ||
-    meta.channel === "auction" ||
-    meta.channel === "salvage" ||
-    meta.channel === "wholesale"
-  ) {
-    return "auction";
-  }
-  if (meta.channel === "dealer" || meta.channel === "retail") return "dealer";
-  if (meta.channel === "private") return "private";
-  return "";
+  return sellerTypeEvidence(row) || "";
 }
 
 function present(value: unknown) {
@@ -500,10 +484,10 @@ function broadenScopeAction(scope?: HealthScope) {
     return `No rows matched "${scope.q}". Try a broader vehicle type or clear the keyword.`;
   }
   if (scope.maxPrice) {
-    return `No rows under ${formatCurrency(scope.maxPrice)}. Raise the budget or clear max price.`;
+    return `No rows priced up to ${formatCurrency(scope.maxPrice)}. Raise the budget or clear the price limit.`;
   }
   if (scope.minPrice) {
-    return `No rows over ${formatCurrency(scope.minPrice)}. Lower the minimum price or clear min price.`;
+    return `No rows at or above ${formatCurrency(scope.minPrice)}. Lower or clear the price floor.`;
   }
   return "Run a broader scope or wait for fresh inventory from this source.";
 }
@@ -745,8 +729,8 @@ function scopeParts(scope: HealthScope) {
     scope.makes?.length ? `${scope.makes.length} make focus` : null,
     scope.model || null,
     scope.state || null,
-    scope.minPrice ? `over ${formatCurrency(scope.minPrice)}` : null,
-    scope.maxPrice ? `under ${formatCurrency(scope.maxPrice)}` : null,
+    scope.minPrice ? `from ${formatCurrency(scope.minPrice)}` : null,
+    scope.maxPrice ? `up to ${formatCurrency(scope.maxPrice)}` : null,
     scope.dealerHosts?.length
       ? `${scope.dealerHosts.length} watched dealer${
           scope.dealerHosts.length === 1 ? "" : "s"

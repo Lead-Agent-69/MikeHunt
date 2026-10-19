@@ -6,6 +6,42 @@ import {
 } from "./customer-inventory";
 
 describe("customer inventory eligibility", () => {
+  it.each([1, 7, 30])(
+    "honors an explicit %i-day research window without accepting future rows",
+    (days) => {
+      const query: any = {};
+      for (const method of ["not", "neq", "gte", "lte", "or"])
+        query[method] = vi.fn(() => query);
+      const now = Date.parse("2026-10-18T12:00:00Z");
+      applyCustomerInventory(query, now, {
+        observedDays: days,
+        includeWithoutPhotos: true,
+      });
+      expect(query.gte).toHaveBeenCalledWith(
+        "last_seen_at",
+        new Date(now - days * 86400000).toISOString(),
+      );
+      expect(query.lte).toHaveBeenCalledWith(
+        "last_seen_at",
+        new Date(now).toISOString(),
+      );
+      expect(query.not).not.toHaveBeenCalled();
+    },
+  );
+  it.each([0, -1, 365, NaN, Infinity])(
+    "cannot widen inventory through an unsupported window %s",
+    (days) => {
+      const query: any = {};
+      for (const method of ["not", "neq", "gte", "lte", "or"])
+        query[method] = vi.fn(() => query);
+      const now = Date.parse("2026-10-18T12:00:00Z");
+      applyCustomerInventory(query, now, { observedDays: days });
+      expect(query.gte).toHaveBeenCalledWith(
+        "last_seen_at",
+        "2026-10-15T12:00:00.000Z",
+      );
+    },
+  );
   it("rejects stale, unobserved, future and photo-less RPC rows", () => {
     const now = Date.parse("2026-10-13T12:00:00Z");
     const row = {

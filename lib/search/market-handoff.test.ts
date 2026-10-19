@@ -75,7 +75,7 @@ describe("wider market handoff", () => {
     expect(url.searchParams.get("transmission")).toBe("man");
     expect(url.searchParams.get("trim_kw")).toBe("A&B");
     expect(url.searchParams.has("maxprice")).toBe(false);
-    expect(result.reapply).toContain("Maximum price: NaN");
+    expect(result.reapply).toContain("Price up to: NaN");
     expect(result.reapply).toContain("State: XX");
     expect(result.reapply).toContain("Fuel: Electric");
   });
@@ -138,8 +138,8 @@ describe("wider market handoff", () => {
     expect(local.reapply).toContain("Damage: flood");
     expect(local.reapply).toContain("Repairable vehicles: excluded");
     const auction = results.find((r) => r.id === "ebay_motors")!;
-    expect(auction.reapply).toContain("Maximum year: 2022");
-    expect(auction.carried).not.toContain("Maximum year: 2022");
+    expect(auction.reapply).toContain("Year up to: 2022");
+    expect(auction.carried).not.toContain("Year up to: 2022");
   });
   it("does not call invalid or unconfirmed enum parameters transferred", () => {
     const results = marketHandoffs(
@@ -187,11 +187,11 @@ describe("wider market handoff", () => {
     ).find((r) => r.id === "cars_com")!;
     expect(new URL(cars.href).searchParams.get("maximum_distance")).toBe("75");
     expect(cars.reapply.join(" ")).toContain("distance options differ");
-    expect(cars.carried).not.toContain("Radius (mi): 60");
+    expect(cars.carried).not.toContain("Distance from ZIP (mi): 60");
     const cl = marketHandoffs(
       new URLSearchParams("make=Honda&zip=60601&radius=99999"),
     ).find((r) => r.id === "craigslist")!;
-    expect(cl.carried).toContain("Radius (mi): 500");
+    expect(cl.carried).toContain("Distance from ZIP (mi): 500");
     expect(cl.carried.join(" ")).not.toContain("99999");
   });
 });

@@ -11,8 +11,9 @@ import {
   applyRepairEligibility,
   applySelectedSources,
   applyVehicleDetails,
-  sellerTypeSourceValues,
+  applySellerTypes,
 } from "./inventory-filters";
+import { DEFAULT_RADIUS_MI, MAX_RADIUS_MI } from "./zip-radius-scope";
 
 export const INVENTORY_SEARCH_KEYS = Array.from(
   new Set([
@@ -69,9 +70,39 @@ export function inventoryScopeStates(
   return undefined;
 }
 
+export function inventoryScopeLabel(params: URLSearchParams) {
+  const zip = params.get("zip");
+  const requested = Number(params.get("radius"));
+  const radius =
+    Number.isFinite(requested) && requested > 0
+      ? Math.max(5, Math.round(requested))
+      : DEFAULT_RADIUS_MI;
+  if (zip)
+    return /^\d{5}$/.test(zip)
+      ? `Within ${radius} mi of ${zip}`
+      : "Location needs checking";
+  return inventoryScopeStates(params)?.join(", ") || "Nationwide";
+}
+
+export function inventoryViewUnavailableReason(
+  params: URLSearchParams,
+  photosRequired = false,
+): string | null {
+  if (params.get("zip") && Number(params.get("radius")) > MAX_RADIUS_MI)
+    return `This view supports up to ${MAX_RADIUS_MI} miles. Your full-radius search remains available in Results.`;
+  if (photosRequired && params.get("hasPhotos") === "no")
+    return "This view requires photos. Your search for listings without photos remains available in Results.";
+  return null;
+}
+
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   let q = applyVehicleDetails(
-    applyLiveAuctionWindow(applyCustomerInventory(query)),
+    applyLiveAuctionWindow(
+      applyCustomerInventory(query, Date.now(), {
+        includeWithoutPhotos: params.get("hasPhotos") === "no",
+        observedDays: Number(params.get("seenWithin")),
+      }),
+    ),
     params,
   );
   q = applyInventoryLane(q, params.get("lane") || "all");
@@ -128,8 +159,7 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     ["maxYear", "year", "lte"],
   ])
     if (params.get(key)) q = q[method](column, Number(params.get(key)));
-  const sellers = sellerTypeSourceValues(params.get("sellerType") || "");
-  if (sellers.length) q = q.in("source", sellers);
+  q = applySellerTypes(q, [params.get("sellerType") || ""]);
   // titleType=clean|rebuilt|salvage|rebuildable|unknown (comma-multi) on the condition enum.
   const titleFilter = titleCategoryOrFilter(
     parseTitleTypes(params.get("titleType")),

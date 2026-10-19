@@ -88,6 +88,55 @@ const request = (search: string) =>
   GET(new NextRequest(`https://example.test/api/market/explore?${search}`));
 
 describe("Market inventory filtering and pagination", () => {
+  it("keeps unknown-title and no-repair constraints instead of broadening a shared search", async () => {
+    const response = await request("titleType=unknown&includeRepairable=0");
+    expect(response.status).toBe(200);
+    expect(state.calls).toContainEqual([
+      "or",
+      "condition.in.(run_drive,flood,fire,hail),condition.is.null",
+    ]);
+    expect(state.calls).toContainEqual([
+      "or",
+      "condition.is.null,condition.in.(clean_title,run_drive)",
+    ]);
+  });
+  it("sorts a qualified asking-price gap separately from net profit and places unsupported prices last", async () => {
+    const listing = {
+      source: "independent_dealer",
+      source_url: "https://dealer.example/vehicle/123",
+      ask_price: 10000,
+      sell_estimate: 20000,
+      last_seen_at: new Date().toISOString(),
+      price_evidence: { kind: "asking", askingPrice: 10000 },
+      deal_analysis: {
+        valuation: {
+          resaleEvidence: true,
+          source: "comparables",
+          compCount: 5,
+          compKind: "ask",
+          confidence: "medium",
+        },
+      },
+    };
+    state.rows = [
+      {
+        ...listing,
+        id: "low-gap",
+        sell_estimate: 12000,
+        true_net_profit: 9000,
+      },
+      { ...listing, id: "high-gap", true_net_profit: 100 },
+      { ...listing, id: "unverified", price_evidence: { kind: "unknown" } },
+    ];
+    const body = await (await request("sort=priceGap&sortDir=desc")).json();
+    expect(body.rows.map((row: any) => row.id)).toEqual([
+      "high-gap",
+      "low-gap",
+      "unverified",
+    ]);
+    expect(body.rows[0].priceGap).toBe(10000);
+    expect(body.rows[2].priceGap).toBeUndefined();
+  });
   beforeEach(() => {
     invalidate();
     state.calls = [];

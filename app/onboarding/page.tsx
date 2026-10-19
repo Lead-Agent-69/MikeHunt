@@ -464,7 +464,7 @@ export default function OnboardingPage() {
             </div>
             <p className="mt-2 text-sm font-bold text-[var(--t2)]">
               {vehicle} · {state || "Nationwide"}
-              {maxPrice ? ` · under $${Number(maxPrice).toLocaleString()}` : ""}
+              {maxPrice ? ` · up to $${Number(maxPrice).toLocaleString()}` : ""}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-[var(--t4)]">
               Price evidence · Repair risk · Total purchase cost

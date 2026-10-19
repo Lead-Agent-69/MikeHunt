@@ -7,6 +7,7 @@ import {
 } from "@/lib/intelligence/repair-risk";
 
 import { NextRequest, NextResponse } from "next/server";
+import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
   isCustomerInventory,
   listingPhotos,
@@ -65,9 +66,9 @@ import { analyzeDeal } from "@/lib/scoring/deal-analyzer";
 import {
   DEALER_SOURCE_DOMAINS,
   dealerSourceIdFromUrl,
-  sourceFromUrl,
   sourceMeta,
 } from "@/lib/sources/source-meta";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { sellerContactFields } from "@/lib/data/deal-contact";
 import {
   redactListingForNonFlipDesk,
@@ -237,30 +238,12 @@ function rowSellerType(row: any) {
     String(row.source_deal_id || "").startsWith("at-")
   )
     return "";
-  const explicit = String(
-    row.seller_type || row.sellerType || options.sellerType || "",
-  ).toLowerCase();
-  if (["dealer", "auction", "private"].includes(explicit)) return explicit;
   if (
     options.aggregator === "autotempest" ||
     String(row.source_deal_id || "").startsWith("at-")
   )
     return "";
-  const sourceKey =
-    sourceFromUrl(String(row.source_url || row.sourceUrl || "")) ||
-    String(row.source || "");
-  const channel = sourceMeta(sourceKey).channel;
-  if (
-    channel === "auction" ||
-    channel === "salvage" ||
-    channel === "wholesale" ||
-    channel === "gov"
-  ) {
-    return "auction";
-  }
-  if (channel === "dealer" || channel === "retail") return "dealer";
-  if (channel === "private" || channel === "marketplace") return "private";
-  return "";
+  return sellerTypeEvidence(row) || "";
 }
 
 function rowOptions(row: any) {
@@ -350,10 +333,10 @@ function buyerScopeReasons(
     reasons.push(`${dealState} match`);
   }
   if (opts.maxPrice && Number(deal.askPrice || deal.ask_price || 0) > 0) {
-    reasons.push(`under $${opts.maxPrice.toLocaleString()}`);
+    reasons.push(`asking price up to $${opts.maxPrice.toLocaleString()}`);
   }
   if (opts.minPrice && Number(deal.askPrice || deal.ask_price || 0) > 0) {
-    reasons.push(`over $${opts.minPrice.toLocaleString()}`);
+    reasons.push(`asking price from $${opts.minPrice.toLocaleString()}`);
   }
   if (opts.titleType && opts.titleType !== "all") {
     reasons.push(`${opts.titleType} title scope`);
@@ -567,6 +550,44 @@ export async function GET(request: NextRequest) {
       .filter(Boolean);
     const maxPrice = parseInt(searchParams.get("maxPrice") || "0");
     const minPrice = parseInt(searchParams.get("minPrice") || "0");
+    const vehicleLimits = new URLSearchParams();
+    for (const key of ["minYear", "maxYear", "maxMileage"]) {
+      if (searchParams.has(key)) vehicleLimits.set(key, searchParams.get(key)!);
+    }
+    const rangeError = validateInventoryRanges(vehicleLimits);
+    if (rangeError)
+      return NextResponse.json({ error: rangeError }, { status: 400 });
+    const requestedModel = normalizeQuery(searchParams.get("model"));
+    vehicleLimits.set("model", requestedModel);
+    const matchesLimits = (row: any) => {
+      if (
+        requestedModel &&
+        !normalizeQuery(String(row.model || "")).includes(requestedModel)
+      )
+        return false;
+      for (const [key, field, minimum] of [
+        ["minYear", "year", true],
+        ["maxYear", "year", false],
+        ["maxMileage", "mileage", false],
+      ] as const) {
+        if (!vehicleLimits.has(key)) continue;
+        const value = row[field];
+        if (
+          value == null ||
+          value === "" ||
+          !Number.isFinite(Number(value)) ||
+          Number(value) < 0
+        )
+          return false;
+        if (
+          minimum
+            ? Number(value) < Number(vehicleLimits.get(key))
+            : Number(value) > Number(vehicleLimits.get(key))
+        )
+          return false;
+      }
+      return true;
+    };
     // Discover is an entry point, not an export. Keep the first response focused and let callers
     // opt into a slightly deeper rail without serializing the same vehicle hundreds of times.
     const requestedRailDepth = parseInt(searchParams.get("railDepth") || "12");
@@ -591,7 +612,7 @@ export async function GET(request: NextRequest) {
 
     if (!isSupabaseConfigured()) {
       const previewDeals = await cached(
-        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}`,
+        `discover:public-preview:${state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "all"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:${vehicleLimits}`,
         60_000,
         () =>
           publicPreviewDeals(
@@ -606,8 +627,9 @@ export async function GET(request: NextRequest) {
       );
       const eligiblePreview = previewDeals.deals.filter(
         (row: any) =>
-          !excludeRepairable ||
-          !hasReportedRepairRisk(row.condition, row.damageType, row.title),
+          matchesLimits(row) &&
+          (!excludeRepairable ||
+            !hasReportedRepairRisk(row.condition, row.damageType, row.title)),
       );
       return NextResponse.json({
         rails: eligiblePreview.length
@@ -652,7 +674,7 @@ export async function GET(request: NextRequest) {
     // per-request below from this cached, graded set (cheap), so it stays current.
     const DISCOVER_ROW_CAP = 2000;
     const { merged, rowCount, marketListingCount, coverage } = await cached(
-      `discover:recent-2000:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}`,
+      `discover:recent-2000:${scopeStates.length ? scopeStates.join("-") : state || "all"}:${minPrice || 0}:${maxPrice || 0}:${q || "any"}:${lane || "any"}:${sellerType || "all"}:${titleType || "any"}:${dealerSourceIds.join("-") || "all"}:${makesKey}:repair-${excludeRepairable}:${vehicleLimits}`,
       45_000,
       async (): Promise<{
         merged: any[];
@@ -681,6 +703,7 @@ export async function GET(request: NextRequest) {
             )
           : [];
         const rows: any[] = marketRows.filter((row: any) => {
+          if (!matchesLimits(row)) return false;
           if (
             excludeRepairable &&
             hasReportedRepairRisk(row.condition, row.damage_type, row.title)
@@ -1115,8 +1138,8 @@ export async function GET(request: NextRequest) {
       },
       {
         key: "budget",
-        title: "Under $10k",
-        subtitle: "Reported prices under $10,000; verify terms and condition",
+        title: "Below $10k",
+        subtitle: "Reported prices below $10,000; verify terms and conditions",
         deals: budget,
       },
       {

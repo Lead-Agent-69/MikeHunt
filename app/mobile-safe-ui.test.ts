@@ -88,7 +88,8 @@ describe("mobile fixed UI surfaces", () => {
     expect(topNav).toContain("lg:hidden xl:block");
     expect(topNav).toContain("hidden items-center justify-end gap-2 lg:flex");
     expect(topNav).toContain("flex items-center justify-end gap-2 lg:hidden");
-    expect(topNav).toContain("max-w-[88px]");
+    expect(topNav).toContain("max-w-[92px]");
+    expect(topNav).toContain("min-[390px]:max-w-[116px]");
     expect(topNav).toContain("navItemIsActive(item, pathname)");
     expect(topNav).toContain("prefetch={false}");
     expect(topNav).not.toContain("More dropdown");
