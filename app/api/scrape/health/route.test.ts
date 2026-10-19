@@ -265,9 +265,10 @@ describe("GET /api/scrape/health lane scoping", () => {
       },
       {
         readiness: "needs_run",
-        activeRows: 61,
-        rowsWithPhotos: 61,
-        averageQuality: 100,
+        activeRows: 0,
+        storageRows: 61,
+        rowsWithPhotos: 0,
+        averageQuality: 0,
         completeness: {
           vinPct: 100,
           mileagePct: 100,
@@ -286,9 +287,11 @@ describe("GET /api/scrape/health lane scoping", () => {
       readiness: "needs_run",
       userStatus: "Stored rows need refresh",
       proofLevel: "stale_rows",
-      activeRows: 61,
+      activeRows: 0,
+      storageRows: 61,
     });
-    expect(row.userImpact).toContain("61 stored rows are on file");
+    expect(row.userImpact).toContain("61 retained rows are on file");
+    expect(row.proofBadges).toContain("61 retained history");
     expect(row.nextAction).toBe(
       "Refresh Cars.com before treating these rows as current.",
     );
@@ -682,10 +685,9 @@ describe("GET /api/scrape/health lane scoping", () => {
       "utf8",
     );
 
-    expect(source).toContain("source.catalogUrl && !proof?.activeRows");
-    expect(source).toContain(
-      "lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt",
-    );
+    expect(source).toContain("source.catalogUrl && !proof?.storageRows");
+    expect(source).toContain("proof?.lastSeenAt ||");
+    expect(source).toContain("proof?.storedLastSeenAt");
     expect(source).toContain("sourceProofReadiness({");
     expect(source).toContain("lastRunStatus: lastRun?.status");
     expect(source).toContain("minutesSinceLastRun == null");
@@ -757,7 +759,7 @@ describe("database inventory health rollups", () => {
       };
     });
     const rpc = vi.fn(async (name: string) => {
-      if (name === "scrape_health_inventory_rollup") {
+      if (name === "scrape_health_inventory_rollup_v2") {
         return {
           data: [
             {
@@ -767,6 +769,7 @@ describe("database inventory health rollups", () => {
               location_state: "MO",
               seller_type: "auction",
               active_rows: 2,
+              stored_active_rows: 3,
               rows_with_photos: 2,
               photos: 2,
               vin: 2,
@@ -781,6 +784,7 @@ describe("database inventory health rollups", () => {
               auction_date: 2,
               source_link: 2,
               newest_seen: "2026-10-19T09:00:00.000Z",
+              newest_stored_seen: "2026-10-19T09:00:00.000Z",
             },
           ],
           error: null,
@@ -811,7 +815,7 @@ describe("database inventory health rollups", () => {
     });
     expect(from).not.toHaveBeenCalledWith("deals");
     expect(rpc.mock.calls.map(([name]) => name)).toEqual([
-      "scrape_health_inventory_rollup",
+      "scrape_health_inventory_rollup_v2",
       "scrape_demand",
     ]);
   });
@@ -830,6 +834,7 @@ describe("database inventory health rollups", () => {
         location_state: "FL",
         seller_type: "dealer",
         active_rows: "3",
+        stored_active_rows: "4",
         rows_with_photos: "3",
         photos: "3",
         vin: "3",
@@ -844,6 +849,7 @@ describe("database inventory health rollups", () => {
         auction_date: "0",
         source_link: "3",
         newest_seen: "2026-10-19T08:00:00.000Z",
+        newest_stored_seen: "2026-10-19T08:00:00.000Z",
       },
       {
         source: "gov_auction",
@@ -852,6 +858,7 @@ describe("database inventory health rollups", () => {
         location_state: "TX",
         seller_type: "auction",
         active_rows: 2,
+        stored_active_rows: 2,
         rows_with_photos: 2,
         photos: 2,
         vin: 2,
@@ -866,6 +873,7 @@ describe("database inventory health rollups", () => {
         auction_date: 0,
         source_link: 2,
         newest_seen: "2026-10-19T09:00:00.000Z",
+        newest_stored_seen: "2026-10-19T09:00:00.000Z",
       },
     ];
 
@@ -877,6 +885,7 @@ describe("database inventory health rollups", () => {
     expect(proof.attributedDealerRows).toBe(3);
     expect(proof.proofBySource[dealerId]).toMatchObject({
       activeRows: 3,
+      storageRows: 4,
       rowsWithPhotos: 3,
       qualityPresent: 30,
       qualityChecks: 30,
@@ -906,6 +915,46 @@ describe("database inventory health rollups", () => {
     });
   });
 
+  it("uses retained freshness only when a source has no current inventory", async () => {
+    const { buildProofFromRollups } = await import("./route");
+    const proof = buildProofFromRollups(
+      [
+        {
+          source: "cars_com",
+          adapter_id: "",
+          source_host: "cars.com",
+          location_state: "MO",
+          seller_type: "dealer",
+          active_rows: 0,
+          stored_active_rows: 7,
+          rows_with_photos: 0,
+          photos: 0,
+          vin: 0,
+          title: 0,
+          mileage: 0,
+          damage: 0,
+          price: 0,
+          location: 0,
+          seller: 0,
+          explicit_seller_identity: 0,
+          explicit_seller_contact: 0,
+          auction_date: 0,
+          source_link: 0,
+          newest_seen: null,
+          newest_stored_seen: "2026-10-11T09:00:00.000Z",
+        },
+      ],
+      ["cars_com"],
+    );
+
+    expect(proof.proofBySource.cars_com).toMatchObject({
+      activeRows: 0,
+      storageRows: 7,
+      lastSeenAt: null,
+      storedLastSeenAt: "2026-10-11T09:00:00.000Z",
+    });
+  });
+
   it("keeps the rollup RPC service-only and security-invoker", () => {
     const migration = readFileSync(
       "supabase/migrations/20261019100510_source_health_rollup.sql",
@@ -916,6 +965,34 @@ describe("database inventory health rollups", () => {
     expect(migration).toContain(
       "revoke all on function public.scrape_health_inventory_rollup(text[])",
     );
+    expect(migration).toContain("from public, anon, authenticated");
+    expect(migration).toContain("to service_role");
+  });
+
+  it("separates current buyer-visible coverage from retained storage rows", () => {
+    const migration = readFileSync(
+      "supabase/migrations/20261019184500_source_health_current_inventory.sql",
+      "utf8",
+    );
+    expect(migration).toContain("scrape_health_inventory_rollup_v2");
+    expect(migration).toContain("stored_active_rows bigint");
+    expect(migration).toContain("newest_stored_seen timestamptz");
+    expect(migration).toContain("interval '72 hours'");
+    expect(migration).toContain("cardinality(array_remove(d.images, ''))");
+    expect(migration).toContain("'{photoAudit,state}'");
+    expect(migration).toContain(
+      "d.auction_end_at is null or d.auction_end_at > now()",
+    );
+    expect(migration).toContain(
+      "count(*) filter (where n.customer_visible)::bigint as active_rows",
+    );
+    expect(migration).toContain("count(*)::bigint as stored_active_rows");
+    expect(migration).toContain(
+      "max(n.last_seen_at) filter (where n.customer_visible) as newest_seen",
+    );
+    expect(migration).toContain("max(n.last_seen_at) as newest_stored_seen");
+    expect(migration).toContain("security invoker");
+    expect(migration).not.toContain("security definer");
     expect(migration).toContain("from public, anon, authenticated");
     expect(migration).toContain("to service_role");
   });
