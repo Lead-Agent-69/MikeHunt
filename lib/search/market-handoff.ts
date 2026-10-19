@@ -48,7 +48,7 @@ const LABELS: Record<string, string> = {
   state: "State",
   states: "States",
   zip: "ZIP code",
-  radius: "Radius (mi)",
+  radius: "Distance from ZIP (mi)",
   q: "Keywords",
   make: "Make",
   model: "Model",
@@ -176,7 +176,7 @@ export function marketHandoff(params: URLSearchParams) {
   // Nationwide searches still require a reference ZIP on AutoTempest; it is not the user's location.
   if (nearby) {
     add("zip", "zip", "ZIP code", nearby.zip);
-    add("radius", "radius", "Radius (mi)", String(nearby.radius));
+    add("radius", "radius", "Distance from ZIP (mi)", String(nearby.radius));
   } else {
     target.searchParams.set("zip", stateZip || "66601");
     target.searchParams.set("localization", stateZip ? "state" : "country");
@@ -314,7 +314,7 @@ export function marketHandoffs(params: URLSearchParams) {
           String(nearby.radius);
       if (reviewRadius)
         reapply.push(
-          `Radius (mi): ${nearby.radius} (destination distance options differ)`,
+          `Distance from ZIP: ${nearby.radius} mi (destination distance options differ)`,
         );
       const carried = criteria
         .filter(

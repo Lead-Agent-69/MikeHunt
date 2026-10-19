@@ -154,7 +154,7 @@ export function PriceRangeSelector({
           From · $
           {Math.min(Number(minPrice) || 0, PRICE_SLIDER_MAX).toLocaleString()}
           <input
-            aria-label="Minimum price slider"
+            aria-label="Price from slider"
             type="range"
             min="0"
             max={PRICE_SLIDER_MAX}
@@ -301,6 +301,7 @@ export function YearRangeSelector({
           <div className="flex-1">
             <input
               type="number"
+              aria-label="Year from"
               placeholder="From"
               value={minYear}
               onChange={(e) => {
@@ -316,6 +317,7 @@ export function YearRangeSelector({
           <div className="flex-1">
             <input
               type="number"
+              aria-label="Year to"
               placeholder="To"
               value={maxYear}
               onChange={(e) => {
@@ -331,7 +333,7 @@ export function YearRangeSelector({
         <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
           From · {minYear || "1980"}
           <input
-            aria-label="Minimum year slider"
+            aria-label="Year from slider"
             type="range"
             min="1980"
             max={currentYear}
@@ -353,7 +355,7 @@ export function YearRangeSelector({
         <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
           To · {maxYear || currentYear}
           <input
-            aria-label="Maximum year slider"
+            aria-label="Year to slider"
             type="range"
             min="1980"
             max={currentYear}

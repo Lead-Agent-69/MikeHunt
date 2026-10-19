@@ -136,12 +136,12 @@ const SELLER_TYPES = [
 ];
 
 const BUDGETS = [
-  { label: "Any budget", value: "" },
-  { label: "Under $5k", value: "5000" },
-  { label: "Under $10k", value: "10000" },
-  { label: "Under $20k", value: "20000" },
-  { label: "Under $35k", value: "35000" },
-  { label: "Under $50k", value: "50000" },
+  { label: "Any price", value: "" },
+  { label: "Up to $5k", value: "5000" },
+  { label: "Up to $10k", value: "10000" },
+  { label: "Up to $20k", value: "20000" },
+  { label: "Up to $35k", value: "35000" },
+  { label: "Up to $50k", value: "50000" },
 ];
 
 const POPULAR_MAKES = [
@@ -159,7 +159,7 @@ const POPULAR_MAKES = [
 
 const GOAL_RECIPES = [
   {
-    label: "Repairable SUVs in FL under $10k",
+    label: "Repairable SUVs in FL up to $10k",
     vehicle: "SUVs",
     lane: "Salvage & repairable",
     state: "FL",
@@ -962,7 +962,7 @@ export function BuyerScopeBuilder({
             {sellerType !== "all" ? ` · ${sellerType} sellers` : ""}
             {makes.length ? ` · ${makes.slice(0, 2).join("/")}` : ""}
             {makes.length > 2 ? ` +${makes.length - 2}` : ""}
-            {maxPrice ? ` · under $${Number(maxPrice).toLocaleString()}` : ""}
+            {maxPrice ? ` · up to $${Number(maxPrice).toLocaleString()}` : ""}
           </p>
           <p
             role={preferenceFailed || prefsError ? "alert" : "status"}
@@ -1345,7 +1345,7 @@ export function BuyerScopeBuilder({
                         ? previewPlan.contract.allowedFilters.makes.join("/")
                         : null,
                       previewPlan.contract.allowedFilters.maxPrice
-                        ? `under $${Number(
+                        ? `up to $${Number(
                             previewPlan.contract.allowedFilters.maxPrice,
                           ).toLocaleString()}`
                         : null,
@@ -1681,7 +1681,7 @@ export function BuyerScopeBuilder({
 
             <div>
               <div className="mb-2 text-xs font-bold text-[var(--t4)]">
-                Max buy-in
+                Price up to
               </div>
               <div className="flex flex-wrap gap-2">
                 {BUDGETS.map((item) => (

@@ -145,7 +145,7 @@ describe("saved-search recovery", () => {
   it("confirms saved rows before closing the form and does not put profit criteria in a personal search", async () => {
     await render();
     await click("New search");
-    expect(host.textContent).not.toContain("Min Net Profit");
+    expect(host.textContent).not.toContain("Net profit from");
     expect(host.textContent).not.toContain("BUY deals only");
     await click("Save search");
     expect(host.querySelector("form")).toBeNull();
@@ -174,11 +174,11 @@ describe("saved-search recovery", () => {
   it("does not create a local search when authentication fails, and rejects reversed year bounds", async () => {
     await render();
     await click("New search");
-    await fill("Min Year", "2025");
-    await fill("Max Year", "2020");
+    await fill("Year from", "2025");
+    await fill("Year to", "2020");
     await click("Save search");
     expect(host.textContent).toContain("Minimum year must not exceed");
-    await fill("Max Year", "2026");
+    await fill("Year to", "2026");
     state.authError = { name: "AuthRetryableFetchError" };
     await click("Save search");
     expect(host.textContent).toContain("not confirmed saved");
@@ -190,7 +190,7 @@ describe("saved-search recovery", () => {
     state.user = null;
     await render();
     await click("New search");
-    expect(host.textContent).toContain("Min Net Profit");
+    expect(host.textContent).toContain("Net profit from");
     await click("Save search");
     expect(host.textContent).toContain("Device only. No automatic alerts.");
     expect(host.textContent).not.toContain("Pause");

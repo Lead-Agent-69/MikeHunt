@@ -4,6 +4,7 @@ import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_SAVED_SEARCH_KEY } from "@/hooks/useLocalSavedSearches";
 import type { Prefs } from "@/hooks/usePreferences";
+import { OPEN_MARKET_LOCATION_EVENT } from "@/lib/market/events";
 
 const state = vi.hoisted(() => ({
   mode: "personal",
@@ -95,6 +96,18 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("opens the collapsed location controls when the header requests them", async () => {
+    await render();
+    const locationToggle = host.querySelector<HTMLButtonElement>(
+      'button[aria-controls="market-location-controls"]',
+    )!;
+    expect(locationToggle.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      window.dispatchEvent(new Event(OPEN_MARKET_LOCATION_EVENT));
+    });
+    expect(locationToggle.getAttribute("aria-expanded")).toBe("true");
+  });
+
   it("normalizes legacy title aliases and allows clearing multiple sources from the everyday selector", async () => {
     window.history.replaceState(
       null,

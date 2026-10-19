@@ -351,10 +351,10 @@ function buyerScopeReasons(
     reasons.push(`${dealState} match`);
   }
   if (opts.maxPrice && Number(deal.askPrice || deal.ask_price || 0) > 0) {
-    reasons.push(`under $${opts.maxPrice.toLocaleString()}`);
+    reasons.push(`asking price up to $${opts.maxPrice.toLocaleString()}`);
   }
   if (opts.minPrice && Number(deal.askPrice || deal.ask_price || 0) > 0) {
-    reasons.push(`over $${opts.minPrice.toLocaleString()}`);
+    reasons.push(`asking price from $${opts.minPrice.toLocaleString()}`);
   }
   if (opts.titleType && opts.titleType !== "all") {
     reasons.push(`${opts.titleType} title scope`);
@@ -1156,8 +1156,8 @@ export async function GET(request: NextRequest) {
       },
       {
         key: "budget",
-        title: "Under $10k",
-        subtitle: "Reported prices under $10,000; verify terms and condition",
+        title: "Below $10k",
+        subtitle: "Reported prices below $10,000; verify terms and conditions",
         deals: budget,
       },
       {

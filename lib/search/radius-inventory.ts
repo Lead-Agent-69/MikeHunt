@@ -15,7 +15,7 @@ export async function inventoryLocation(db: any, params: URLSearchParams) {
     details,
     ...(unsupportedRadius
       ? {
-          error: `This view supports a radius up to ${MAX_RADIUS_MI} miles. Keep wider searches in Market Explorer.`,
+          error: `This view supports a distance up to ${MAX_RADIUS_MI} mi. Keep wider searches in Market Explorer.`,
         }
       : {}),
   };

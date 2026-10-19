@@ -379,7 +379,7 @@ describe("Scan and facets query parity", () => {
         new NextRequest("https://example.test/api/scan?zip=63101&radius=1000"),
       );
       expect(response.status).toBe(422);
-      expect((await response.json()).error).toContain("500 miles");
+      expect((await response.json()).error).toContain("500 mi");
     }
   });
   it("scan rows expose options.titleSource only", async () => {

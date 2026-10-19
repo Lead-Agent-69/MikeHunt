@@ -218,8 +218,8 @@ describe("scan source filtering helpers", () => {
         "damaged lane",
         "Ford matches make focus",
         "dealer seller scope",
-        "over $5,000 budget",
-        "under $10,000 budget",
+        "asking price from $5,000",
+        "asking price up to $10,000",
       ]),
     );
 
@@ -229,8 +229,8 @@ describe("scan source filtering helpers", () => {
         "FL matches selected market",
         "damaged lane",
         "Ford matches make focus",
-        "over $5,000 budget",
-        "under $10,000 budget",
+        "asking price from $5,000",
+        "asking price up to $10,000",
         "AE of Miami dealer target",
         "Original source link is present",
       ]),

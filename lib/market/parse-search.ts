@@ -307,7 +307,7 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
     result.filters.lat = "";
     result.filters.lng = "";
     result.filters.states = [];
-    result.labels.push(`Near ${numeric.zip}`);
+    result.labels.push(`ZIP ${numeric.zip}`);
   } else if (numeric.state) {
     result.filters.states = [numeric.state];
     result.filters.near = "";
@@ -317,7 +317,7 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
     result.labels.push(US_STATES[numeric.state]?.[0] || numeric.state);
   }
   if (numeric.radius && Number(numeric.radius) <= 1000)
-    put("radius", numeric.radius, `${numeric.radius} mi radius`);
+    put("radius", numeric.radius, `Within ${numeric.radius} mi`);
   else if (numeric.radius) {
     result.blocked = true;
     result.warnings.push(

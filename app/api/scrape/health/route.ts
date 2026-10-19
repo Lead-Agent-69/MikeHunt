@@ -503,7 +503,7 @@ function broadenScopeAction(scope?: HealthScope) {
     return `No rows priced up to ${formatCurrency(scope.maxPrice)}. Raise the budget or clear the price limit.`;
   }
   if (scope.minPrice) {
-    return `No rows over ${formatCurrency(scope.minPrice)}. Lower the minimum price or clear min price.`;
+    return `No rows at or above ${formatCurrency(scope.minPrice)}. Lower or clear the price floor.`;
   }
   return "Run a broader scope or wait for fresh inventory from this source.";
 }
@@ -745,8 +745,8 @@ function scopeParts(scope: HealthScope) {
     scope.makes?.length ? `${scope.makes.length} make focus` : null,
     scope.model || null,
     scope.state || null,
-    scope.minPrice ? `over ${formatCurrency(scope.minPrice)}` : null,
-    scope.maxPrice ? `under ${formatCurrency(scope.maxPrice)}` : null,
+    scope.minPrice ? `from ${formatCurrency(scope.minPrice)}` : null,
+    scope.maxPrice ? `up to ${formatCurrency(scope.maxPrice)}` : null,
     scope.dealerHosts?.length
       ? `${scope.dealerHosts.length} watched dealer${
           scope.dealerHosts.length === 1 ? "" : "s"

@@ -11,7 +11,7 @@ describe("shared radius inventory", () => {
       new URLSearchParams("zip=63101&radius=1000"),
     );
     expect(location.radius).toBeNull();
-    expect(location.error).toContain("500 miles");
+    expect(location.error).toContain("500 mi");
     expect(resolve).not.toHaveBeenCalled();
   });
   it("does not apply an exact postal-code filter after resolving a radius", async () => {

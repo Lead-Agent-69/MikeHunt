@@ -37,8 +37,8 @@ describe("discovery browsing presentation safeguards", () => {
     expect(primary).toContain("aria-expanded={showMore}");
     expect(primary).toContain('aria-controls="additional-inventory-filters"');
     expect(primary).toContain("Year & condition");
-    expect(primary).toContain('aria-label="ZIP"');
-    expect(primary).toContain('aria-label="Radius"');
+    expect(primary).toContain('aria-label="Search ZIP code"');
+    expect(primary).toContain('aria-label="Distance from ZIP"');
     expect(primary).toContain('disabled={make === "all"}');
     expect(primary).toContain('setSelectedStates("")');
     expect(scan).toContain("setPlanMessage(radiusRefreshMessage)");

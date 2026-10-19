@@ -246,10 +246,14 @@ export function buildScanMatchExplanation(
     reasons.push(`${filters.sellerType} seller scope`);
   }
   if (filters.minPrice && row?.askPrice && row.askPrice >= filters.minPrice) {
-    reasons.push(`over $${Number(filters.minPrice).toLocaleString()} budget`);
+    reasons.push(
+      `asking price from $${Number(filters.minPrice).toLocaleString()}`,
+    );
   }
   if (filters.maxPrice && row?.askPrice && row.askPrice <= filters.maxPrice) {
-    reasons.push(`under $${Number(filters.maxPrice).toLocaleString()} budget`);
+    reasons.push(
+      `asking price up to $${Number(filters.maxPrice).toLocaleString()}`,
+    );
   }
   if (filters.q) {
     reasons.push(`matches "${filters.q}" search`);
@@ -1149,7 +1153,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           error:
-            "Price-gap sorting needs recorded asking prices and valuation evidence.",
+            "Below-estimate sorting needs a recorded cash asking price and supported valuation evidence.",
         },
         { status: 503, headers: SCAN_CACHE_HEADERS },
       );

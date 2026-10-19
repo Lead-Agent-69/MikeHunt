@@ -112,7 +112,8 @@ describe("buyer intent profile", () => {
     expect(scanHrefForBuyerIntent(intent)).toContain("sort=score");
     expect(buyerIntentLabel(intent)).toContain("Ford/Toyota");
     expect(buyerIntentLabel(intent)).not.toContain("Personal buyer");
-    expect(buyerIntentLabel(intent)).toContain("over $5,000");
+    expect(buyerIntentLabel(intent)).toContain("from $5,000");
+    expect(buyerIntentLabel(intent)).toContain("up to $10,000");
     expect(buyerIntentLabel(intent)).toContain("1 watched dealer");
   });
 

@@ -779,10 +779,10 @@ function SourceProofPanel({
       : null,
     health?.scope?.state || null,
     health?.scope?.minPrice
-      ? `over $${Number(health.scope.minPrice).toLocaleString()}`
+      ? `from $${Number(health.scope.minPrice).toLocaleString()}`
       : null,
     health?.scope?.maxPrice
-      ? `under $${Number(health.scope.maxPrice).toLocaleString()}`
+      ? `up to $${Number(health.scope.maxPrice).toLocaleString()}`
       : null,
     health?.scope?.dealerHosts?.length
       ? `${health.scope.dealerHosts.length} watched dealer${
@@ -2047,6 +2047,7 @@ export default function SourcesPage() {
                 className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
               />
               <select
+                aria-label="Minimum asking price"
                 value={healthScope.minPrice ? String(healthScope.minPrice) : ""}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -2058,13 +2059,14 @@ export default function SourcesPage() {
                 }
                 className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
               >
-                <option value="">No min</option>
-                <option value="2000">Over $2k</option>
-                <option value="5000">Over $5k</option>
-                <option value="10000">Over $10k</option>
-                <option value="20000">Over $20k</option>
+                <option value="">No minimum</option>
+                <option value="2000">From $2k</option>
+                <option value="5000">From $5k</option>
+                <option value="10000">From $10k</option>
+                <option value="20000">From $20k</option>
               </select>
               <select
+                aria-label="Maximum asking price"
                 value={healthScope.maxPrice ? String(healthScope.maxPrice) : ""}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -2076,12 +2078,12 @@ export default function SourcesPage() {
                 }
                 className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
               >
-                <option value="">No max</option>
-                <option value="5000">Under $5k</option>
-                <option value="10000">Under $10k</option>
-                <option value="20000">Under $20k</option>
-                <option value="35000">Under $35k</option>
-                <option value="50000">Under $50k</option>
+                <option value="">No maximum</option>
+                <option value="5000">Up to $5k</option>
+                <option value="10000">Up to $10k</option>
+                <option value="20000">Up to $20k</option>
+                <option value="35000">Up to $35k</option>
+                <option value="50000">Up to $50k</option>
               </select>
               <select
                 value={(healthScope.dealerSourceIds || []).join(",")}
@@ -2133,10 +2135,10 @@ export default function SourcesPage() {
                   ? ` · ${healthScope.titleType} title`
                   : ""}
                 {healthScope.minPrice
-                  ? ` · over $${healthScope.minPrice.toLocaleString()}`
+                  ? ` · from $${healthScope.minPrice.toLocaleString()}`
                   : ""}
                 {healthScope.maxPrice
-                  ? ` · under $${healthScope.maxPrice.toLocaleString()}`
+                  ? ` · up to $${healthScope.maxPrice.toLocaleString()}`
                   : ""}
               </span>
               {healthScope.dealerHosts?.length ? (

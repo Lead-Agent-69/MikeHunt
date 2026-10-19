@@ -1444,7 +1444,7 @@ export default function MarketPage() {
             </div>
             <div
               aria-label="Result view"
-              className="col-start-2 row-start-2 flex gap-1 sm:row-start-1"
+              className="col-span-2 row-start-3 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
             >
               <button
                 type="button"
@@ -1481,12 +1481,10 @@ export default function MarketPage() {
                 const [sort, sortDir] = e.target.value.split(":");
                 set({ sort, sortDir: sortDir as "asc" | "desc" });
               }}
-              className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-start-3 sm:row-start-1 sm:!w-52"
+              className="field col-span-2 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
             >
               <option value="lastSeenAt:desc">Recently seen</option>
-              <option value="priceGap:desc">
-                Most below estimate (before costs)
-              </option>
+              <option value="priceGap:desc">Below estimate ↓</option>
               {(f.near || f.lat) && (
                 <option value="distanceMiles:asc">Nearest first</option>
               )}

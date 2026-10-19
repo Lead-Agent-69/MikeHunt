@@ -171,7 +171,7 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <input
-          aria-label="ZIP"
+          aria-label="Search ZIP code"
           placeholder="ZIP"
           inputMode="numeric"
           maxLength={5}
@@ -180,7 +180,7 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <select
-          aria-label="Within"
+          aria-label="Distance from ZIP"
           value={radius}
           onChange={(e) => setRadius(e.target.value)}
           className={FIELD}
@@ -205,8 +205,8 @@ export function AlsoSearchOn({
             className={FIELD}
           />
           <input
-            aria-label="Min price"
-            placeholder="Min price"
+            aria-label="Price from"
+            placeholder="Price from"
             inputMode="numeric"
             value={priceMin}
             onChange={(e) => setPriceMin(e.target.value)}

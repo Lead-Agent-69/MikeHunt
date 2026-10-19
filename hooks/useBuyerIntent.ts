@@ -382,8 +382,8 @@ export function buyerIntentLabel(
     intent?.sellerType && intent.sellerType !== "all"
       ? `${intent.sellerType} sellers`
       : "",
-    intent?.minPrice ? `over $${intent.minPrice.toLocaleString()}` : "",
-    intent?.maxPrice ? `under $${intent.maxPrice.toLocaleString()}` : "",
+    intent?.minPrice ? `from $${intent.minPrice.toLocaleString()}` : "",
+    intent?.maxPrice ? `up to $${intent.maxPrice.toLocaleString()}` : "",
     intent?.watchedDealerSourceIds?.length
       ? `${intent.watchedDealerSourceIds.length} watched dealer${
           intent.watchedDealerSourceIds.length === 1 ? "" : "s"

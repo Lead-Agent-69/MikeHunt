@@ -17,6 +17,7 @@ import {
   replaceInventoryHistory,
 } from "@/lib/search/inventory-history";
 import { parseMarketLocation } from "@/lib/market/explorer";
+import { OPEN_MARKET_LOCATION_EVENT } from "@/lib/market/events";
 import {
   navItemForViewer,
   primaryNavForMode,
@@ -220,13 +221,11 @@ function TopNavContent() {
         type="button"
         className={className}
         style={{ minHeight: 44, minWidth: 44 }}
-        title={`${radiusScope.radius} miles from ${radiusScope.near || "your location"}`}
-        aria-label={`Change search area: ${radiusScope.radius} miles from ${radiusScope.near || "your location"}`}
-        aria-controls="market-search-location"
+        title={`Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
+        aria-label={`Change search area: Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
+        aria-controls="market-location-controls"
         onClick={() => {
-          const input = document.getElementById("market-search-location");
-          input?.scrollIntoView({ block: "center", behavior: "instant" });
-          input?.focus({ preventScroll: true });
+          window.dispatchEvent(new Event(OPEN_MARKET_LOCATION_EVENT));
         }}
       >
         <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

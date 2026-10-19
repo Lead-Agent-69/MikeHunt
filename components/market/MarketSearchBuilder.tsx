@@ -74,7 +74,7 @@ export function MarketSearchBuilder({
                 onChange={(event) => setQuery(event.target.value)}
                 maxLength={300}
                 rows={3}
-                placeholder="Black Audi wagon, AWD, under $30k near me"
+                placeholder="Black Audi wagon, AWD, up to $30k near me"
                 className="field mt-2 !w-full resize-y !text-base"
               />
             </label>

@@ -21,10 +21,10 @@ describe("Scan flip copy by buyer desk", () => {
     expect(scan).toContain("isOpen={flipDesk && isLaneModeOpen}");
   });
 
-  it("drops profit sort and the Min Profit filter for non-flip desks", () => {
+  it("drops profit sort and the net-profit floor for non-flip desks", () => {
     expect(scan).toContain('...(flipDesk || sort === "profit"');
     expect(scan).toMatch(
-      /\{flipDesk && \(\s*<FilterSelect\s+label="Min Profit"/,
+      /\{flipDesk && \(\s*<FilterSelect\s+label="Net profit from \(\$\)"/,
     );
     expect(scan).toContain('label={flipDesk ? "Price & profit" : "Price"}');
   });

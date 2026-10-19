@@ -187,11 +187,11 @@ describe("wider market handoff", () => {
     ).find((r) => r.id === "cars_com")!;
     expect(new URL(cars.href).searchParams.get("maximum_distance")).toBe("75");
     expect(cars.reapply.join(" ")).toContain("distance options differ");
-    expect(cars.carried).not.toContain("Radius (mi): 60");
+    expect(cars.carried).not.toContain("Distance from ZIP (mi): 60");
     const cl = marketHandoffs(
       new URLSearchParams("make=Honda&zip=60601&radius=99999"),
     ).find((r) => r.id === "craigslist")!;
-    expect(cl.carried).toContain("Radius (mi): 500");
+    expect(cl.carried).toContain("Distance from ZIP (mi): 500");
     expect(cl.carried.join(" ")).not.toContain("99999");
   });
 });

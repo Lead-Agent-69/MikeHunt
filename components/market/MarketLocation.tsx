@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronDown, LocateFixed, MapPin } from "lucide-react";
 import { MarketSearchBuilder } from "./MarketSearchBuilder";
 import type { MarketSearchInterpretation } from "@/lib/market/parse-search";
+import { OPEN_MARKET_LOCATION_EVENT } from "@/lib/market/events";
 import { usePreferences } from "@/hooks/usePreferences";
 import { surroundingStates } from "@/lib/geo/bordering-states";
 import { MISSOURI_SEARCH_MARKETS } from "@/lib/geo/missouri-markets";
@@ -52,6 +53,20 @@ export function MarketLocation({
     setNear(value.near);
     setRadius(value.radius || "100");
   }, [value.near, value.radius]);
+
+  useEffect(() => {
+    const openLocation = () => {
+      setLocationOpen(true);
+      window.setTimeout(() => {
+        const input = document.getElementById("market-search-location");
+        input?.scrollIntoView?.({ block: "center", behavior: "instant" });
+        input?.focus({ preventScroll: true });
+      }, 0);
+    };
+    window.addEventListener(OPEN_MARKET_LOCATION_EVENT, openLocation);
+    return () =>
+      window.removeEventListener(OPEN_MARKET_LOCATION_EVENT, openLocation);
+  }, []);
 
   const searchArea = (place: string, miles = radius) => {
     if (

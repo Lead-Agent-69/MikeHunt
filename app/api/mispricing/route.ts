@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
       flagged.push({
         ...mapDeal(
           r,
-          `${Math.round(m!.pctBelowCluster)}% under ${stats.n} similar (median $${Math.round(stats.median).toLocaleString()})`,
+          `${Math.round(m!.pctBelowCluster)}% below the median for ${stats.n} similar listings ($${Math.round(stats.median).toLocaleString()})`,
         ),
         _pct: m!.pctBelowCluster,
       });

@@ -70,7 +70,7 @@ function csv(p: string | null): string[] {
 }
 
 const MARKET_PRICE_BANDS: MarketRangeBand[] = [
-  { from: 1, to: 9_999, label: "Under $10k" },
+  { from: 1, to: 9_999, label: "Below $10k" },
   { from: 10_000, to: 19_999, label: "$10k–$20k" },
   { from: 20_000, to: 29_999, label: "$20k–$30k" },
   { from: 30_000, to: 49_999, label: "$30k–$50k" },
