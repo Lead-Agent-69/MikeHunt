@@ -53,6 +53,39 @@ type HealthScope = {
   dealerSourceIds?: string[];
 };
 
+export type InventoryHealthRollup = {
+  source: string;
+  adapter_id?: string | null;
+  source_host?: string | null;
+  location_state?: string | null;
+  seller_type?: string | null;
+  active_rows: number | string;
+  rows_with_photos: number | string;
+  photos: number | string;
+  vin: number | string;
+  title: number | string;
+  mileage: number | string;
+  damage: number | string;
+  price: number | string;
+  location: number | string;
+  seller: number | string;
+  explicit_seller_identity: number | string;
+  explicit_seller_contact: number | string;
+  auction_date: number | string;
+  source_link: number | string;
+  newest_seen?: string | null;
+};
+
+type SourceProof = {
+  activeRows: number;
+  rowsWithPhotos: number;
+  qualityTotal: number;
+  qualityPresent: number;
+  qualityChecks: number;
+  completeness: ReturnType<typeof emptyCompleteness>;
+  lastSeenAt: string | null;
+};
+
 const SELLER_TYPE_SOURCE_IDS: Record<string, string[]> = {
   dealer: ["curated_dealers"],
   auction: [
@@ -867,6 +900,7 @@ async function buildDemandCoverage(
   supabase: { rpc: (...args: any[]) => Promise<{ data: any; error: any }> },
   activeDeals: readonly any[],
   detail = false,
+  primaryCountsOverride?: Record<string, number>,
 ) {
   let demandRows: DemandRow[] = [];
   try {
@@ -879,15 +913,19 @@ async function buildDemandCoverage(
     return null;
   }
   const demand = summarizeDemand(demandRows);
-  const primaryCounts: Record<string, number> = {};
-  for (const row of activeDeals || []) {
-    const src = String(row?.source || "").toLowerCase();
-    if (sourceTier(src) !== "primary") continue;
-    const st = String(row?.location_state || "")
-      .trim()
-      .toUpperCase();
-    if (!st) continue;
-    primaryCounts[st] = (primaryCounts[st] || 0) + 1;
+  const primaryCounts: Record<string, number> = primaryCountsOverride
+    ? { ...primaryCountsOverride }
+    : {};
+  if (!primaryCountsOverride) {
+    for (const row of activeDeals || []) {
+      const src = String(row?.source || "").toLowerCase();
+      if (sourceTier(src) !== "primary") continue;
+      const st = String(row?.location_state || "")
+        .trim()
+        .toUpperCase();
+      if (!st) continue;
+      primaryCounts[st] = (primaryCounts[st] || 0) + 1;
+    }
   }
   const hit = wantHitRatio({
     anchors: demand.anchors || [],
@@ -978,6 +1016,167 @@ export function buildLiveCoverage(rows: any[]) {
       .slice(0, 12)
       .map(([host, activeRows]) => ({ host, activeRows })),
   };
+}
+
+function rollupCount(value: number | string | null | undefined) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function rollupEvidenceRow(row: InventoryHealthRollup) {
+  const host = String(row.source_host || "")
+    .trim()
+    .toLowerCase();
+  const adapterId = String(row.adapter_id || "")
+    .trim()
+    .toLowerCase();
+  const sellerType = String(row.seller_type || "")
+    .trim()
+    .toLowerCase();
+  return {
+    source: String(row.source || "")
+      .trim()
+      .toLowerCase(),
+    source_url: host ? `https://${host}/` : null,
+    location_state: String(row.location_state || "")
+      .trim()
+      .toUpperCase(),
+    options: {
+      ...(adapterId ? { sourceAdapterId: adapterId } : {}),
+      ...(sellerType ? { sellerType } : {}),
+    },
+  };
+}
+
+export function buildProofFromRollups(
+  rows: InventoryHealthRollup[],
+  sourceIds: string[],
+) {
+  const proofBySource: Record<string, SourceProof> = {};
+  let attributedDealerRows = 0;
+
+  for (const row of rows) {
+    const evidence = rollupEvidenceRow(row);
+    const id = healthSourceIdForDeal(evidence, sourceIds) || "unknown";
+    const activeRows = rollupCount(row.active_rows);
+    const sourceLinks = rollupCount(row.source_link);
+    const explicitIdentity = rollupCount(row.explicit_seller_identity);
+    const explicitContact = rollupCount(row.explicit_seller_contact);
+    const inferredSellerType = rowSellerType(evidence);
+    const directSellerLink = Boolean(sellerContact(evidence).url);
+    const auctionDateExpected = !["dealer", "private", "retail"].includes(
+      inferredSellerType,
+    );
+    const sellerIdentityRows = inferredSellerType
+      ? activeRows
+      : explicitIdentity;
+    const sellerContactRows = directSellerLink ? sourceLinks : explicitContact;
+    const qualityPresent =
+      rollupCount(row.photos) +
+      rollupCount(row.vin) +
+      rollupCount(row.title) +
+      rollupCount(row.damage) +
+      rollupCount(row.mileage) +
+      rollupCount(row.location) +
+      rollupCount(row.price) +
+      sellerIdentityRows +
+      sellerContactRows +
+      sourceLinks +
+      (auctionDateExpected ? rollupCount(row.auction_date) : 0);
+    const qualityChecks = activeRows * (auctionDateExpected ? 11 : 10);
+    const proof =
+      proofBySource[id] ||
+      (proofBySource[id] = {
+        activeRows: 0,
+        rowsWithPhotos: 0,
+        qualityTotal: 0,
+        qualityPresent: 0,
+        qualityChecks: 0,
+        completeness: emptyCompleteness(),
+        lastSeenAt: null,
+      });
+
+    proof.activeRows += activeRows;
+    proof.rowsWithPhotos += rollupCount(row.rows_with_photos);
+    proof.qualityPresent += qualityPresent;
+    proof.qualityChecks += qualityChecks;
+    proof.completeness.photos += rollupCount(row.photos);
+    proof.completeness.vin += rollupCount(row.vin);
+    proof.completeness.title += rollupCount(row.title);
+    proof.completeness.mileage += rollupCount(row.mileage);
+    proof.completeness.damage += rollupCount(row.damage);
+    proof.completeness.price += rollupCount(row.price);
+    proof.completeness.location += rollupCount(row.location);
+    proof.completeness.seller += rollupCount(row.seller);
+    proof.completeness.sellerContact += sellerContactRows;
+    proof.completeness.auctionDate += rollupCount(row.auction_date);
+    proof.completeness.sourceLink += sourceLinks;
+
+    const newestSeen = row.newest_seen ? new Date(row.newest_seen) : null;
+    if (
+      newestSeen &&
+      Number.isFinite(newestSeen.getTime()) &&
+      (!proof.lastSeenAt || newestSeen > new Date(proof.lastSeenAt))
+    ) {
+      proof.lastSeenAt = newestSeen.toISOString();
+    }
+    if (evidence.source === "independent_dealer") {
+      attributedDealerRows += activeRows;
+    }
+  }
+
+  return { proofBySource, attributedDealerRows };
+}
+
+export function buildLiveCoverageFromRollups(rows: InventoryHealthRollup[]) {
+  const sites = new Map<string, number>();
+  const states = new Set<string>();
+  const sourceGroups = new Set<string>();
+  let liveRows = 0;
+
+  for (const row of rows) {
+    const activeRows = rollupCount(row.active_rows);
+    liveRows += activeRows;
+    const source = String(row.source || "").trim();
+    const host =
+      String(row.source_host || "")
+        .trim()
+        .toLowerCase() || source;
+    if (host) sites.set(host, (sites.get(host) || 0) + activeRows);
+    const state = String(row.location_state || "")
+      .trim()
+      .toUpperCase();
+    if (US_STATE_CODES.has(state)) states.add(state);
+    if (source) sourceGroups.add(source);
+  }
+
+  return {
+    liveRows,
+    workingMarkets: sites.size,
+    liveSites: sites.size,
+    liveStates: states.size,
+    liveSourceGroups: sourceGroups.size,
+    topSites: Array.from(sites.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 12)
+      .map(([host, activeRows]) => ({ host, activeRows })),
+  };
+}
+
+function primaryCountsFromRollups(rows: InventoryHealthRollup[]) {
+  const primaryCounts: Record<string, number> = {};
+  for (const row of rows) {
+    if (sourceTier(String(row.source || "").toLowerCase()) !== "primary") {
+      continue;
+    }
+    const state = String(row.location_state || "")
+      .trim()
+      .toUpperCase();
+    if (!US_STATE_CODES.has(state)) continue;
+    primaryCounts[state] =
+      (primaryCounts[state] || 0) + rollupCount(row.active_rows);
+  }
+  return primaryCounts;
 }
 
 function buildHealthSummary(health: any[]) {
@@ -1264,32 +1463,47 @@ export async function GET(request: NextRequest) {
     }
 
     const activeDeals: any[] = [];
-    const pageSize = 1000;
-    for (let page = 0; page < 20; page += 1) {
-      const from = page * pageSize;
-      const to = from + pageSize - 1;
-      const baseDealsQuery = supabase
-        .from("deals")
-        .select(
-          "source, title, year, make, model, trim, images, vin, condition, damage_type, mileage, location_city, location_state, ask_price, auction_end_at, source_url, options, last_seen_at",
-        )
-        .eq("active", true)
-        .in("source", dealSourceIds);
-      const { data: pageRows, error: dealsError } = await applyScopedDealQuery(
-        baseDealsQuery,
-        scope,
-      )
-        .order("last_seen_at", { ascending: false })
-        .range(from, to);
-
-      if (dealsError) {
-        return NextResponse.json(
-          { error: "Health check failed" },
-          { status: 500 },
+    let rollupRows: InventoryHealthRollup[] | null = null;
+    if (!scopeFiltered && dealSourceIds.length) {
+      try {
+        const { data, error: rollupError } = await (supabase as any).rpc(
+          "scrape_health_inventory_rollup",
+          { p_sources: dealSourceIds },
         );
+        if (!rollupError && Array.isArray(data)) {
+          rollupRows = data as InventoryHealthRollup[];
+        }
+      } catch {
+        // App and migration deploy independently; retain the reviewed row path until the RPC exists.
       }
-      activeDeals.push(...(pageRows || []));
-      if (!pageRows || pageRows.length < pageSize) break;
+    }
+
+    if (rollupRows === null) {
+      const pageSize = 1000;
+      for (let page = 0; page < 20; page += 1) {
+        const from = page * pageSize;
+        const to = from + pageSize - 1;
+        const baseDealsQuery = supabase
+          .from("deals")
+          .select(
+            "source, title, year, make, model, trim, images, vin, condition, damage_type, mileage, location_city, location_state, ask_price, auction_end_at, source_url, options, last_seen_at",
+          )
+          .eq("active", true)
+          .in("source", dealSourceIds);
+        const { data: pageRows, error: dealsError } =
+          await applyScopedDealQuery(baseDealsQuery, scope)
+            .order("last_seen_at", { ascending: false })
+            .range(from, to);
+
+        if (dealsError) {
+          return NextResponse.json(
+            { error: "Health check failed" },
+            { status: 500 },
+          );
+        }
+        activeDeals.push(...(pageRows || []));
+        if (!pageRows || pageRows.length < pageSize) break;
+      }
     }
 
     const runsBySource: Record<string, typeof recentRuns> = {};
@@ -1298,16 +1512,11 @@ export async function GET(request: NextRequest) {
       runsBySource[run.source].push(run);
     }
 
-    const proofBySource: Record<
-      string,
-      {
-        activeRows: number;
-        rowsWithPhotos: number;
-        qualityTotal: number;
-        completeness: ReturnType<typeof emptyCompleteness>;
-        lastSeenAt: string | null;
-      }
-    > = {};
+    const rollupProof = rollupRows
+      ? buildProofFromRollups(rollupRows, sourceIds)
+      : null;
+    const proofBySource: Record<string, SourceProof> =
+      rollupProof?.proofBySource || {};
     // Passenger cars and light/medium trucks only: a non-vehicle row that is still active (e.g.
     // written by a scraper image older than the ingest filter) never counts as coverage.
     const liveDeals = (activeDeals || []).filter(
@@ -1321,8 +1530,10 @@ export async function GET(request: NextRequest) {
           source_url: row.source_url,
         }),
     );
-    const liveCoverage = buildLiveCoverage(liveDeals);
-    for (const row of liveDeals) {
+    const liveCoverage = rollupRows
+      ? buildLiveCoverageFromRollups(rollupRows)
+      : buildLiveCoverage(liveDeals);
+    for (const row of rollupRows ? [] : liveDeals) {
       const id = healthSourceIdForDeal(row, sourceIds) || "unknown";
       const proof =
         proofBySource[id] ||
@@ -1330,6 +1541,8 @@ export async function GET(request: NextRequest) {
           activeRows: 0,
           rowsWithPhotos: 0,
           qualityTotal: 0,
+          qualityPresent: 0,
+          qualityChecks: 0,
           completeness: emptyCompleteness(),
           lastSeenAt: null,
         });
@@ -1385,11 +1598,12 @@ export async function GET(request: NextRequest) {
       // activeRows is 0 by design. Report how many rows it collected (not added to totals).
       const attributedRows =
         source.id === "independent_dealer"
-          ? (activeDeals || []).filter(
+          ? (rollupProof?.attributedDealerRows ??
+            (activeDeals || []).filter(
               (deal: any) =>
                 deal.source === "independent_dealer" &&
                 matchesScope(deal, scope),
-            ).length
+            ).length)
           : null;
       const lastRun = runs[0];
       const totalRuns = runs.length;
@@ -1453,7 +1667,9 @@ export async function GET(request: NextRequest) {
           : {}),
         rowsWithPhotos: proof?.rowsWithPhotos || 0,
         averageQuality: proof?.activeRows
-          ? Math.round(proof.qualityTotal / proof.activeRows)
+          ? proof.qualityChecks
+            ? Math.round((proof.qualityPresent / proof.qualityChecks) * 100)
+            : Math.round(proof.qualityTotal / proof.activeRows)
           : 0,
         completeness: proof
           ? {
@@ -1476,10 +1692,12 @@ export async function GET(request: NextRequest) {
       supabase as any,
       activeDeals,
       showInternalErrors,
+      rollupRows ? primaryCountsFromRollups(rollupRows) : undefined,
     );
 
     return NextResponse.json({
       configured: true,
+      inventoryProofMode: rollupRows ? "database_rollup" : "row_fallback",
       total: summary.total,
       enabled: summary.enabled,
       due: summary.due,
