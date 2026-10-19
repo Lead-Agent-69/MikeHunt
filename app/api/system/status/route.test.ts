@@ -1,10 +1,87 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildSourceBreakdownFromRollups,
   lastSeenLabel,
   mergeStatusSources,
   sourceListingStatus,
   summarizeSourceHealth,
 } from "./route";
+
+describe("buildSourceBreakdownFromRollups", () => {
+  it("keeps exact weighted totals and attributes shared dealer hosts", () => {
+    const now = new Date("2026-10-19T12:00:00.000Z").getTime();
+    const rows = buildSourceBreakdownFromRollups(
+      [
+        {
+          source: "independent_dealer",
+          source_host: "recar.com",
+          active_rows: "3",
+          rows_with_photos: "2",
+          newest_seen: "2026-10-19T11:00:00.000Z",
+        },
+        {
+          source: "independent_dealer",
+          source_host: "recar.com",
+          active_rows: 2,
+          rows_with_photos: 2,
+          newest_seen: "2026-10-19T10:00:00.000Z",
+        },
+        {
+          source: "carvana",
+          source_host: "carvana.com",
+          active_rows: 10,
+          rows_with_photos: 10,
+          newest_seen: "2026-10-19T11:30:00.000Z",
+        },
+      ],
+      now,
+    );
+
+    expect(rows).toEqual([
+      {
+        source: "carvana",
+        active: 10,
+        photoPct: 100,
+        ageHours: 1,
+        status: "stored",
+      },
+      {
+        source: "recar",
+        active: 5,
+        photoPct: 80,
+        ageHours: 1,
+        status: "stored",
+      },
+    ]);
+  });
+
+  it("drops empty groups and keeps unknown freshness explicit", () => {
+    expect(
+      buildSourceBreakdownFromRollups([
+        {
+          source: "offerup",
+          active_rows: 0,
+          rows_with_photos: 0,
+          newest_seen: null,
+        },
+        {
+          source: "craigslist",
+          active_rows: 4,
+          rows_with_photos: 1,
+          newest_seen: null,
+        },
+      ]),
+    ).toEqual([
+      {
+        source: "craigslist",
+        active: 4,
+        photoPct: 25,
+        ageHours: null,
+        status: "stored",
+      },
+    ]);
+  });
+});
 
 describe("mergeStatusSources", () => {
   it("adds buyer-facing readiness and row proof from live source breakdown", () => {

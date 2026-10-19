@@ -27,6 +27,36 @@ import {
 
 let providerLoad: Promise<AuthProviderReadiness> | null = null;
 
+const STATUS_DEAL_SOURCES = [
+  "copart",
+  "iaa",
+  "adesa",
+  "manheim",
+  "facebook_marketplace",
+  "craigslist",
+  "ebay_motors",
+  "autotrader",
+  "cars_com",
+  "gov_auction",
+  "repo_network",
+  "independent_dealer",
+  "cargurus",
+  "craigslist_dealer",
+  "carvana",
+  "truecar",
+  "vroom",
+  "offerup",
+  "acv",
+];
+
+type SourceBreakdownRollup = {
+  source: string;
+  source_host?: string | null;
+  active_rows: number | string;
+  rows_with_photos: number | string;
+  newest_seen?: string | null;
+};
+
 function loadAuthProviders(): Promise<AuthProviderReadiness> {
   if (!isSupabaseConfigured())
     return Promise.resolve(unconfiguredAuthProviders());
@@ -61,6 +91,138 @@ export function sourceListingStatus(active: number, ageHours: number | null) {
   if (active <= 0) return "idle";
   if (ageHours != null && ageHours > 72) return "stale";
   return "stored";
+}
+
+export function buildSourceBreakdownFromRollups(
+  rows: SourceBreakdownRollup[],
+  now = Date.now(),
+) {
+  const groups = new Map<
+    string,
+    { active: number; withImages: number; newest: string | null }
+  >();
+  for (const row of rows) {
+    const host = String(row.source_host || "")
+      .trim()
+      .toLowerCase();
+    const source = statusSource({
+      source: row.source,
+      source_url: host ? `https://${host}/` : null,
+    });
+    const group = groups.get(source) || {
+      active: 0,
+      withImages: 0,
+      newest: null,
+    };
+    const activeRows = Number(row.active_rows || 0);
+    const rowsWithPhotos = Number(row.rows_with_photos || 0);
+    group.active += Number.isFinite(activeRows) ? activeRows : 0;
+    group.withImages += Number.isFinite(rowsWithPhotos) ? rowsWithPhotos : 0;
+    const newest = row.newest_seen || null;
+    if (
+      newest &&
+      Number.isFinite(new Date(newest).getTime()) &&
+      (!group.newest ||
+        new Date(newest).getTime() > new Date(group.newest).getTime())
+    ) {
+      group.newest = newest;
+    }
+    groups.set(source, group);
+  }
+
+  return Array.from(groups.entries())
+    .map(([source, group]) => {
+      const ageHours = group.newest
+        ? Math.round((now - new Date(group.newest).getTime()) / 3600_000)
+        : null;
+      return {
+        source,
+        active: group.active,
+        photoPct: group.active
+          ? Math.round((group.withImages / group.active) * 100)
+          : 0,
+        ageHours,
+        status: sourceListingStatus(group.active, ageHours),
+      };
+    })
+    .filter((row) => row.active > 0)
+    .sort((a, b) => b.active - a.active);
+}
+
+// Per-source inventory proof is cached for five minutes. Shared database enums
+// are split back into their public source identities using the normalized host.
+async function loadSourceBreakdown(sb: any) {
+  return cached("status:source-breakdown:v7", 300_000, async () => {
+    if (typeof sb.rpc === "function") {
+      try {
+        const { data: rollups, error: rollupError } = await sb.rpc(
+          "scrape_health_inventory_rollup",
+          { p_sources: STATUS_DEAL_SOURCES },
+        );
+        if (!rollupError && Array.isArray(rollups)) {
+          return buildSourceBreakdownFromRollups(rollups);
+        }
+      } catch {
+        // App and database deploy independently; retain the bounded row fallback.
+      }
+    }
+
+    const pageSize = 1000;
+    const data: any[] = [];
+    for (let page = 0; page < 20; page++) {
+      const from = page * pageSize;
+      const to = from + pageSize - 1;
+      const { data: pageRows } = await sb
+        .from("deals")
+        .select("source, source_url, images, last_seen_at, created_at")
+        .eq("active", true)
+        .range(from, to);
+      data.push(...(pageRows || []));
+      if (!pageRows || pageRows.length < pageSize) break;
+    }
+    const groups = new Map<
+      string,
+      { active: number; withImages: number; newest: string | null }
+    >();
+    for (const row of data || []) {
+      const key = statusSource(row);
+      const group = groups.get(key) || {
+        active: 0,
+        withImages: 0,
+        newest: null,
+      };
+      group.active += 1;
+      if (Array.isArray(row.images) && row.images.length) group.withImages += 1;
+      const seen = row.last_seen_at || row.created_at || null;
+      if (
+        seen &&
+        (!group.newest ||
+          new Date(seen).getTime() > new Date(group.newest).getTime())
+      ) {
+        group.newest = seen;
+      }
+      groups.set(key, group);
+    }
+    return Array.from(groups.entries())
+      .map(([source, group]) => {
+        const ageHours = group.newest
+          ? Math.round(
+              (Date.now() - new Date(group.newest).getTime()) / 3600_000,
+            )
+          : null;
+        return {
+          source,
+          active: group.active,
+          photoPct: group.active
+            ? Math.round((group.withImages / group.active) * 100)
+            : 0,
+          ageHours,
+          status: sourceListingStatus(group.active, ageHours),
+        };
+      })
+      .filter((row) => row.active > 0)
+      .sort((a, b) => b.active - a.active);
+  });
 }
 
 /** Same wording as listing cards: Seen just now / Seen Nh ago / Seen Nd ago. */
@@ -285,6 +447,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     recent,
     newest,
     qualityRows,
+    sourceBreakdown,
   ] = await Promise.all([
     countActive((q: any) => q),
     countActive((q: any) => q.gt("created_at", since24)),
@@ -337,6 +500,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       .eq("active", true)
       .limit(5000)
       .then((r: any) => r.data ?? []),
+    loadSourceBreakdown(sb),
   ]);
 
   const pct = (n: number) => (active ? Math.round((n / active) * 100) : 0);
@@ -434,71 +598,6 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     auctionDatePct: qualityPct(detailCoverage.auction),
     decisionReady: go > 0 && soldComps > 0,
   });
-
-  // Per-source health, computed live and cached 5 min. Some sources share a DB enum
-  // (`gov_auction`, `independent_dealer`), so group by source URL when we know the host.
-  const sourceBreakdown = await cached(
-    "status:source-breakdown:v6",
-    300_000,
-    async () => {
-      const pageSize = 1000;
-      const data: any[] = [];
-      for (let page = 0; page < 20; page++) {
-        const from = page * pageSize;
-        const to = from + pageSize - 1;
-        const { data: pageRows } = await sb
-          .from("deals")
-          .select("source, source_url, images, last_seen_at, created_at")
-          .eq("active", true)
-          .range(from, to);
-        data.push(...(pageRows || []));
-        if (!pageRows || pageRows.length < pageSize) break;
-      }
-      const groups = new Map<
-        string,
-        { active: number; withImages: number; newest: string | null }
-      >();
-      for (const row of data || []) {
-        const key = statusSource(row);
-        const group = groups.get(key) || {
-          active: 0,
-          withImages: 0,
-          newest: null,
-        };
-        group.active += 1;
-        if (Array.isArray(row.images) && row.images.length)
-          group.withImages += 1;
-        const seen = row.last_seen_at || row.created_at || null;
-        if (
-          seen &&
-          (!group.newest ||
-            new Date(seen).getTime() > new Date(group.newest).getTime())
-        ) {
-          group.newest = seen;
-        }
-        groups.set(key, group);
-      }
-      return Array.from(groups.entries())
-        .map(([source, group]) => {
-          const ageHours = group.newest
-            ? Math.round(
-                (Date.now() - new Date(group.newest).getTime()) / 3600_000,
-              )
-            : null;
-          return {
-            source,
-            active: group.active,
-            photoPct: group.active
-              ? Math.round((group.withImages / group.active) * 100)
-              : 0,
-            ageHours,
-            status: sourceListingStatus(group.active, ageHours),
-          };
-        })
-        .filter((row) => row.active > 0)
-        .sort((a, b) => b.active - a.active);
-    },
-  );
 
   // In-sample asking-price proxy; this cannot certify transaction or resale accuracy.
   // Cache the index load and sampled scoring for an hour.
