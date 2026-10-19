@@ -4,9 +4,18 @@ import React from "react";
 import Link from "next/link";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
+import {
+  ErrorState,
+  InlineError,
+  LoadingState,
+} from "@/components/shared/PageStates";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+async function fetcher(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error("Status data is temporarily unavailable.");
+  return response.json();
+}
 const ago = (iso?: string | null) => {
   if (!iso) return "never";
   const h = Math.round((Date.now() - new Date(iso).getTime()) / 3600_000);
@@ -82,17 +91,28 @@ function readinessTone(status: string) {
 }
 
 export default function StatusPage() {
-  const { data } = useSWR("/api/system/status", fetcher, {
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    "/api/system/status",
+    fetcher,
+    {
+      refreshInterval: 180_000,
+      shouldRetryOnError: false,
+    },
+  );
+  const {
+    data: sourceHealth,
+    error: sourceHealthError,
+    isLoading: sourceHealthLoading,
+    mutate: mutateSourceHealth,
+  } = useSWR("/api/scrape/health", fetcher, {
     refreshInterval: 180_000,
-  });
-  const { data: sourceHealth } = useSWR("/api/scrape/health", fetcher, {
-    refreshInterval: 180_000,
+    shouldRetryOnError: false,
   });
   const f = data?.freshness;
   const q = data?.quality;
   const l = data?.learning;
   const sources: any[] = data?.sources ?? [];
-  const healthSources: any[] = sourceHealth?.sources ?? [];
+  const healthSources: any[] = sourceHealth?.sources ?? data?.sources ?? [];
   const runs: any[] = data?.recentRuns ?? [];
   const reliability: any = data?.scraperReliability ?? null;
   const politeness: any = reliability?.politeness ?? null;
@@ -118,17 +138,26 @@ export default function StatusPage() {
     (sum, s) => sum + (Number(s.rowsWithPhotos) || 0),
     0,
   );
-  const healthSummary = sourceHealth?.summary || {};
+  const healthSummary = sourceHealth?.summary || data?.sourceHealth || {};
   const readySourceCount = Number(
-    healthSummary.ready ?? healthSummary.healthy ?? readySources.length,
+    healthSummary.ready ??
+      healthSummary.healthy ??
+      healthSummary.readySources ??
+      readySources.length,
   );
   const loginSourceCount = Number(
-    healthSummary.needsLogin ?? loginSources.length,
+    healthSummary.needsLogin ??
+      healthSummary.needsLoginSources ??
+      loginSources.length,
   );
   const blockedSourceCount = Number(
-    healthSummary.blocked ?? blockedSources.length,
+    healthSummary.blocked ??
+      healthSummary.blockedSources ??
+      blockedSources.length,
   );
-  const proofRows = Number(healthSummary.activeRows ?? publicRows);
+  const proofRows = Number(
+    healthSummary.activeRows ?? healthSummary.activeDeals ?? publicRows,
+  );
   const proofPhotoRows = Number(healthSummary.rowsWithPhotos ?? photoRows);
   const proofAverageQuality = Number(healthSummary.averageQuality ?? 0);
   const bestPublicSource = readySources
@@ -419,19 +448,45 @@ export default function StatusPage() {
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <div>
-        <h1 className="text-2xl font-black text-[var(--t1)] mb-1">
-          System Status
-        </h1>
-        <p className="text-[var(--t3)] text-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="text-2xl font-black text-[var(--t1)]">
+            System Status
+          </h1>
+          {data && isValidating && (
+            <span
+              role="status"
+              className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]"
+            >
+              Refreshing
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[var(--t3)] text-sm">
           The pipeline watches itself — freshness, source health, and data
           quality.
         </p>
       </div>
 
-      {!data ? (
-        <div className="glass-panel p-8 text-center text-[var(--t4)] text-sm">
-          Loading…
+      {error && data && (
+        <InlineError
+          message="The latest system refresh failed. Showing the last successful status."
+          onRetry={() => mutate()}
+        />
+      )}
+
+      {isLoading && !data ? (
+        <div className="glass-panel px-5">
+          <LoadingState
+            label="Checking stored inventory, freshness, and source proof…"
+            variant="block"
+          />
         </div>
+      ) : error && !data ? (
+        <ErrorState
+          title="System status did not load"
+          message="Stored inventory is unchanged. Try the status check again in a moment."
+          onRetry={() => mutate()}
+        />
       ) : (
         <>
           <div className="glass-panel p-5">
@@ -1154,6 +1209,21 @@ export default function StatusPage() {
           </div>
 
           <div className="glass-panel p-5">
+            {sourceHealthError && (
+              <InlineError
+                message="Source-level proof could not refresh. Showing the latest system snapshot where available."
+                onRetry={() => mutateSourceHealth()}
+                className="mb-4"
+              />
+            )}
+            {sourceHealthLoading && !sourceHealth && !sourceHealthError && (
+              <p
+                role="status"
+                className="mb-4 text-xs font-semibold text-[var(--t4)]"
+              >
+                Checking source-level proof…
+              </p>
+            )}
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
@@ -1165,9 +1235,10 @@ export default function StatusPage() {
                     : "No source is ready to show inventory yet."}
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                  This is the buyer-facing truth layer: which sources responded,
-                  how many vehicles were seen, photo coverage, detail quality,
-                  and what should happen next.
+                  This source-proof view checks registered markets and their
+                  stored rows. It is capped separately from the inventory
+                  quality sample below, so its row total is not the full active
+                  inventory count.
                   {proofAverageQuality
                     ? ` Current average detail quality is ${proofAverageQuality}/100.`
                     : ""}
@@ -1195,7 +1266,10 @@ export default function StatusPage() {
                 value={readySourceCount}
                 tone="var(--green)"
               />
-              <Stat label="Public rows" value={proofRows.toLocaleString()} />
+              <Stat
+                label="Rows in source proof"
+                value={proofRows.toLocaleString()}
+              />
               <Stat
                 label="Rows with photos"
                 value={proofPhotoRows.toLocaleString()}
@@ -1319,7 +1393,7 @@ export default function StatusPage() {
           {/* Quality coverage */}
           <div className="glass-panel p-5 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-              Data quality coverage
+              Inventory quality sample
             </p>
             <div className="grid gap-3 md:grid-cols-2">
               {detailBars.map(([label, pct]) => (
@@ -1329,6 +1403,9 @@ export default function StatusPage() {
               <Bar label="Has city" pct={q?.cityPct ?? 0} />
             </div>
             <p className="text-xs leading-relaxed text-[var(--t4)]">
+              These percentages use a separate sample of up to{" "}
+              {(q?.detailCoverage?.total ?? 0).toLocaleString()} active rows;
+              they are not calculated from the source-proof row count above.
               Thin bars are product work, not just scraper work. A deal with a
               photo and price can be browsed; a deal with VIN, title, mileage,
               seller contact, source link, and freshness can be trusted.
