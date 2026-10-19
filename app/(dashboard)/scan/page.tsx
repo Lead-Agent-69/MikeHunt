@@ -26,6 +26,7 @@ import {
   pollScopedScrapeJob,
   sourceSearchCompletionMessage,
 } from "@/lib/scrapers/job-status-client";
+import { sourceReadinessRank } from "@/lib/scrapers/source-proof-readiness";
 import { createLatestRequest } from "@/lib/latest-request";
 import {
   previewFilterMessage,
@@ -1364,17 +1365,8 @@ function SmartDataPlanCard({
   const selectedHealth = sourceHealth
     .filter((item) => selectedHealthIds.has(item.id))
     .sort((a, b) => {
-      const rank: Record<string, number> = {
-        ready: 0,
-        no_rows: 1,
-        needs_run: 2,
-        needs_login: 3,
-        blocked: 4,
-        not_configured: 5,
-        disabled: 6,
-      };
-      const ar = rank[a.readiness] ?? 9;
-      const br = rank[b.readiness] ?? 9;
+      const ar = sourceReadinessRank(a.readiness);
+      const br = sourceReadinessRank(b.readiness);
       if (ar !== br) return ar - br;
       return (b.activeRows || 0) - (a.activeRows || 0);
     });

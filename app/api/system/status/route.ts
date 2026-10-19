@@ -18,6 +18,7 @@ import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { summarizeReliability } from "@/lib/scrapers/reliability";
+import { sourceReadinessRank } from "@/lib/scrapers/source-proof-readiness";
 import {
   applyAuthProviderReadiness,
   readAuthProviderReadiness,
@@ -270,15 +271,8 @@ export function mergeStatusSources(runHealth: any[], sourceBreakdown: any[]) {
     });
   }
   return Array.from(bySource.values()).sort((a, b) => {
-    const rank: Record<string, number> = {
-      ready: 0,
-      needs_run: 1,
-      no_rows: 2,
-      needs_login: 3,
-      blocked: 4,
-    };
-    const ar = rank[a.readiness] ?? 9;
-    const br = rank[b.readiness] ?? 9;
+    const ar = sourceReadinessRank(a.readiness);
+    const br = sourceReadinessRank(b.readiness);
     if (ar !== br) return ar - br;
     return Number(b.activeRows || 0) - Number(a.activeRows || 0);
   });

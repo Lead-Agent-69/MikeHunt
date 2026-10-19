@@ -1,5 +1,19 @@
 import { COVERAGE_WINDOW_DAYS } from "@/lib/discovery/coverage";
 
+const SOURCE_READINESS_RANK: Record<string, number> = {
+  ready: 0,
+  needs_run: 1,
+  no_rows: 2,
+  needs_login: 3,
+  blocked: 4,
+  not_configured: 5,
+  disabled: 6,
+};
+
+export function sourceReadinessRank(readiness?: string | null) {
+  return SOURCE_READINESS_RANK[readiness || ""] ?? 9;
+}
+
 export function sourceOperationLabel(source: {
   enabled: boolean;
   lastStatus: string;

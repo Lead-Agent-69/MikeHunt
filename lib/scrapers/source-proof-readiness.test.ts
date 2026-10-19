@@ -2,12 +2,32 @@ import { describe, expect, it } from "vitest";
 import {
   sourceProofReadiness,
   sourceOperationLabel,
+  sourceReadinessRank,
 } from "./source-proof-readiness";
 
 const now = Date.parse("2026-10-12T01:00:00Z");
 const current = "2026-10-11T01:00:00Z";
 const old = "2026-10-01T01:00:00Z";
 describe("source readiness requires real current proof", () => {
+  it("shows stale stored inventory before sources proven to have no rows", () => {
+    const sources = [
+      { readiness: "no_rows", activeRows: 0 },
+      { readiness: "needs_run", activeRows: 61 },
+      { readiness: "ready", activeRows: 14 },
+    ];
+
+    expect(
+      sources
+        .sort(
+          (a, b) =>
+            sourceReadinessRank(a.readiness) -
+              sourceReadinessRank(b.readiness) || b.activeRows - a.activeRows,
+        )
+        .map((source) => source.readiness),
+    ).toEqual(["ready", "needs_run", "no_rows"]);
+    expect(sourceReadinessRank("unexpected")).toBe(9);
+  });
+
   it("does not show unknown rates as degraded or stale data as healthy", () => {
     expect(
       sourceOperationLabel({
