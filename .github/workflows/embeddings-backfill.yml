@@ -13,7 +13,7 @@ name: Embeddings backfill
 
 on:
   schedule:
-    # Every 3h (8 runs/day). The endpoint caps each run at 250 texts and each PT day at
+    # Every 3h (8 runs/day). The endpoint caps each run at 100 texts and each PT day at
     # EMBEDDING_DAILY_CAP (default 900, under the Gemini free tier's 1,000 requests/day), so
     # extra runs only pick up newly scraped/changed deals; once the day's cap is spent a run
     # returns in seconds. Runs on the self-hosted Zeus runner, so it uses no hosted Actions minutes.
@@ -21,9 +21,9 @@ on:
   workflow_dispatch: # manual re-run from the Actions tab
     inputs:
       limit:
-        description: "Deals to embed this run (max 250; daily cap still applies)"
+        description: "Deals to embed this run (max 100; daily cap still applies)"
         required: false
-        default: "250"
+        default: "100"
 
 concurrency:
   group: embeddings-backfill
@@ -46,7 +46,7 @@ jobs:
           # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
           BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          LIMIT: ${{ github.event.inputs.limit || '250' }}
+          LIMIT: ${{ github.event.inputs.limit || '100' }}
         run: |
           $ErrorActionPreference = 'Stop'
           if ([string]::IsNullOrWhiteSpace($env:CRON_SECRET)) {
