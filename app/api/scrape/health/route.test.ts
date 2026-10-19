@@ -3,8 +3,17 @@ import { NextRequest } from "next/server";
 import { readFileSync } from "node:fs";
 import { DEALER_SOURCE_DOMAINS } from "@/lib/sources/source-meta";
 
-vi.mock("@/lib/supabase", () => ({
+const dependencyMocks = vi.hoisted(() => ({
   isSupabaseConfigured: vi.fn(() => false),
+  createClient: vi.fn(),
+}));
+
+vi.mock("@/lib/supabase", () => ({
+  isSupabaseConfigured: dependencyMocks.isSupabaseConfigured,
+}));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: dependencyMocks.createClient,
 }));
 
 vi.mock("@/lib/auth/scrape-gate", () => ({
@@ -140,6 +149,8 @@ function req(path: string) {
 // whenever SCRAPE_TERMS_SAFE_ONLY=1, which is what these tests exercise.
 beforeEach(() => {
   vi.stubEnv("SCRAPE_TERMS_SAFE_ONLY", "1");
+  dependencyMocks.isSupabaseConfigured.mockReturnValue(false);
+  dependencyMocks.createClient.mockReset();
 });
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -679,6 +690,191 @@ describe("buildLiveCoverage (Decision guide 'working markets')", () => {
       liveSourceGroups: 3,
     });
     expect(c.topSites[0]).toEqual({ host: "alanjay.com", activeRows: 2 });
+  });
+});
+
+describe("database inventory health rollups", () => {
+  it("uses the compact RPC for unfiltered health without reading deals pages", async () => {
+    vi.stubEnv("SCRAPE_SOURCES", "copart");
+    dependencyMocks.isSupabaseConfigured.mockReturnValue(true);
+    const from = vi.fn((table: string) => {
+      if (table === "deals") {
+        throw new Error("wide deals fallback should not run");
+      }
+      if (table !== "scraper_runs")
+        throw new Error(`unexpected table ${table}`);
+      return {
+        select: () => ({
+          in: () => ({
+            order: () => ({
+              limit: async () => ({ data: [], error: null }),
+            }),
+          }),
+        }),
+      };
+    });
+    const rpc = vi.fn(async (name: string) => {
+      if (name === "scrape_health_inventory_rollup") {
+        return {
+          data: [
+            {
+              source: "copart",
+              adapter_id: "",
+              source_host: "copart.com",
+              location_state: "MO",
+              seller_type: "auction",
+              active_rows: 2,
+              rows_with_photos: 2,
+              photos: 2,
+              vin: 2,
+              title: 2,
+              mileage: 2,
+              damage: 2,
+              price: 2,
+              location: 2,
+              seller: 2,
+              explicit_seller_identity: 0,
+              explicit_seller_contact: 0,
+              auction_date: 2,
+              source_link: 2,
+              newest_seen: "2026-10-19T09:00:00.000Z",
+            },
+          ],
+          error: null,
+        };
+      }
+      if (name === "scrape_demand") return { data: [], error: null };
+      throw new Error(`unexpected RPC ${name}`);
+    });
+    dependencyMocks.createClient.mockReturnValue({ from, rpc });
+
+    const { GET } = await import("./route");
+    const response = await GET(req("/api/scrape/health"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.inventoryProofMode).toBe("database_rollup");
+    expect(body.coverage).toMatchObject({
+      liveRows: 2,
+      liveSites: 1,
+      liveStates: 1,
+    });
+    expect(
+      body.sources.find((source: any) => source.id === "copart"),
+    ).toMatchObject({
+      activeRows: 2,
+      rowsWithPhotos: 2,
+      averageQuality: 91,
+    });
+    expect(from).not.toHaveBeenCalledWith("deals");
+    expect(rpc.mock.calls.map(([name]) => name)).toEqual([
+      "scrape_health_inventory_rollup",
+      "scrape_demand",
+    ]);
+  });
+
+  it("keeps exact weighted coverage and concrete dealer attribution", async () => {
+    const { buildLiveCoverageFromRollups, buildProofFromRollups } =
+      await import("./route");
+    const [dealerId, domains] = Object.entries(DEALER_SOURCE_DOMAINS).find(
+      ([, values]) => values.length > 0,
+    )!;
+    const rows = [
+      {
+        source: "independent_dealer",
+        adapter_id: "curated_dealers",
+        source_host: domains[0],
+        location_state: "FL",
+        seller_type: "dealer",
+        active_rows: "3",
+        rows_with_photos: "3",
+        photos: "3",
+        vin: "3",
+        title: "3",
+        mileage: "3",
+        damage: "3",
+        price: "3",
+        location: "3",
+        seller: "3",
+        explicit_seller_identity: "0",
+        explicit_seller_contact: "0",
+        auction_date: "0",
+        source_link: "3",
+        newest_seen: "2026-10-19T08:00:00.000Z",
+      },
+      {
+        source: "gov_auction",
+        adapter_id: "govdeals",
+        source_host: "govdeals.com",
+        location_state: "TX",
+        seller_type: "auction",
+        active_rows: 2,
+        rows_with_photos: 2,
+        photos: 2,
+        vin: 2,
+        title: 2,
+        mileage: 2,
+        damage: 2,
+        price: 2,
+        location: 2,
+        seller: 2,
+        explicit_seller_identity: 0,
+        explicit_seller_contact: 0,
+        auction_date: 0,
+        source_link: 2,
+        newest_seen: "2026-10-19T09:00:00.000Z",
+      },
+    ];
+
+    const proof = buildProofFromRollups(rows, [
+      dealerId,
+      "curated_dealers",
+      "govdeals",
+    ]);
+    expect(proof.attributedDealerRows).toBe(3);
+    expect(proof.proofBySource[dealerId]).toMatchObject({
+      activeRows: 3,
+      rowsWithPhotos: 3,
+      qualityPresent: 30,
+      qualityChecks: 30,
+      lastSeenAt: "2026-10-19T08:00:00.000Z",
+    });
+    expect(proof.proofBySource[dealerId].completeness).toMatchObject({
+      photos: 3,
+      sellerContact: 3,
+      sourceLink: 3,
+    });
+    expect(proof.proofBySource.govdeals).toMatchObject({
+      activeRows: 2,
+      qualityPresent: 18,
+      qualityChecks: 22,
+    });
+
+    expect(buildLiveCoverageFromRollups(rows)).toMatchObject({
+      liveRows: 5,
+      workingMarkets: 2,
+      liveSites: 2,
+      liveStates: 2,
+      liveSourceGroups: 2,
+      topSites: [
+        { host: domains[0], activeRows: 3 },
+        { host: "govdeals.com", activeRows: 2 },
+      ],
+    });
+  });
+
+  it("keeps the rollup RPC service-only and security-invoker", () => {
+    const migration = readFileSync(
+      "supabase/migrations/20261019100510_source_health_rollup.sql",
+      "utf8",
+    );
+    expect(migration).toContain("security invoker");
+    expect(migration).not.toContain("security definer");
+    expect(migration).toContain(
+      "revoke all on function public.scrape_health_inventory_rollup(text[])",
+    );
+    expect(migration).toContain("from public, anon, authenticated");
+    expect(migration).toContain("to service_role");
   });
 });
 
