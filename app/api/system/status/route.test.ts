@@ -3,9 +3,37 @@ import {
   buildSourceBreakdownFromRollups,
   lastSeenLabel,
   mergeStatusSources,
+  shouldCacheFullStatus,
   sourceListingStatus,
   summarizeSourceHealth,
 } from "./route";
+
+describe("shouldCacheFullStatus", () => {
+  it("keeps setup responses cacheable but retries incomplete production reads", () => {
+    expect(shouldCacheFullStatus({ configured: false })).toBe(true);
+    expect(
+      shouldCacheFullStatus({
+        configured: true,
+        activeDeals: 0,
+        sources: [],
+      }),
+    ).toBe(false);
+    expect(
+      shouldCacheFullStatus({
+        configured: true,
+        activeDeals: 10,
+        sources: [],
+      }),
+    ).toBe(false);
+    expect(
+      shouldCacheFullStatus({
+        configured: true,
+        activeDeals: 10,
+        sources: [{ id: "carvana" }],
+      }),
+    ).toBe(true);
+  });
+});
 
 describe("buildSourceBreakdownFromRollups", () => {
   it("keeps exact weighted totals and attributes shared dealer hosts", () => {
