@@ -45,7 +45,8 @@ export function sourceProofReadiness(input: {
       time >= now - COVERAGE_WINDOW_DAYS * 86_400_000
     );
   };
-  if ((input.activeRows || 0) > 0 && recent(input.lastSeenAt)) return "ready";
+  if ((input.activeRows || 0) > 0)
+    return recent(input.lastSeenAt) ? "ready" : "needs_run";
   // A network-wide run cannot prove that an individual dealer was checked.
   if (
     !input.sharedImporter &&

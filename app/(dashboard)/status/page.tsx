@@ -78,7 +78,7 @@ const READINESS_LABELS: Record<string, string> = {
   needs_login: "Needs login",
   blocked: "Blocked",
   no_rows: "No rows",
-  needs_run: "Needs run",
+  needs_run: "Needs refresh",
   not_configured: "Setup needed",
   disabled: "Disabled",
 };
