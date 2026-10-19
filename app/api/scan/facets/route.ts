@@ -47,6 +47,7 @@ import {
   displaySource,
   sourceMeta,
 } from "@/lib/sources/source-meta";
+import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 
 function inc(map: Map<string, number>, key?: string | null) {
   const normalized = String(key || "").trim();
@@ -59,28 +60,6 @@ function topCounts(map: Map<string, number>, limit = 40) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([value, count]) => ({ value, count }));
-}
-
-function sellerBucket(
-  source?: string | null,
-  sourceUrl?: string | null,
-  reported?: string | null,
-) {
-  if (reported && ["dealer", "private", "auction"].includes(reported))
-    return reported;
-  const s = String(source || "").toLowerCase();
-  const url = String(sourceUrl || "").toLowerCase();
-  if (["copart", "iaa", "adesa", "manheim", "acv", "gov_auction"].includes(s)) {
-    return "auction";
-  }
-  if (
-    s === "independent_dealer" ||
-    Boolean(dealerSourceIdFromUrl(url)) ||
-    ["craigslist_dealer", "carvana", "vroom", "carmax"].includes(s)
-  ) {
-    return "dealer";
-  }
-  return null;
 }
 
 export function buildScanFacetSummary(
@@ -103,7 +82,7 @@ export function buildScanFacetSummary(
     if (r.make) makes.set(r.make, (makes.get(r.make) || 0) + 1);
     if (r.location_state) states.add(r.location_state);
     if (r.year) years.add(Number(r.year));
-    inc(sellerTypes, sellerBucket(r.source, r.source_url, r.seller_type));
+    inc(sellerTypes, sellerTypeEvidence(r));
     const sourceId =
       dealerSourceIdFromUrl(r.source_url) ||
       displaySource(r.source, r.source_url) ||

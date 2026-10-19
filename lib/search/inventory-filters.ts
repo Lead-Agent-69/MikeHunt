@@ -109,19 +109,25 @@ export function sellerTypeSourceValues(sellerType: string) {
   return [];
 }
 
-/** A mixed marketplace is not seller evidence. Explicit listing data wins over source defaults. */
+const DEDICATED_SELLER_SOURCES = Array.from(
+  new Set([
+    ...SELLER_TYPE_SOURCE_DEFAULTS.dealer,
+    ...SELLER_TYPE_SOURCE_DEFAULTS.auction,
+  ]),
+);
+
+/** Dedicated channels outrank stale fields; mixed marketplaces require listing evidence. */
 export function applySellerTypes(query: any, types: string[]) {
   const selected = Array.from(new Set(types)).filter(isListingSellerType);
   if (!selected.length) return query;
+  const dedicated = DEDICATED_SELLER_SOURCES.join(",");
   return query.or(
     selected
       .flatMap((type) => [
-        `options->>sellerType.eq.${type}`,
         ...(SELLER_TYPE_SOURCE_DEFAULTS[type].length
-          ? [
-              `and(options->>sellerType.is.null,source.in.(${SELLER_TYPE_SOURCE_DEFAULTS[type].join(",")}))`,
-            ]
+          ? [`source.in.(${SELLER_TYPE_SOURCE_DEFAULTS[type].join(",")})`]
           : []),
+        `and(options->>sellerType.eq.${type},source.not.in.(${dedicated}))`,
       ])
       .join(","),
   );

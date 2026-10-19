@@ -64,8 +64,14 @@ export interface DiscoveryDeal {
   titleClass?: "clean" | "rebuilt" | "salvage" | "parts" | "unknown";
   /** options.titleSource (#211): a source-default title renders as a weaker badge. */
   titleSource?: "listing" | "source_default" | null;
-  /** Channel/risk lane + its color (auction/salvage/repairable/clean-retail/private). */
-  lane?: "auction" | "salvage" | "repairable" | "clean-retail" | "private";
+  /** Channel/risk lane + its color. Marketplace means seller type was not reported. */
+  lane?:
+    | "auction"
+    | "salvage"
+    | "repairable"
+    | "clean-retail"
+    | "private"
+    | "marketplace";
   laneColor?: string;
   grade: DealGrade;
   discountPct: number;

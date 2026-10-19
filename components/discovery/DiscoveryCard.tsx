@@ -41,6 +41,7 @@ const LANE_LABELS: Record<string, string> = {
   repairable: "Repairable",
   "clean-retail": "Retail",
   private: "Private",
+  marketplace: "Marketplace",
 };
 
 /** Graceful image placeholder when a deal has no photos / a broken URL. */

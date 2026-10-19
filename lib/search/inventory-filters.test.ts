@@ -223,20 +223,38 @@ describe("inventory filter contract", () => {
     expect(q.or).not.toHaveBeenCalled();
     const seller = query();
     applySellerTypes(seller, ["private"]);
-    expect(seller.or).toHaveBeenCalledWith("options->>sellerType.eq.private");
+    expect(seller.or.mock.calls[0][0]).toContain(
+      "and(options->>sellerType.eq.private,source.not.in.(independent_dealer",
+    );
     expect(seller.in).not.toHaveBeenCalled();
   });
-  it("requires seller evidence on mixed platforms and uses only dedicated dealer defaults", () => {
+  it("uses dedicated dealer evidence even when a stale field disagrees", () => {
     const q = query();
     applySellerTypes(q, ["dealer"]);
     const filter = q.or.mock.calls[0][0];
-    expect(filter).toContain("options->>sellerType.eq.dealer");
     expect(filter).toContain(
-      "options->>sellerType.is.null,source.in.(independent_dealer",
+      "source.in.(independent_dealer,craigslist_dealer,carvana,vroom)",
+    );
+    expect(filter).toContain(
+      "and(options->>sellerType.eq.dealer,source.not.in.(independent_dealer",
     );
     expect(filter).not.toContain("cargurus");
     expect(filter).not.toContain("ebay_motors");
     expect(filter).not.toContain("carmax");
+  });
+
+  it("keeps dedicated dealer and auction rows out of private seller results", () => {
+    const q = query();
+    applySellerTypes(q, ["private"]);
+    const filter = q.or.mock.calls[0][0];
+    for (const source of [
+      "independent_dealer",
+      "carvana",
+      "copart",
+      "gov_auction",
+    ])
+      expect(filter).toContain(source);
+    expect(filter).not.toContain("source.in.");
   });
 
   it("details filter stored fields and only known parsed spec enums", () => {

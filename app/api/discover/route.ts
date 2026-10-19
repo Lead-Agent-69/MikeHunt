@@ -99,7 +99,7 @@ function mapDeal(
     sellBasis: d.deal_analysis?.sellBasis,
   });
   const { heat, hoursLeft } = auctionHeat(d.auction_end_at);
-  // Channel/risk lane (auction/salvage/repairable/clean-retail/private) + its color, so the card can
+  // Channel/risk lane + its color. Unknown mixed-market sellers stay neutral as marketplace.
   // show a lane chip and the per-lane rails below can group the same way the scan table does.
   const lane = dealLane(d);
   const quality = gradeDataQuality({

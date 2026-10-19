@@ -35,6 +35,7 @@ const icons = {
   auction: createIcon("var(--amber)"),
   dealer: createIcon("var(--blue)"),
   private: createIcon("var(--green)"),
+  marketplace: createIcon("#64748b"),
   hub: createIcon("var(--red)"),
 };
 
@@ -43,7 +44,7 @@ export interface MapPoint {
   name: string;
   lat: number;
   lng: number;
-  type?: "auction" | "dealer" | "private" | "hub";
+  type?: "auction" | "dealer" | "private" | "marketplace" | "hub";
   label?: string;
   approx?: boolean;
   // Rich listing fields (housing) → Zillow/Redfin-style price-pill markers + photo-card popups.
@@ -94,6 +95,7 @@ const TYPE_HEX: Record<string, string> = {
   private: "#22c55e", // GO
   auction: "#f59e0b", // HOLD / auction
   dealer: "#2563eb",
+  marketplace: "#64748b",
   hub: "#ef4444",
 };
 const esc = (v: unknown) =>

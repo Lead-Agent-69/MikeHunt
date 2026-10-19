@@ -55,7 +55,11 @@ describe("dealLane — curated-site type defaults map to the right channel", () 
 
   it("keeps independent dealers in retail rather than private", () => {
     expect(
-      dealLane({ source: "independent_dealer", condition: "run_drive" }),
+      dealLane({
+        source: "independent_dealer",
+        condition: "run_drive",
+        options: { sellerType: "private" },
+      }),
     ).toBe("clean-retail");
   });
 
@@ -99,5 +103,29 @@ describe("dealLane — curated-site type defaults map to the right channel", () 
     expect(dealLane({ source: "carvana", condition: "clean" })).toBe(
       "clean-retail",
     );
+  });
+
+  it("keeps an unreported mixed-market seller neutral", () => {
+    expect(dealLane({ source: "ebay_motors", condition: "run_drive" })).toBe(
+      "marketplace",
+    );
+    expect(dealLane({ condition: "clean_title" })).toBe("marketplace");
+  });
+
+  it("uses explicit seller evidence on mixed marketplaces", () => {
+    expect(
+      dealLane({
+        source: "ebay_motors",
+        condition: "clean_title",
+        options: { sellerType: "dealer" },
+      }),
+    ).toBe("clean-retail");
+    expect(
+      dealLane({
+        source: "ebay_motors",
+        condition: "clean_title",
+        options: { sellerType: "auction" },
+      }),
+    ).toBe("auction");
   });
 });
