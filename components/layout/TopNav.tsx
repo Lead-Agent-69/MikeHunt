@@ -16,8 +16,11 @@ import {
   INVENTORY_URL_EVENT,
   replaceInventoryHistory,
 } from "@/lib/search/inventory-history";
-import { parseMarketLocation } from "@/lib/market/explorer";
-import { OPEN_MARKET_LOCATION_EVENT } from "@/lib/market/events";
+import {
+  normalizeMarketArea,
+  searchAreaLabel,
+  replaceStateArea,
+} from "@/lib/search/area-scope";
 import {
   navItemForViewer,
   primaryNavForMode,
@@ -190,50 +193,47 @@ function TopNavContent() {
         pathname,
       )
     ) {
-      const params = new URLSearchParams(window.location.search);
-      params.delete("state");
-      params.delete("states");
-      if (pathname === "/market") {
-        for (const key of ["near", "radius", "lat", "lng", "page"])
-          params.delete(key);
-        if (states.length) params.set("states", states.join(","));
-      } else if (states.length === 1) params.set("state", states[0]);
-      else if (states.length > 1) params.set("states", states.join(","));
-      else params.set("state", "Nationwide");
+      const params = replaceStateArea(
+        new URLSearchParams(window.location.search),
+        states,
+        pathname === "/market",
+      );
       replaceInventoryHistory(`${pathname}?${params.toString()}`);
       window.dispatchEvent(new Event("inventory-scope-change"));
     } else router.refresh();
   };
 
-  const marketLocation =
-    pathname === "/market"
-      ? parseMarketLocation(
-          new URLSearchParams(scopedSearch ?? searchParams.toString()),
-        )
-      : null;
-  const radiusScope =
-    marketLocation && !("error" in marketLocation) && marketLocation.radius
-      ? marketLocation
-      : null;
+  const locationParams = new URLSearchParams(
+    scopedSearch ?? searchParams.toString(),
+  );
+  const areaLabel = searchAreaLabel(
+    normalizeMarketArea({
+      near: locationParams.get("near") || locationParams.get("zip") || "",
+      radius: locationParams.get("radius") || "",
+      lat: locationParams.get("lat") || "",
+      lng: locationParams.get("lng") || "",
+      states: inventoryScopeStates(locationParams) || [],
+    }),
+  );
   const locationButton = (className: string, compact = false) =>
-    radiusScope ? (
+    pathname === "/market" ? (
       <button
         type="button"
         className={className}
         style={{ minHeight: 44, minWidth: 44 }}
-        title={`Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
-        aria-label={`Change search area: Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
-        aria-controls="market-location-controls"
+        title={areaLabel}
+        aria-label={`Change search area: ${areaLabel}`}
+        aria-haspopup="dialog"
+        aria-controls="market-area-dialog"
         onClick={() => {
-          window.dispatchEvent(new Event(OPEN_MARKET_LOCATION_EVENT));
+          const trigger = document.getElementById("market-search-area-trigger");
+          trigger?.scrollIntoView({ block: "center", behavior: "instant" });
+          trigger?.focus({ preventScroll: true });
+          trigger?.click();
         }}
       >
         <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate">
-          {compact
-            ? `${radiusScope.radius} mi · ${radiusScope.near || "Here"}`
-            : `Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
-        </span>
+        <span className="max-w-[10rem] truncate">{areaLabel}</span>
       </button>
     ) : (
       <MyStatesButton

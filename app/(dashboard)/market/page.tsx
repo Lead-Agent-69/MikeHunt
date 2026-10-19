@@ -18,6 +18,11 @@ import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { ResponsiveWorkspacePanel } from "@/components/shared/ResponsiveWorkspacePanel";
 import { MarketSearchActions } from "@/components/market/MarketSearchActions";
 import { MarketLocation } from "@/components/market/MarketLocation";
+import {
+  normalizeMarketArea,
+  searchAreaMode,
+  searchAreaLabel,
+} from "@/lib/search/area-scope";
 import type { MarketFacetCount, MarketListing } from "@/lib/market/explorer";
 import { InventoryDetailFilters } from "@/components/search/InventoryDetailFilters";
 import {
@@ -56,9 +61,6 @@ import { parseTitleTypes } from "@/lib/deals/title-category";
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
 // WHOLE MARKET (everything). Every filter shows a live count from the server's facets. Built on the
 // shared design tokens so it inherits whatever theme is active.
-
-// prettier-ignore
-const US_STATES = ["AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY"];
 
 const LANES: { key: string; label: string }[] = [
   { key: "salvage", label: "Salvage" },
@@ -245,13 +247,17 @@ export default function MarketPage() {
     setPage(0);
     if (patch.conditions)
       setDetails((current) => ({ ...current, titleType: "" }));
-    setF((p) => ({
-      ...p,
-      ...patch,
-      ...(patch.near === "" && patch.lat === "" && p.sort === "distanceMiles"
-        ? { sort: "lastSeenAt", sortDir: "desc" as const }
-        : {}),
-    }));
+    setF((p) => {
+      const next = { ...p, ...patch };
+      const area = normalizeMarketArea(next);
+      return {
+        ...next,
+        ...area,
+        ...(searchAreaMode(area) !== "nearby" && next.sort === "distanceMiles"
+          ? { sort: "lastSeenAt", sortDir: "desc" as const }
+          : {}),
+      };
+    });
   };
   const setDetail = (key: string, value: string) => {
     setPage(0);
@@ -336,6 +342,11 @@ export default function MarketPage() {
         ].includes(next.sort)
       )
         next.sort = EMPTY.sort;
+      Object.assign(next, normalizeMarketArea(next));
+      if (searchAreaMode(next) !== "nearby" && next.sort === "distanceMiles") {
+        next.sort = "lastSeenAt";
+        next.sortDir = "desc";
+      }
       setF(next);
       setDetails(readInventoryDetails(params));
       setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
@@ -409,12 +420,7 @@ export default function MarketPage() {
       const vehicle = [f.makes.filter(Boolean).join(" + "), f.model]
         .filter(Boolean)
         .join(" ");
-      const location =
-        f.near || f.lat
-          ? `Within ${f.radius || "100"} mi of ${f.near || "your location"}`
-          : f.states.length
-            ? f.states.join(" + ")
-            : "Nationwide";
+      const location = searchAreaLabel(f);
       const saved = saveLocalSavedSearch({
         name: [vehicle || f.q.trim() || "All vehicles", location]
           .filter(Boolean)
@@ -469,12 +475,7 @@ export default function MarketPage() {
     laneColors: {},
   };
   const total: number = data?.total ?? 0;
-  const searchAreaLabel =
-    f.near || f.lat
-      ? `Within ${data?.location?.radius || f.radius || "100"} mi of ${f.near || "your location"}`
-      : f.states.length
-        ? f.states.join(", ")
-        : "Nationwide";
+  const areaSummary = searchAreaLabel(f);
   const quickSourceOptions = INVENTORY_SOURCE_FILTERS.filter(
     (source) =>
       (data?.sourceCoverage?.counts?.[source.id] ?? 0) > 0 ||
@@ -1088,20 +1089,26 @@ export default function MarketPage() {
                   selected={f.lanes}
                   onToggle={(key) => set({ lanes: toggle(f.lanes, key) })}
                 />
-                <StateGroup
-                  selected={f.states}
-                  counts={facets.states || {}}
-                  onToggle={(key) =>
-                    set({
-                      states: toggle(f.states, key),
-                      near: "",
-                      radius: "",
-                      lat: "",
-                      lng: "",
-                    })
-                  }
-                  onClear={() => set({ states: [] })}
-                />
+                <button
+                  type="button"
+                  aria-label="Edit search area"
+                  onClick={() => {
+                    closeFilters();
+                    requestAnimationFrame(() => {
+                      const trigger = document.getElementById(
+                        "market-search-area-trigger",
+                      );
+                      trigger?.focus();
+                      trigger?.click();
+                    });
+                  }}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[var(--b1)] px-3 py-2 text-left text-sm font-semibold"
+                >
+                  <span>Search area</span>
+                  <span className="truncate text-[var(--t3)]">
+                    {searchAreaLabel(f)}
+                  </span>
+                </button>
                 <details className="rounded-xl border border-[var(--b1)] px-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
                     Sources & dealers ({f.sources.length || "Any"})
@@ -1436,7 +1443,7 @@ export default function MarketPage() {
                       {total.toLocaleString()}
                     </strong>{" "}
                     {data?.mode === "curated" ? "curated" : "market"} matches
-                    {` · ${searchAreaLabel}`}
+                    {` · ${areaSummary}`}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
                 )}
@@ -1817,71 +1824,5 @@ function ChipGroup({
         })}
       </div>
     </div>
-  );
-}
-
-function StateGroup({
-  selected,
-  counts,
-  onToggle,
-  onClear,
-}: {
-  selected: string[];
-  counts: Record<string, number>;
-  onToggle: (k: string) => void;
-  onClear: () => void;
-}) {
-  // States with inventory first (by count), then the rest greyed — so the dealer sees where the cars are.
-  const withCars = US_STATES.filter((s) => counts[s] > 0).sort(
-    (a, b) => counts[b] - counts[a],
-  );
-  const without = US_STATES.filter((s) => !counts[s]);
-  return (
-    <details
-      open={selected.length > 0 ? true : undefined}
-      className="rounded-[var(--r3)] bg-[var(--s1)] px-3"
-      style={{ boxShadow: "var(--shadow)" }}
-    >
-      <summary className="flex min-h-10 cursor-pointer items-center justify-between text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-        <span>States {selected.length ? `(${selected.length})` : ""}</span>
-        <span className="text-[9px] font-medium normal-case text-[var(--t5)]">
-          {withCars.length} with inventory
-        </span>
-      </summary>
-      {selected.length > 0 && (
-        <button
-          type="button"
-          onClick={onClear}
-          className="mb-2 text-[10px] font-bold text-[var(--blue)] hover:text-[var(--t1)]"
-        >
-          Clear selected states
-        </button>
-      )}
-      <div className="flex flex-wrap gap-1 pb-3">
-        {[...withCars, ...without].map((s) => {
-          const on = selected.includes(s);
-          const has = counts[s] > 0;
-          return (
-            <button
-              key={s}
-              onClick={() => onToggle(s)}
-              title={has ? `${counts[s]} cars` : "no current inventory"}
-              className="rounded px-1.5 py-1 text-[11px] font-bold transition-all"
-              style={
-                on
-                  ? { background: "var(--grad)", color: "#fff" }
-                  : {
-                      background: "var(--s2)",
-                      color: has ? "var(--t2)" : "var(--t5)",
-                    }
-              }
-            >
-              {s}
-              {has && <span className="ml-1 opacity-60">{counts[s]}</span>}
-            </button>
-          );
-        })}
-      </div>
-    </details>
   );
 }

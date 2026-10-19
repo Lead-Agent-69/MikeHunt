@@ -36,8 +36,8 @@ describe("mobile location regression protections", () => {
     expect(page).not.toContain("<SelectField");
     expect(page).not.toContain("<MarketPicker");
     expect(header).toContain("replaceInventoryHistory(");
-    expect(header).toContain("OPEN_MARKET_LOCATION_EVENT");
-    expect(header).toContain('aria-controls="market-location-controls"');
+    expect(header).toContain('getElementById("market-search-area-trigger")');
+    expect(header).toContain('aria-controls="market-area-dialog"');
     expect(history).toContain(
       "window.history.replaceState(window.history.state",
     );

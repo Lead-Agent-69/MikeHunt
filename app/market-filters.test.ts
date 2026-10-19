@@ -4,7 +4,6 @@ import { Simulate } from "react-dom/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LOCAL_SAVED_SEARCH_KEY } from "@/hooks/useLocalSavedSearches";
 import type { Prefs } from "@/hooks/usePreferences";
-import { OPEN_MARKET_LOCATION_EVENT } from "@/lib/market/events";
 
 const state = vi.hoisted(() => ({
   mode: "personal",
@@ -96,18 +95,6 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
-  it("opens the collapsed location controls when the header requests them", async () => {
-    await render();
-    const locationToggle = host.querySelector<HTMLButtonElement>(
-      'button[aria-controls="market-location-controls"]',
-    )!;
-    expect(locationToggle.getAttribute("aria-expanded")).toBe("false");
-    await act(async () => {
-      window.dispatchEvent(new Event(OPEN_MARKET_LOCATION_EVENT));
-    });
-    expect(locationToggle.getAttribute("aria-expanded")).toBe("true");
-  });
-
   it("normalizes legacy title aliases and allows clearing multiple sources from the everyday selector", async () => {
     window.history.replaceState(
       null,
@@ -130,6 +117,7 @@ describe("Market filter journey", () => {
       false,
     );
   });
+
   it("normalizes legacy all-source and all-make links rather than requesting an invalid source", async () => {
     window.history.replaceState(
       null,
@@ -141,6 +129,7 @@ describe("Market filter journey", () => {
     expect(params.has("sources")).toBe(false);
     expect(params.has("makes")).toBe(false);
   });
+
   it("replaces a legacy unknown-title constraint when the user chooses clean title", async () => {
     window.history.replaceState(null, "", "/market?titleType=unknown");
     await render();
@@ -158,6 +147,7 @@ describe("Market filter journey", () => {
     expect(params.has("titleType")).toBe(false);
     expect(params.get("conditions")).toBe("clean_title");
   });
+
   it("uses saved buying limits only for a fresh search, not an explicit shared search", async () => {
     state.prefs = {
       buyerScope: {
@@ -188,6 +178,7 @@ describe("Market filter journey", () => {
     expect(explicit.get("model")).toBe("Civic");
     expect(explicit.has("mileageMax")).toBe(false);
   });
+
   it("does not turn legacy zero budgets into an invalid maximum-price filter", async () => {
     state.prefs = { buyerScope: { minPrice: 0, maxPrice: 0, maxMileage: 0 } };
     await render();
@@ -196,6 +187,7 @@ describe("Market filter journey", () => {
     expect(params.has("priceMax")).toBe(false);
     expect(params.get("mileageMax")).toBe("0");
   });
+
   it("applies the visible source selector without opening advanced controls", async () => {
     await render();
     const source = host.querySelector<HTMLSelectElement>(
@@ -210,6 +202,7 @@ describe("Market filter journey", () => {
     ).toContain("Browse every source in All filters");
     expect(source.querySelector('option[value="iaa"]')).toBeNull();
   });
+
   it("retains unknown title, repair exclusion and price-gap sort from other views", async () => {
     window.history.replaceState(
       null,
@@ -226,6 +219,7 @@ describe("Market filter journey", () => {
       host.querySelector('[aria-label="Save search on this device"]'),
     ).not.toBeNull();
   });
+
   it("exposes and applies everyday mileage controls before opening advanced filters", async () => {
     await render();
     const controls = host.querySelector(
@@ -244,6 +238,7 @@ describe("Market filter journey", () => {
         .getAttribute("aria-expanded"),
     ).toBe("false");
   });
+
   it("preserves a typed comma so users can enter multiple makes", async () => {
     await render();
     const input = host.querySelector<HTMLInputElement>('[aria-label="Makes"]')!;
@@ -397,41 +392,62 @@ describe("Market filter journey", () => {
     expect(params.get("priceMin")).toBe("10000");
     expect(params.has("page")).toBe(false);
   });
-  it("commits location and radius together, crosses state scope, and clears nearest sort nationwide", async () => {
-    window.history.replaceState(null, "", "/market?states=MO");
+  it("commits one area at a time and clears nearest sort when restored or changed nationwide", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?states=MO&sort=distanceMiles",
+    );
     await render();
+    expect(new URLSearchParams(window.location.search).get("sort")).toBe(
+      "lastSeenAt",
+    );
+    const openArea = () =>
+      act(() =>
+        host
+          .querySelector<HTMLButtonElement>("#market-search-area-trigger")!
+          .click(),
+      );
+    const pickMode = (mode: string) =>
+      act(() =>
+        Simulate.change(
+          document.querySelector<HTMLInputElement>(
+            `input[type=radio][value=${mode}]`,
+          )!,
+          { target: { checked: true } } as any,
+        ),
+      );
+    const apply = () =>
+      act(() =>
+        Array.from(
+          document.querySelectorAll<HTMLButtonElement>("[role=dialog] button"),
+        )
+          .find((button) => button.textContent === "Apply area")!
+          .click(),
+      );
+    openArea();
+    pickMode("nearby");
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLInputElement>(
-          '[aria-label="ZIP or city, state"]',
+        document.querySelector<HTMLInputElement>(
+          '[aria-label="Search location"]',
         )!,
         { target: { value: "63101" } } as any,
       ),
     );
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLSelectElement>(
-          '[aria-label="Distance from location"]',
+        document.querySelector<HTMLInputElement>(
+          '[aria-label="Search radius"]',
         )!,
-        { target: { value: "150" } } as any,
+        { target: { value: "6" } } as any,
       ),
     );
-    act(() =>
-      Simulate.submit(
-        host.querySelector('section[aria-label="Search area"] form')!,
-      ),
-    );
-    expect(new URLSearchParams(window.location.search).get("near")).toBe(
-      "63101",
-    );
-    expect(new URLSearchParams(window.location.search).get("radius")).toBe(
-      "150",
-    );
-    expect(new URLSearchParams(window.location.search).has("states")).toBe(
-      false,
-    );
-    expect(host.textContent).toContain("Within 150 mi of 63101");
-    expect(host.textContent).not.toContain("150 mi radius");
+    apply();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("near")).toBe("63101");
+    expect(params.get("radius")).toBe("150");
+    expect(params.has("states")).toBe(false);
     act(() =>
       Simulate.change(
         host.querySelector<HTMLSelectElement>(
@@ -440,18 +456,31 @@ describe("Market filter journey", () => {
         { target: { value: "distanceMiles:asc" } } as any,
       ),
     );
-    act(() =>
-      Simulate.change(
-        host.querySelector<HTMLSelectElement>(
-          '[aria-label="Search area shortcut"]',
-        )!,
-        { target: { value: "nationwide" } } as any,
-      ),
-    );
+    openArea();
+    pickMode("nationwide");
+    expect(document.querySelector('[aria-label="Search radius"]')).toBeNull();
+    apply();
     expect(new URLSearchParams(window.location.search).has("near")).toBe(false);
+    expect(new URLSearchParams(window.location.search).has("radius")).toBe(
+      false,
+    );
     expect(new URLSearchParams(window.location.search).get("sort")).toBe(
       "lastSeenAt",
     );
+  });
+  it("removes ignored state chips from a restored radius search", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?states=MO&near=63101&radius=100",
+    );
+    await render();
+    expect(new URLSearchParams(window.location.search).has("states")).toBe(
+      false,
+    );
+    expect(
+      host.querySelector('[aria-label="Remove States filter"]'),
+    ).toBeNull();
   });
 
   it("keeps listings, filters, and intelligence in separate focused workspaces", async () => {

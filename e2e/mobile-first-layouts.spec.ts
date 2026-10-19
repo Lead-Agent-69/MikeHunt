@@ -1,3 +1,4 @@
+import { openMarketArea, setMarketRadius } from "./support/market-area";
 import { expect, test } from "@playwright/test";
 import { storagePath } from "./support/accounts";
 import { localOnly } from "./support/target";
@@ -85,28 +86,36 @@ test.describe("mobile-first workspaces", () => {
       await page.keyboard.press("Escape");
     }
     if (compact) {
-      await page.getByRole("button", { name: /^Location & radius:/ }).click();
+      const area = await openMarketArea(page);
+      await area
+        .getByRole("radio", { name: "Nearby", exact: true })
+        .locator("..")
+        .click();
       await page
         .getByLabel("Search location", { exact: true })
         .fill("invalid city");
-      await page.getByRole("button", { name: "Search this area" }).click();
-      await expect(page.getByText(/Enter a five-digit ZIP/)).toBeVisible();
+      await expect(
+        area.getByRole("button", { name: "Apply area" }),
+      ).toBeDisabled();
+      await expect(area.getByText(/Enter a five-digit ZIP/)).toBeVisible();
       await page.getByLabel("Search location", { exact: true }).fill("63304");
-      await page
-        .getByRole("combobox", { name: "Search radius", exact: true })
-        .selectOption("150");
-      await page.getByRole("button", { name: "Search this area" }).click();
-      await expect(
-        page.getByRole("button", { name: "Location & radius: 150 mi · 63304" }),
-      ).toHaveAttribute("aria-expanded", "false");
+      await setMarketRadius(page, 150);
+      await area.getByRole("button", { name: "Apply area" }).click();
+      await expect(page.locator("#market-search-area-trigger")).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
       await expect(page).toHaveURL(/near=63304/);
-      await page.getByRole("button", { name: /^Location & radius:/ }).click();
-      await page
-        .getByRole("combobox", { name: "Search area", exact: true })
-        .selectOption("nationwide");
-      await expect(
-        page.getByRole("button", { name: "Location & radius: Nationwide" }),
-      ).toHaveAttribute("aria-expanded", "false");
+      await openMarketArea(page);
+      await area
+        .getByRole("radio", { name: "Nationwide", exact: true })
+        .locator("..")
+        .click();
+      await expect(area.getByRole("slider")).toHaveCount(0);
+      await area.getByRole("button", { name: "Apply area" }).click();
+      await expect(page.locator("#market-search-area-trigger")).toHaveText(
+        "Nationwide",
+      );
     }
     await page.getByRole("button", { name: /^Filters/ }).click();
     await expect(page.locator("#market-filter-panel")).toBeVisible();
