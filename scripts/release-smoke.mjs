@@ -4,14 +4,28 @@ if (!["https:", "http:"].includes(base.protocol)) {
   throw new Error("Use an HTTP or HTTPS app URL.");
 }
 let failures = 0;
-async function check(path, verify, init = {}) {
+async function check(path, verify, init = {}, retry = {}) {
   const started = performance.now();
   try {
-    const response = await fetch(new URL(path, base), {
-      redirect: "manual",
-      signal: AbortSignal.timeout(15000),
-      ...init,
-    });
+    const attempts = Math.max(1, Number(retry.attempts) || 1);
+    const retryStatuses = new Set(retry.statuses || []);
+    let response;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      response = await fetch(new URL(path, base), {
+        redirect: "manual",
+        signal: AbortSignal.timeout(15000),
+        ...init,
+      });
+      if (!retryStatuses.has(response.status) || attempt === attempts) break;
+      await response.arrayBuffer();
+      const retryAfterHeader = response.headers.get("retry-after");
+      const retryAfter =
+        retryAfterHeader == null ? Number.NaN : Number(retryAfterHeader);
+      const delayMs = Number.isFinite(retryAfter)
+        ? Math.max(0, retryAfter * 1000)
+        : 1000;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
     await verify(response);
     console.log(`PASS ${path} (${Math.round(performance.now() - started)}ms)`);
   } catch (error) {
@@ -124,20 +138,25 @@ await check("/api/admin/system", async (response) => {
     "Process diagnostics exposed to anonymous requests",
   );
 });
-await check("/api/system/status", async (response) => {
-  assert(response.status === 200, `HTTP ${response.status}`);
-  const body = await response.json();
-  assert(body.scope === "public", "Expected public-only health data");
-  assert(
-    !["environment", "memory", "uptime", "runs", "secrets"].some(
-      (key) => key in body,
-    ),
-    "Internal diagnostics exposed",
-  );
-  console.log(
-    `INFO buyerReady=${body.buyerReady} decisionReady=${body.decisionReady} activeDeals=${body.activeDeals}`,
-  );
-});
+await check(
+  "/api/system/status",
+  async (response) => {
+    assert(response.status === 200, `HTTP ${response.status}`);
+    const body = await response.json();
+    assert(body.scope === "public", "Expected public-only health data");
+    assert(
+      !["environment", "memory", "uptime", "runs", "secrets"].some(
+        (key) => key in body,
+      ),
+      "Internal diagnostics exposed",
+    );
+    console.log(
+      `INFO buyerReady=${body.buyerReady} decisionReady=${body.decisionReady} activeDeals=${body.activeDeals}`,
+    );
+  },
+  {},
+  { attempts: 2, statuses: [503] },
+);
 console.log(
   `Smoke check complete: ${failures} failed. Authenticated workflows and visual QA are separate checks.`,
 );
