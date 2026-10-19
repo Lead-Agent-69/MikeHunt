@@ -318,14 +318,21 @@ export default function StatusPage() {
     "Scoped source searches are enabled, so Scan can use only the buyer's lane, state, budget, title type, keyword, and watched dealers.",
     "Deal math is available on stored rows, so users can sort by profit/watch candidates instead of browsing raw scrape output.",
   ];
+  const googleLoginReady =
+    readiness?.items?.find((item: any) => item.id === "google-login")
+      ?.status === "ready";
   const notDone = [
-    {
-      title: "Google account creation is not fully proven",
-      detail:
-        "The app-side OAuth flow exists, but Supabase still needs the Google provider and callback verification before real users can sign in and sync saved searches.",
-      href: "/login",
-      action: "Test login",
-    },
+    ...(googleLoginReady
+      ? []
+      : [
+          {
+            title: "Google account creation is not fully proven",
+            detail:
+              "The app-side OAuth flow exists, but Supabase still needs the Google provider and callback verification before real users can sign in and sync saved searches.",
+            href: "/login",
+            action: "Test login",
+          },
+        ]),
     {
       title:
         readiness?.items?.find((item: any) => item.id === "ai-provider")
@@ -536,7 +543,7 @@ export default function StatusPage() {
 
               <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
                 <div className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--amber-d)]">
-                  Not done yet
+                  Remaining trust limits
                 </div>
                 <div className="mt-3 space-y-2">
                   {notDone.map((item) => (
@@ -921,7 +928,7 @@ export default function StatusPage() {
                   return (
                     <div
                       key={item.id}
-                      className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
+                      className="min-w-0 overflow-hidden break-words rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-black text-[var(--t1)]">
