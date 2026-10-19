@@ -9,6 +9,7 @@ test.describe("consolidated search area", () => {
     storageState: storagePath("personal"),
     serviceWorkers: "block",
     actionTimeout: 15_000,
+    colorScheme: "dark",
   });
   test("keeps Nationwide, Nearby and States mutually exclusive across every entry point", async ({
     page,

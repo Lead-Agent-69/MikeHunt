@@ -201,7 +201,7 @@ export function MarketLocation({
                   ).map(([key, label]) => (
                     <label
                       key={key}
-                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-2 text-center text-sm font-bold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--blue)] ${mode === key ? "bg-[var(--blue)] text-white" : "text-[var(--t3)]"}`}
+                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-2 text-center text-sm font-bold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--blue)] ${mode === key ? "bg-[var(--accent)] text-[var(--on-accent)]" : "text-[var(--t3)]"}`}
                     >
                       <input
                         className="sr-only"
@@ -461,7 +461,7 @@ export function MarketLocation({
                   type="button"
                   disabled={!canApply}
                   onClick={applyArea}
-                  className="min-h-11 rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white disabled:opacity-40"
+                  className="min-h-11 rounded-lg bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] disabled:opacity-40"
                 >
                   Apply area
                 </button>
