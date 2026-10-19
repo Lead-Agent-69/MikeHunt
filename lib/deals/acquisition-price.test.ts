@@ -8,6 +8,50 @@ import {
 
 describe("reported acquisition price", () => {
   it.each([
+    { askingPrice: 299, evidenceText: "Sale price: $299/month" },
+    { askingPrice: 2180, evidenceText: "Savings off sale price: $2,180" },
+    { askingPrice: 2600, evidenceText: "Not the cash price: $2,600" },
+  ])(
+    "rechecks legacy asking-price evidence without rewriting the stored listing: %j",
+    (evidence) => {
+      const row = {
+        ask_price: evidence.askingPrice,
+        options: { priceEvidence: { kind: "asking", ...evidence } },
+      };
+      expect(reportedAcquisitionPrice(row)).toBe(0);
+      expect(row.options.priceEvidence.kind).toBe("asking");
+    },
+  );
+  it.each([
+    "Not the full cash price: $2,600",
+    "Not the cash price: $2,600",
+    "This is not the sale price: $2,600. Price listed may be down payment.",
+    "Sale price: $299/month",
+    "Monthly sale price: $299",
+    "Savings off sale price: $2,180",
+    "Discount on the cash price: $2,180",
+  ])(
+    "does not promote a qualified price label into purchase math: %s",
+    (description) => {
+      const amount = description.includes("299")
+        ? 299
+        : description.includes("2,180")
+          ? 2180
+          : 2600;
+      expect(reportedAcquisitionPrice({ ask_price: amount, description })).toBe(
+        0,
+      );
+    },
+  );
+  it("skips a negated amount and keeps a later explicit cash price", () => {
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 2600,
+        description: "Not the full cash price: $2,600. Cash price: $15,995",
+      }),
+    ).toBe(15995);
+  });
+  it.each([
     { seller_type: "dealer" },
     { sellerType: "Dealer" },
     { options: { sellerType: "dealer" } },
