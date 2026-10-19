@@ -451,7 +451,7 @@ export default function StatusPage() {
 
   return (
     <div
-      className="max-w-5xl mx-auto px-4 py-8 space-y-6"
+      className="max-w-5xl mx-auto px-0 py-8 space-y-6 sm:px-4"
       style={{ animation: "fadeUp 300ms ease-out" }}
     >
       <div>
@@ -928,7 +928,7 @@ export default function StatusPage() {
                   return (
                     <div
                       key={item.id}
-                      className="min-w-0 overflow-hidden break-words rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
+                      className="min-w-0 break-words rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-black text-[var(--t1)]">
@@ -1032,12 +1032,14 @@ export default function StatusPage() {
                                 (step: string, index: number) => (
                                   <li
                                     key={`${item.id}-${index}`}
-                                    className="flex gap-2 text-xs leading-relaxed text-[var(--t4)]"
+                                    className="flex min-w-0 gap-2 text-xs leading-relaxed text-[var(--t4)]"
                                   >
                                     <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[var(--s1)] text-[9px] font-black text-[var(--t3)]">
                                       {index + 1}
                                     </span>
-                                    <span>{step}</span>
+                                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                                      {step}
+                                    </span>
                                   </li>
                                 ),
                               )}
@@ -1585,7 +1587,7 @@ export default function StatusPage() {
                   return (
                     <div
                       key={s.source}
-                      className="flex items-center justify-between py-2.5 gap-3"
+                      className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span
@@ -1603,18 +1605,18 @@ export default function StatusPage() {
                               : "stored listings"}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs shrink-0">
+                      <div className="grid w-full grid-cols-3 items-center gap-2 text-[11px] sm:flex sm:w-auto sm:shrink-0 sm:gap-4 sm:text-xs">
                         <span className="text-[var(--t2)] font-semibold tabular-nums">
                           {Number(s.active).toLocaleString()} cars
                         </span>
                         <span
-                          className="font-semibold tabular-nums w-[88px] text-right"
+                          className="text-center font-semibold tabular-nums sm:w-[88px] sm:text-right"
                           style={{ color: photoTone }}
                           title="Share of active listings showing at least one photo"
                         >
                           {s.photoPct}% photos
                         </span>
-                        <span className="text-[var(--t4)] w-[120px] text-right">
+                        <span className="text-right text-[var(--t4)] sm:w-[120px]">
                           {seenAgo(s.ageHours)}
                         </span>
                       </div>
@@ -1645,7 +1647,7 @@ export default function StatusPage() {
                   return (
                     <div
                       key={s.source}
-                      className="flex items-center justify-between py-2.5 gap-3"
+                      className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                     >
                       <div className="flex items-center gap-2">
                         <span
@@ -1667,7 +1669,7 @@ export default function StatusPage() {
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-[var(--t4)]">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--t4)]">
                         <span>{rate}% ok</span>
                         <span>~{Number(s.avg_deals) || 0} deals</span>
                         <span>{ago(s.last_ok)}</span>
@@ -1698,7 +1700,7 @@ export default function StatusPage() {
                 {(reliability.sources || []).map((s: any) => (
                   <div
                     key={s.source}
-                    className="flex items-center justify-between py-2 text-xs"
+                    className="flex flex-col gap-1 py-2 text-xs sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="text-[var(--t2)] font-semibold capitalize">
                       {String(s.source).replace(/_/g, " ")}
@@ -1756,7 +1758,7 @@ export default function StatusPage() {
                 {runs.map((r, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between py-2 text-xs"
+                    className="flex flex-col gap-1 py-2 text-xs sm:flex-row sm:items-center sm:justify-between"
                   >
                     <span className="flex items-center gap-2">
                       <span
