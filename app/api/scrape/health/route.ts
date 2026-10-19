@@ -21,6 +21,7 @@ import {
 import { sellerContact } from "@/lib/data/deal-contact";
 import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
+import { isCustomerInventory } from "@/lib/search/customer-inventory";
 import {
   TOS_RESTRICTED_SOURCES,
   isAutomationAllowedSource,
@@ -60,6 +61,7 @@ export type InventoryHealthRollup = {
   location_state?: string | null;
   seller_type?: string | null;
   active_rows: number | string;
+  stored_active_rows?: number | string;
   rows_with_photos: number | string;
   photos: number | string;
   vin: number | string;
@@ -74,16 +76,19 @@ export type InventoryHealthRollup = {
   auction_date: number | string;
   source_link: number | string;
   newest_seen?: string | null;
+  newest_stored_seen?: string | null;
 };
 
 type SourceProof = {
   activeRows: number;
+  storageRows: number;
   rowsWithPhotos: number;
   qualityTotal: number;
   qualityPresent: number;
   qualityChecks: number;
   completeness: ReturnType<typeof emptyCompleteness>;
   lastSeenAt: string | null;
+  storedLastSeenAt: string | null;
 };
 
 const SELLER_TYPE_SOURCE_IDS: Record<string, string[]> = {
@@ -598,10 +603,11 @@ function explainSource(
   scope?: HealthScope,
 ) {
   if (row?.termsRestricted) {
+    const retainedRows = Number(row?.storageRows || row?.activeRows || 0);
     return {
       userStatus: "Off for site terms",
       proofLevel: "off",
-      userImpact: Number(row?.activeRows || 0)
+      userImpact: retainedRows
         ? "This site's terms ban automated access, so MikeHunt does not import from it. Rows already on file are older imports and are not refreshed."
         : "This site's terms ban automated access, so MikeHunt does not import from it.",
       nextAction:
@@ -627,13 +633,13 @@ function explainSource(
       nextAction: broadenScopeAction(scope),
     };
   }
-  if (readiness === "needs_run" && Number(row?.activeRows || 0) > 0) {
-    const activeRows = Number(row.activeRows);
+  const storedRows = Number(row?.storageRows ?? row?.activeRows ?? 0);
+  if (readiness === "needs_run" && storedRows > 0) {
     return {
       userStatus: "Stored rows need refresh",
       proofLevel: "stale_rows",
-      userImpact: `${activeRows.toLocaleString()} stored row${activeRows === 1 ? " is" : "s are"} on file, but the last-seen proof is outside the current freshness window.`,
-      nextAction: `Refresh ${source.name} before treating ${activeRows === 1 ? "this row" : "these rows"} as current.`,
+      userImpact: `${storedRows.toLocaleString()} retained row${storedRows === 1 ? " is" : "s are"} on file, but no matching row is current buyer-visible inventory.`,
+      nextAction: `Refresh ${source.name} before treating ${storedRows === 1 ? "this row" : "these rows"} as current.`,
     };
   }
   if (readiness === "needs_login") {
@@ -710,6 +716,11 @@ export function enrichHealthRow(
   const missing = missingCoverageActions(row);
   const proofBadges = [
     `${Number(row.activeRows || 0).toLocaleString()} rows`,
+    Number(row.storageRows || 0) > Number(row.activeRows || 0)
+      ? `${(
+          Number(row.storageRows || 0) - Number(row.activeRows || 0)
+        ).toLocaleString()} retained history`
+      : null,
     `${Number(row.rowsWithPhotos || 0).toLocaleString()} photos`,
     `${photoCoveragePct}% photo coverage`,
     row.averageQuality ? `${row.averageQuality}/100 detail` : null,
@@ -1068,6 +1079,7 @@ export function buildProofFromRollups(
     const evidence = rollupEvidenceRow(row);
     const id = healthSourceIdForDeal(evidence, sourceIds) || "unknown";
     const activeRows = rollupCount(row.active_rows);
+    const storageRows = rollupCount(row.stored_active_rows ?? row.active_rows);
     const sourceLinks = rollupCount(row.source_link);
     const explicitIdentity = rollupCount(row.explicit_seller_identity);
     const explicitContact = rollupCount(row.explicit_seller_contact);
@@ -1097,15 +1109,18 @@ export function buildProofFromRollups(
       proofBySource[id] ||
       (proofBySource[id] = {
         activeRows: 0,
+        storageRows: 0,
         rowsWithPhotos: 0,
         qualityTotal: 0,
         qualityPresent: 0,
         qualityChecks: 0,
         completeness: emptyCompleteness(),
         lastSeenAt: null,
+        storedLastSeenAt: null,
       });
 
     proof.activeRows += activeRows;
+    proof.storageRows += storageRows;
     proof.rowsWithPhotos += rollupCount(row.rows_with_photos);
     proof.qualityPresent += qualityPresent;
     proof.qualityChecks += qualityChecks;
@@ -1128,6 +1143,17 @@ export function buildProofFromRollups(
       (!proof.lastSeenAt || newestSeen > new Date(proof.lastSeenAt))
     ) {
       proof.lastSeenAt = newestSeen.toISOString();
+    }
+    const newestStoredSeen = row.newest_stored_seen
+      ? new Date(row.newest_stored_seen)
+      : null;
+    if (
+      newestStoredSeen &&
+      Number.isFinite(newestStoredSeen.getTime()) &&
+      (!proof.storedLastSeenAt ||
+        newestStoredSeen > new Date(proof.storedLastSeenAt))
+    ) {
+      proof.storedLastSeenAt = newestStoredSeen.toISOString();
     }
     if (evidence.source === "independent_dealer") {
       attributedDealerRows += activeRows;
@@ -1204,6 +1230,10 @@ function buildHealthSummary(health: any[]) {
     (sum, row) => sum + Number(row.activeRows || 0),
     0,
   );
+  const storageRows = health.reduce(
+    (sum, row) => sum + Number(row.storageRows || row.activeRows || 0),
+    0,
+  );
   const rowsWithPhotos = health.reduce(
     (sum, row) => sum + Number(row.rowsWithPhotos || 0),
     0,
@@ -1223,6 +1253,8 @@ function buildHealthSummary(health: any[]) {
     needsRun,
     termsOff,
     activeRows,
+    storageRows,
+    retainedRows: Math.max(0, storageRows - activeRows),
     rowsWithPhotos,
     photoCoveragePct: activeRows
       ? Math.round((rowsWithPhotos / activeRows) * 100)
@@ -1476,7 +1508,7 @@ export async function GET(request: NextRequest) {
     if (!scopeFiltered && dealSourceIds.length) {
       try {
         const { data, error: rollupError } = await (supabase as any).rpc(
-          "scrape_health_inventory_rollup",
+          "scrape_health_inventory_rollup_v2",
           { p_sources: dealSourceIds },
         );
         if (!rollupError && Array.isArray(data)) {
@@ -1528,7 +1560,7 @@ export async function GET(request: NextRequest) {
       rollupProof?.proofBySource || {};
     // Passenger cars and light/medium trucks only: a non-vehicle row that is still active (e.g.
     // written by a scraper image older than the ingest filter) never counts as coverage.
-    const liveDeals = (activeDeals || []).filter(
+    const storedDeals = (activeDeals || []).filter(
       (row: any) =>
         matchesScope(row, scope) &&
         isInVehicleScope({
@@ -1539,6 +1571,9 @@ export async function GET(request: NextRequest) {
           source_url: row.source_url,
         }),
     );
+    const liveDeals = storedDeals.filter((row: any) =>
+      isCustomerInventory(row),
+    );
     const liveCoverage = rollupRows
       ? buildLiveCoverageFromRollups(rollupRows)
       : buildLiveCoverage(liveDeals);
@@ -1548,12 +1583,14 @@ export async function GET(request: NextRequest) {
         proofBySource[id] ||
         (proofBySource[id] = {
           activeRows: 0,
+          storageRows: 0,
           rowsWithPhotos: 0,
           qualityTotal: 0,
           qualityPresent: 0,
           qualityChecks: 0,
           completeness: emptyCompleteness(),
           lastSeenAt: null,
+          storedLastSeenAt: null,
         });
       const images = Array.isArray(row.images) ? row.images : [];
       proof.activeRows += 1;
@@ -1586,6 +1623,28 @@ export async function GET(request: NextRequest) {
         proof.lastSeenAt = new Date(row.last_seen_at).toISOString();
       }
     }
+    if (!rollupRows) {
+      for (const row of storedDeals) {
+        const id = healthSourceIdForDeal(row, sourceIds) || "unknown";
+        const proof =
+          proofBySource[id] ||
+          (proofBySource[id] = {
+            activeRows: 0,
+            storageRows: 0,
+            rowsWithPhotos: 0,
+            qualityTotal: 0,
+            qualityPresent: 0,
+            qualityChecks: 0,
+            completeness: emptyCompleteness(),
+            lastSeenAt: null,
+            storedLastSeenAt: null,
+          });
+        proof.storageRows += 1;
+        if (!proof.storedLastSeenAt && row.last_seen_at) {
+          proof.storedLastSeenAt = new Date(row.last_seen_at).toISOString();
+        }
+      }
+    }
 
     const health = sources.map((source) => {
       const proof = proofBySource[source.id];
@@ -1599,7 +1658,7 @@ export async function GET(request: NextRequest) {
           : null;
       const runs =
         runsBySource[source.id] ||
-        (source.catalogUrl && !proof?.activeRows
+        (source.catalogUrl && !proof?.storageRows
           ? runsBySource.curated_dealers
           : []) ||
         [];
@@ -1608,7 +1667,7 @@ export async function GET(request: NextRequest) {
       const attributedRows =
         source.id === "independent_dealer"
           ? (rollupProof?.attributedDealerRows ??
-            (activeDeals || []).filter(
+            liveDeals.filter(
               (deal: any) =>
                 deal.source === "independent_dealer" &&
                 matchesScope(deal, scope),
@@ -1628,7 +1687,10 @@ export async function GET(request: NextRequest) {
           )
         : null;
       const lastRunTime =
-        lastRun?.completed_at || lastRun?.started_at || proof?.lastSeenAt;
+        lastRun?.completed_at ||
+        lastRun?.started_at ||
+        proof?.lastSeenAt ||
+        proof?.storedLastSeenAt;
       const lastRunAt = lastRunTime
         ? new Date(lastRunTime).toISOString()
         : null;
@@ -1642,7 +1704,7 @@ export async function GET(request: NextRequest) {
         termsOff,
         sharedImporter: Boolean(source.catalogUrl),
         activeRows: proof?.activeRows,
-        lastSeenAt: proof?.lastSeenAt,
+        lastSeenAt: proof?.lastSeenAt || proof?.storedLastSeenAt,
         lastRunStatus: lastRun?.status,
         lastRunAt,
       });
@@ -1670,6 +1732,7 @@ export async function GET(request: NextRequest) {
         estimatedDealsPerRun: source.estimatedDealsPerRun,
         readiness,
         activeRows: proof?.activeRows || 0,
+        storageRows: proof?.storageRows || proof?.activeRows || 0,
         ...(runVia ? { runVia } : {}),
         ...(attributedRows != null
           ? { attributedRows, rowsAttributedTo: "dealer sources" }
@@ -1689,7 +1752,7 @@ export async function GET(request: NextRequest) {
               counts: emptyCompleteness(),
               ...completenessPercentages(emptyCompleteness(), 0),
             },
-        lastSeenAt: proof?.lastSeenAt || null,
+        lastSeenAt: proof?.lastSeenAt || proof?.storedLastSeenAt || null,
         ...termsFields(source.id),
       };
       return enrichHealthRow(source, row, true, scope);
@@ -1699,7 +1762,7 @@ export async function GET(request: NextRequest) {
     const summary = buildHealthSummary(userHealth);
     const demandCoverage = await buildDemandCoverage(
       supabase as any,
-      activeDeals,
+      liveDeals,
       showInternalErrors,
       rollupRows ? primaryCountsFromRollups(rollupRows) : undefined,
     );
