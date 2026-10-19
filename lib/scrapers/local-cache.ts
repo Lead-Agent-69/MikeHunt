@@ -460,10 +460,17 @@ export class LocalScraperCache {
   ): Promise<PersistResult> {
     return this.exclusive(async () => {
       this.rollDay();
-      const rows: Record<string, any>[] = inputRows.map((row) => ({
-        ...row,
-        source_deal_id: stableListingId(row),
-      }));
+      const rows: Record<string, any>[] = inputRows.map((row) => {
+        const observation: Record<string, any> = {
+          ...row,
+          source_deal_id: stableListingId(row),
+        };
+        // Old buffered payloads can carry these fields too. Let insert defaults
+        // set them, and leave them out of every ON CONFLICT update.
+        delete observation.created_at;
+        delete observation.first_seen_at;
+        return observation;
+      });
       // Unchanged rows still prove the listing is live. They skip the full upsert, but
       // deals.last_seen_at must still move or every unchanged car looks stale and the
       // 30-day retention job deactivates listings that are still for sale.

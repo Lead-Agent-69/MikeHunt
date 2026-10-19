@@ -208,6 +208,7 @@ function fakeSupabase(initial: Record<string, any>[] = []) {
             writes.push(batch);
             const result = batch.map((row) => {
               const persisted = {
+                ...rows.get(`${row.source}|${row.source_deal_id}`),
                 ...row,
                 id: row.id || `${row.source}-${row.source_deal_id}`,
               };
@@ -238,6 +239,85 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("preserves database insertion dates during mixed inserts and price updates", async () => {
+    const { cache } = await makeCache();
+    const original = "2026-09-01T00:00:00Z";
+    const db = fakeSupabase([
+      { ...row("existing"), created_at: original, first_seen_at: original },
+    ]);
+    const result = await cache.persistRows(
+      ["existing", "new"].map((id) => ({
+        ...row(id, 9000),
+        created_at: "2026-10-19T00:00:00Z",
+        first_seen_at: "2026-10-19T00:00:00Z",
+        last_seen_at: "2026-10-19T00:00:00Z",
+      })),
+      db.client,
+      "*",
+    );
+    expect(result).toMatchObject({ inserts: 1, updates: 1 });
+    for (const written of db.writes.flat()) {
+      expect(written).not.toHaveProperty("created_at");
+      expect(written).not.toHaveProperty("first_seen_at");
+      expect(written.last_seen_at).toBe("2026-10-19T00:00:00Z");
+    }
+    expect(db.rows.get("test|existing")).toMatchObject({
+      ask_price: 9000,
+      created_at: original,
+      first_seen_at: original,
+    });
+  });
+
+  it("strips insertion dates from buffered observations before later replay", async () => {
+    const { cache, dir } = await makeCache({ cacheOnly: true });
+    const db = fakeSupabase();
+    await cache.persistRows(
+      [
+        {
+          ...row("buffered"),
+          created_at: "2020-01-01",
+          first_seen_at: "2020-01-01",
+        },
+      ],
+      db.client,
+      "*",
+    );
+    const reloaded = new LocalScraperCache({ path: dir });
+    await reloaded.load();
+    const buffered = await reloaded.records("test");
+    expect(buffered).toHaveLength(1);
+    expect(buffered[0]).not.toHaveProperty("created_at");
+    expect(buffered[0]).not.toHaveProperty("first_seen_at");
+  });
+
+  it("protects existing dates when replaying a legacy cache payload", async () => {
+    const { cache } = await makeCache();
+    const original = "2026-09-01T00:00:00Z";
+    const db = fakeSupabase([
+      { ...row("legacy"), created_at: original, first_seen_at: original },
+    ]);
+    await cache.rememberOnly("test", [
+      {
+        id: "legacy",
+        value: {
+          ...row("legacy", 8000),
+          created_at: "2026-10-19",
+          first_seen_at: "2026-10-19",
+        },
+      },
+    ]);
+    const [buffered] = await cache.records("test");
+    const { cachedAt, cacheSynced, ...observation } = buffered;
+    await cache.persistRows([observation], db.client, "*");
+    expect(db.writes[0][0]).not.toHaveProperty("created_at");
+    expect(db.writes[0][0]).not.toHaveProperty("first_seen_at");
+    expect(db.rows.get("test|legacy")).toMatchObject({
+      ask_price: 8000,
+      created_at: original,
+      first_seen_at: original,
+    });
+  });
+
   it("refreshes existing prices after insert capacity is exhausted without inserting another car", async () => {
     const onQuota = vi.fn();
     const { cache } = await makeCache({ maxDailyInserts: 1, onQuota });
