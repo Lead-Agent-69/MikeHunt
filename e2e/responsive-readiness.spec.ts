@@ -183,12 +183,26 @@ for (const desk of [
       await page.keyboard.press("ArrowLeft");
       await expect.poll(() => strip.evaluate((el) => el.scrollLeft)).toBe(0);
       await page.emulateMedia({ reducedMotion: "no-preference" });
+      await strip.scrollIntoViewIfNeeded();
+      await expect
+        .poll(() =>
+          strip.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            return Math.max(
+              0,
+              Math.min(bounds.bottom, window.innerHeight) -
+                Math.max(bounds.top, 0),
+            );
+          }),
+        )
+        .toBeGreaterThan(50);
       const frames = await strip.evaluate(async (element) => {
         const times: number[] = [];
         let previous = performance.now();
         const end = previous + 1500;
         let minLeft = element.scrollLeft;
         let maxLeft = minLeft;
+        const bounds = element.getBoundingClientRect();
         element.scrollTo({
           left: Math.min(1000, element.scrollWidth - element.clientWidth),
           behavior: "smooth",
@@ -211,11 +225,20 @@ for (const desk of [
           p95Ms: sorted[Math.floor(sorted.length * 0.95)],
           gapsOver50Ms: sorted.filter((ms) => ms > 50).length,
           movementPx: maxLeft - minLeft,
+          viewportVisiblePx: Math.max(
+            0,
+            Math.min(bounds.bottom, window.innerHeight) -
+              Math.max(bounds.top, 0),
+          ),
+          pendingImages: Array.from(element.querySelectorAll("img")).filter(
+            (image) => !image.complete,
+          ).length,
           note: "Synthetic rAF intervals, not physical-device presented FPS or field INP.",
         };
       });
       expect(frames.samples).toBeGreaterThan(10);
       expect(frames.movementPx).toBeGreaterThan(50);
+      expect(frames.viewportVisiblePx).toBeGreaterThan(50);
       await info.attach("scroll-frame-sample", {
         body: JSON.stringify(frames, null, 2),
         contentType: "application/json",

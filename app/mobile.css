@@ -537,10 +537,9 @@
   color: var(--t4);
 }
 
-/* ── Mobile image optimizations ── */
-img {
-  content-visibility: auto;
-}
+/* Native lazy loading already defers offscreen image transfer. Do not apply
+   content-visibility to replaced elements: WebKit repeatedly recalculates
+   horizontal-rail images while they move into view, creating long frame tails. */
 img[loading="lazy"] {
   background: var(--s2);
   border-radius: var(--r2);
