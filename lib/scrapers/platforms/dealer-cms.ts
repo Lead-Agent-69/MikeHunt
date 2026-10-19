@@ -29,7 +29,7 @@ export interface DealerCmsSite {
   pageUrl?: (n: number) => string;
   city?: string;
   state: string;
-  /** Title brand to assume when a card doesn't say. */
+  /** Unstated title stays unknown; dealer specialization is not per-vehicle evidence. */
   defaultCondition: string;
   defaultDamage?: string;
   /** Hard cap on pages (politeness). Default 15. */
@@ -47,13 +47,35 @@ export interface DealerCmsSite {
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
   {
+    sourceId: "dealer-billsmithauto-com",
+    name: "Bill Smith Auto",
+    baseUrl: "https://www.billsmithauto.com",
+    inventoryUrl: "https://www.billsmithauto.com/en/view-all-inventory.cfm",
+    state: "IL",
+    defaultCondition: "unknown",
+    detailPattern: /\/used-[a-z0-9-]+-v(\d+)\.html(?:[?#].*)?$/i,
+    maxPages: 5,
+  },
+  {
+    sourceId: "dealer-x2builders-com",
+    name: "X2 Builders",
+    baseUrl: "https://x2builders.com",
+    inventoryUrl: "https://x2builders.com/vehicles.asp?main=Repairables",
+    city: "Pontoon Beach",
+    state: "IL",
+    defaultCondition: "unknown",
+    defaultDamage: "repairable",
+    singlePage: true,
+    detailPattern: /item\.asp\?(?:[^#]*&)?id=(\d+)(?:&|$)/i,
+  },
+  {
     sourceId: "damage-com",
     name: "Damage.com (74 Auto)",
     baseUrl: "https://www.damage.com",
     inventoryUrl: "https://www.damage.com/vehiclesList.php",
     city: "Sikeston",
     state: "MO",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
   },
   {
@@ -65,7 +87,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     singlePage: true,
     city: "Poplar Bluff",
     state: "MO",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
   },
   {
@@ -75,8 +97,8 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     inventoryUrl: "https://www.autovada.com/inventory-all.php",
     city: "Cape Girardeau",
     state: "MO",
-    // Mixed lot; titles aren't on the list cards. Detail enrichment fills them in.
-    defaultCondition: "clean_title",
+    // Mixed lot; detail enrichment can supply missing title evidence.
+    defaultCondition: "unknown",
   },
   {
     sourceId: "polecats",
@@ -95,7 +117,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     inventoryUrl: "https://www.elitesikeston.com/vehicles.php",
     city: "Sikeston",
     state: "MO",
-    defaultCondition: "clean_title",
+    defaultCondition: "unknown",
   },
   {
     sourceId: "stjames-auto",
@@ -104,7 +126,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php",
     city: "Saint James",
     state: "MO",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
   },
   {
@@ -116,7 +138,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     pageUrl: (n) =>
       `https://www.salvagezone.com/repairable/salvage/rebuildables/${n}`,
     state: "NY",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
   },
   // ── Terms-safe independents on their own CMSes (Eli's audit 2026-10-09: robots allows, no
@@ -128,7 +150,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     inventoryUrl: "https://www.riverbendrebuildables.com/vehicles/",
     city: "New Madrid",
     state: "MO",
-    defaultCondition: "rebuilt_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
     detailPattern: /^(?:https?:\/\/[^/]+)?\/((?:19|20)\d{2}-[a-z0-9-]+)\/?$/i,
     singlePage: true,
@@ -141,7 +163,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     pageUrl: (n) => `https://www.premiersalvage.com/all-vehichles?page=${n}`,
     city: "Phillipsburg",
     state: "MO",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
     detailPattern: /\/product-page\/([a-z0-9-]+)\/?$/i,
     maxPages: 4,
@@ -153,7 +175,7 @@ export const DEALER_CMS_SITES: DealerCmsSite[] = [
     inventoryUrl: "https://www.garysautoia.net/home/repairable-cars",
     city: "Troy Mills",
     state: "IA",
-    defaultCondition: "salvage_title",
+    defaultCondition: "unknown",
     defaultDamage: "repairable",
     detailPattern: /\/home\/repairable-cars\/([a-z0-9-]+)\/?$/i,
     singlePage: true,
@@ -184,13 +206,30 @@ const clean = (v: unknown) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** Title brand from card text. Silence returns undefined so the site default applies. */
+/** Pending paperwork and parts-only status must not become road-ready rebuilt stock. */
 export function titleBrand(text: string): string | undefined {
   const x = text.toLowerCase();
+  if (
+    /\b(?:parts[ -]only|non[ -]?repairable|certificate of destruction|junk title)\b/.test(
+      x,
+    )
+  )
+    return "parts_only";
+  if (
+    /\b(?:waiting (?:on|for)|pending|awaiting|applied for)\b.{0,40}\b(?:rebuilt|title)\b|\brebuilt title\b.{0,20}\bpending\b/.test(
+      x,
+    )
+  )
+    return "unknown";
   if (/prior[\s-]?salvage|reconstruct/.test(x)) return "rebuilt_title";
-  if (/\bsalvage\b/.test(x)) return "salvage_title";
   if (/\brebuilt\b/.test(x)) return "rebuilt_title";
-  if (/\b(clean|clear)\b(?!\s*(?:out|coat))/.test(x)) return "clean_title";
+  if (/\bsalvage\b/.test(x)) return "salvage_title";
+  if (
+    /^(?:clean|clear)$|\|\s*(?:clean|clear)\s*\||\b(?:clean|clear)\s+(?:title|tl)\b|\btitle\s*:?\s*(?:clean|clear)\b/.test(
+      x.trim(),
+    )
+  )
+    return "clean_title";
   return undefined;
 }
 
@@ -518,7 +557,7 @@ export function parseListingPage(
     const text = spacedText($, card);
 
     const headings = card
-      .find("h1,h2,h3,h4,h5,h6,.title,strong")
+      .find("h1,h2,h3,h4,h5,h6,.title,.car-year-parts,strong")
       .map((_, h) => spacedText($, h))
       .get()
       .filter((t) => t && !/^\$|^run\s*&\s*drive$/i.test(t));
@@ -573,6 +612,8 @@ export function parseListingPage(
       text.match(/(?:stock\s*#|#:?)\s*([A-Z0-9][A-Z0-9-]{2,})/i)?.[1] ??
       undefined;
     const image = cardPhoto($, card, pageUrl);
+    const rawVin = text.match(/\b[A-HJ-NPR-Z0-9]{17}\b/i)?.[0];
+    const vin = rawVin && isValidVin(rawVin) ? normalizeVin(rawVin) : undefined;
     let parts = splitTitle(title);
     if (parts.year && !parts.model) {
       // "2025 Kia" heading with the model on its own line below (<p>K5 GT Line</p>, 4cdg featured grid).
@@ -599,6 +640,7 @@ export function parseListingPage(
       ...parts,
       price: parsePrice(text),
       mileage,
+      vin,
       condition: titleBrand(text.replace(title, " ")) ?? titleBrand(title),
       stock,
       image,
@@ -723,7 +765,8 @@ export function cardToDeal(
       : {}),
     mileage: card.mileage,
     ...(card.vin ? { vin: card.vin } : {}),
-    condition: card.condition ?? site.defaultCondition,
+    // A site-wide title default must never pass a buyer's clean/rebuilt filter.
+    condition: card.condition ?? "unknown",
     title_source: card.condition ? "listing" : "source_default",
     damage_type: site.layout === "dg-native" ? card.damage : site.defaultDamage,
     seller_type: "dealer",
@@ -746,14 +789,6 @@ export type DealerPlatform = "4cdg" | "vehiclesnetwork";
 
 export const VEHICLESNETWORK_DETAIL =
   /(?:^|\/)autos\/((?:19|20)\d{2}-[A-Za-z0-9-]+-\d+)\/?(?:[?#].*)?$/i;
-
-const CONDITION_FOR_TYPE: Record<string, string> = {
-  salvage_yard: "salvage_title",
-  auction_proxy: "salvage_title",
-  rebuilder_dealer: "rebuilt_title",
-  independent_dealer: "run_drive",
-  clean_retail: "clean",
-};
 
 export function dealerCmsSiteFromCurated(site: {
   url: string;
@@ -786,7 +821,7 @@ export function dealerCmsSiteFromCurated(site: {
     inventoryUrl,
     city: site.city,
     state: site.state,
-    defaultCondition: CONDITION_FOR_TYPE[site.type] ?? "run_drive",
+    defaultCondition: "unknown",
     defaultDamage:
       site.type === "rebuilder_dealer" || site.type === "salvage_yard"
         ? "repairable"

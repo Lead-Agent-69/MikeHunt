@@ -85,6 +85,11 @@ describe("createRobotsGate", () => {
 });
 
 describe("policyBlockFor", () => {
+  it("requires permission for ReCar's non-personal inventory reuse", () => {
+    expect(policyBlockFor("https://www.recar.com/vehicles/")?.kind).toBe(
+      "tos_bans_copying",
+    );
+  });
   it("blocks sites whose terms ban bots or copying, on any subdomain", () => {
     expect(policyBlockFor("https://www.prosalvage.com/")?.kind).toBe(
       "tos_bans_bots",

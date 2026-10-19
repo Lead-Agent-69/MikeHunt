@@ -78,7 +78,7 @@ describe("platform dealers (no per-site config)", () => {
     expect(deals[1]).toMatchObject({ ask_price: 7900, mileage: 109074 });
   });
 
-  it("a 4cdg registry line gets the shared parser with the type's title default", () => {
+  it("a 4cdg registry line gets the shared parser without assuming a title", () => {
     const s = dealerCmsSiteFromCurated({
       url: "https://www.mnrepairables.com",
       name: "MN Motors",
@@ -87,7 +87,7 @@ describe("platform dealers (no per-site config)", () => {
       platform: "4cdg",
     })!;
     expect(s.inventoryUrl).toBe("https://www.mnrepairables.com/vehicles.php");
-    expect(s.defaultCondition).toBe("rebuilt_title");
+    expect(s.defaultCondition).toBe("unknown");
     expect(s.detailPattern).toBeUndefined();
   });
 

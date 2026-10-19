@@ -39,6 +39,7 @@ import {
   dealerCmsSiteFromCurated,
   isSameSiteHref,
   stripContactInfo,
+  titleBrand,
   type DealerCmsSite,
 } from "@/lib/scrapers/platforms/dealer-cms";
 import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
@@ -627,21 +628,15 @@ export const DEALER_PROFILES: DealerProfile[] = [
   },
 ];
 
-// Read an explicit title brand off the listing text. Returns undefined when the listing says nothing
-// (most dealer cards), so the caller falls back to the site's type default. Unlike autotempest's
-// titleToCondition this never guesses "clean" — silence means "use the site default", not "clean".
+// Share title evidence rules between inventory cards and detail enrichment.
 function conditionFromTitle(title?: string): string | undefined {
   const x = (title || "").toLowerCase();
-  // "Prior salvage" = was salvaged, now retitled rebuilt/reconstructed → rebuilt, NOT active salvage.
-  if (/prior[\s-]?salvage|reconstruct/.test(x)) return "rebuilt_title";
-  if (/\bsalvage\b/.test(x)) return "salvage_title";
-  if (/\brebuilt\b/.test(x)) return "rebuilt_title";
+  const brand = titleBrand(x);
+  if (brand) return brand;
   if (/\b(repairable|rebuildable)\b/.test(x)) return "repairable";
   if (/\bflood\b/.test(x)) return "flood";
-  if (/\b(parts only|parts car|non[-\s]?run|wrecked|junk)\b/.test(x))
-    return "salvage_title";
-  // "Clear"/"Clean" is how salvage sites (e.g. damage.com) badge a clean-title car.
-  if (/\b(clean|clear)\b/.test(x)) return "clean_title";
+  if (/\b(parts car|junk)\b/.test(x)) return "parts_only";
+  if (/\b(non[-\s]?run|wrecked)\b/.test(x)) return "repairable";
   return undefined;
 }
 
