@@ -67,11 +67,10 @@ import {
   summarizeDemand,
   wantHitGapStates,
 } from "../lib/scrapers/sweep-demand";
+import { applyWorkerSupabaseUrl } from "../lib/scrapers/runtime-supabase-url";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
-if (process.env.SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  process.env.NEXT_PUBLIC_SUPABASE_URL = process.env.SUPABASE_URL;
-}
+const WORKER_SUPABASE_URL = applyWorkerSupabaseUrl();
 if (
   process.env.CACHE_ONLY_MODE !== "true" &&
   !process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -577,8 +576,7 @@ async function runCycle(): Promise<void> {
   ]);
   const registry = createScraperRegistry();
   const { createClient } = await import("@supabase/supabase-js");
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  const supabaseUrl = WORKER_SUPABASE_URL || "https://placeholder.supabase.co";
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY || "cache-only-placeholder-key";
   const supabase = createClient(supabaseUrl, supabaseKey, {
@@ -614,8 +612,7 @@ async function runCycle(): Promise<void> {
 
   const queueName = `MikeHunt:scraper:local:${process.pid}:${Date.now()}`;
   const orchestrator = new QueueOrchestrator(registry, {
-    supabaseUrl:
-      process.env.NEXT_PUBLIC_SUPABASE_URL || "http://127.0.0.1:54321",
+    supabaseUrl: WORKER_SUPABASE_URL || "http://127.0.0.1:54321",
     supabaseKey:
       process.env.SUPABASE_SERVICE_ROLE_KEY || "cache-only-placeholder-key",
     redisUrl: process.env.REDIS_URL || "redis://redis:6379",
@@ -669,11 +666,11 @@ async function runCycle(): Promise<void> {
 
 async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   const { createClient } = await import("@supabase/supabase-js");
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl = WORKER_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey)
     throw new Error(
-      "Queue mode requires hosted NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY",
+      "Queue mode requires hosted SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY",
     );
   const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: { autoRefreshToken: false, persistSession: false },
