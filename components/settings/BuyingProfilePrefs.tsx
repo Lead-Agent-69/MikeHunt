@@ -178,7 +178,7 @@ export function BuyingProfilePrefs() {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            Minimum price ($)
+            Budget from ($)
             <input
               className={field}
               type="number"
@@ -191,7 +191,7 @@ export function BuyingProfilePrefs() {
             />
           </label>
           <label className="min-w-0 text-sm text-[var(--t2)]">
-            Maximum price ($)
+            Budget up to ($)
             <input
               className={field}
               type="number"
@@ -219,7 +219,7 @@ export function BuyingProfilePrefs() {
           </label>
           {(
             [
-              ["maxMileage", "Maximum mileage"],
+              ["maxMileage", "Mileage up to"],
               ["minYear", "Earliest year"],
               ["maxYear", "Latest year"],
             ] as const

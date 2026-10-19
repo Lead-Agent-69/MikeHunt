@@ -406,7 +406,11 @@ export default function MarketPage() {
         .filter(Boolean)
         .join(" ");
       const location =
-        f.near || (f.states.length ? f.states.join(" + ") : "Nationwide");
+        f.near || f.lat
+          ? `Within ${f.radius || "100"} mi of ${f.near || "your location"}`
+          : f.states.length
+            ? f.states.join(" + ")
+            : "Nationwide";
       const saved = saveLocalSavedSearch({
         name: [vehicle || f.q.trim() || "All vehicles", location]
           .filter(Boolean)
@@ -461,6 +465,22 @@ export default function MarketPage() {
     laneColors: {},
   };
   const total: number = data?.total ?? 0;
+  const searchAreaLabel =
+    f.near || f.lat
+      ? `Within ${data?.location?.radius || f.radius || "100"} mi of ${f.near || "your location"}`
+      : f.states.length
+        ? f.states.join(", ")
+        : "Nationwide";
+  const quickSourceOptions = INVENTORY_SOURCE_FILTERS.filter(
+    (source) =>
+      (data?.sourceCoverage?.counts?.[source.id] ?? 0) > 0 ||
+      f.sources.includes(source.id),
+  ).sort((left, right) => {
+    const countDifference =
+      (data?.sourceCoverage?.counts?.[right.id] ?? 0) -
+      (data?.sourceCoverage?.counts?.[left.id] ?? 0);
+    return countDifference || left.name.localeCompare(right.name);
+  });
   const activeCount =
     Object.values(details).filter(Boolean).length +
     (f.priceKind ? 1 : 0) +
@@ -507,15 +527,15 @@ export default function MarketPage() {
     makes: "Makes",
     sources: "Sources",
     model: "Model",
-    minMileage: "Miles from",
-    mileageMax: "Miles to",
+    minMileage: "Mileage from",
+    mileageMax: "Mileage up to",
     categories: "Vehicle types",
     conditions: "Condition",
     verdicts: "Verdict",
     sellerTypes: "Sellers",
     minRoi: "ROI from (%)",
-    priceMin: "Listed price from ($)",
-    priceMax: "Listed price to ($)",
+    priceMin: "Price from ($)",
+    priceMax: "Price up to ($)",
     yearMin: "Year from",
     yearMax: "Year to",
     minProfit: "Profit from ($)",
@@ -706,8 +726,8 @@ export default function MarketPage() {
           [
             ["makes", "Make", f.makes.join(","), "Any make"],
             ["model", "Model", f.model, "Any model"],
-            ["priceMax", "Maximum price ($)", f.priceMax, "No maximum"],
-            ["mileageMax", "Maximum mileage", f.mileageMax, "No maximum"],
+            ["priceMax", "Price up to ($)", f.priceMax, "Any price"],
+            ["mileageMax", "Mileage up to", f.mileageMax, "Any mileage"],
           ] as const
         ).map(([key, label, value, placeholder]) => (
           <label
@@ -740,7 +760,7 @@ export default function MarketPage() {
           Source or dealer
           <select
             aria-label="Quick source or dealer"
-            disabled={!ready}
+            disabled={!ready || busy}
             value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
             onChange={(event) =>
               set({ sources: event.target.value ? [event.target.value] : [] })
@@ -753,7 +773,7 @@ export default function MarketPage() {
               </option>
             )}
             <option value="">All sources</option>
-            {INVENTORY_SOURCE_FILTERS.map((source) => (
+            {quickSourceOptions.map((source) => (
               <option key={source.id} value={source.id}>
                 {source.name} -{" "}
                 {sourceMatchLabel(source.id, data?.sourceCoverage, {
@@ -765,6 +785,15 @@ export default function MarketPage() {
                   : ""}
               </option>
             ))}
+            {!data?.sourceCoverage ? (
+              <option value="__loading" disabled>
+                Source matches load with results
+              </option>
+            ) : quickSourceOptions.length < INVENTORY_SOURCE_FILTERS.length ? (
+              <option value="__browse" disabled>
+                Browse every source in All filters
+              </option>
+            ) : null}
           </select>
         </label>
         <button
@@ -1257,18 +1286,18 @@ export default function MarketPage() {
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <NumIn
-                    ph="miles ≥"
+                    label="Mileage from"
                     v={f.minMileage}
                     on={(value) => set({ minMileage: value })}
                   />
                   <NumIn
-                    ph="miles ≤"
+                    label="Mileage up to"
                     v={f.mileageMax}
                     on={(value) => set({ mileageMax: value })}
                   />
                   {flipDesk && (
                     <NumIn
-                      ph="profit ≥"
+                      label="Profit from ($)"
                       v={f.minProfit}
                       on={(value) => set({ minProfit: value })}
                       full
@@ -1405,11 +1434,7 @@ export default function MarketPage() {
                       {total.toLocaleString()}
                     </strong>{" "}
                     {data?.mode === "curated" ? "curated" : "market"} matches
-                    {data?.location?.radius
-                      ? ` · ${data.location.radius} mi radius`
-                      : f.states.length
-                        ? ` · ${f.states.length} state${f.states.length > 1 ? "s" : ""}`
-                        : " · all states"}
+                    {` · ${searchAreaLabel}`}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
                 )}
@@ -1455,7 +1480,7 @@ export default function MarketPage() {
             >
               <option value="lastSeenAt:desc">Recently seen</option>
               <option value="priceGap:desc">
-                Largest price gap (before costs)
+                Most below estimate (before costs)
               </option>
               {(f.near || f.lat) && (
                 <option value="distanceMiles:asc">Nearest first</option>
@@ -1691,25 +1716,30 @@ function FilterPanel({
 }
 
 function NumIn({
-  ph,
+  label,
   v,
   on,
   full,
 }: {
-  ph: string;
+  label: string;
   v: string;
   on: (v: string) => void;
   full?: boolean;
 }) {
   return (
-    <input
-      aria-label={ph}
-      inputMode="numeric"
-      placeholder={ph}
-      value={v}
-      onChange={(e) => on(e.target.value.replace(/[^0-9]/g, ""))}
-      className={`field text-xs ${full ? "col-span-2" : ""}`}
-    />
+    <label
+      className={`flex min-w-0 flex-col gap-1 text-xs font-semibold text-[var(--t3)] ${full ? "col-span-2" : ""}`}
+    >
+      {label}
+      <input
+        aria-label={label}
+        inputMode="numeric"
+        placeholder="Any"
+        value={v}
+        onChange={(e) => on(e.target.value.replace(/[^0-9]/g, ""))}
+        className="field min-h-11 min-w-0 !w-full text-sm"
+      />
+    </label>
   );
 }
 

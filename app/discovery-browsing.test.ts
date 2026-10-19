@@ -32,7 +32,7 @@ describe("discovery browsing presentation safeguards", () => {
     const primaryStart = scan.indexOf("{/* Model cascades");
     const additionalStart = scan.indexOf("{/* ADVANCED:");
     const primary = scan.slice(primaryStart, additionalStart);
-    expect(primary).toContain('label="Max Miles"');
+    expect(primary).toContain('label="Mileage up to"');
     expect(primary).toContain('label="Source"');
     expect(primary).toContain("aria-expanded={showMore}");
     expect(primary).toContain('aria-controls="additional-inventory-filters"');
@@ -45,7 +45,7 @@ describe("discovery browsing presentation safeguards", () => {
     expect(scan).toContain(
       '<details open className="glass-panel px-3 py-1.5">',
     );
-    expect(scan.match(/label="Max Miles"/g)).toHaveLength(1);
+    expect(scan.match(/label="Mileage up to"/g)).toHaveLength(1);
     expect(scan.match(/label="Source"/g)).toHaveLength(1);
   });
   it("mounts secondary market requests only when insights are opened", () => {

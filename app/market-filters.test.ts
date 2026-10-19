@@ -26,6 +26,11 @@ vi.mock("swr", () => ({
                 { value: "iaa", n: 310 },
               ],
             },
+            sourceCoverage: {
+              counts: { copart: 640 },
+              complete: true,
+              accessReviewIds: [],
+            },
           }
         : undefined,
       isLoading: false,
@@ -179,6 +184,10 @@ describe("Market filter journey", () => {
     expect(new URLSearchParams(window.location.search).get("sources")).toBe(
       "copart",
     );
+    expect(
+      source.querySelector('option[value="__browse"]')?.textContent,
+    ).toContain("Browse every source in All filters");
+    expect(source.querySelector('option[value="iaa"]')).toBeNull();
   });
   it("retains unknown title, repair exclusion and price-gap sort from other views", async () => {
     window.history.replaceState(
@@ -202,7 +211,7 @@ describe("Market filter journey", () => {
       '[aria-label="Everyday search filters"]',
     )!;
     const mileage = controls.querySelector<HTMLInputElement>(
-      '[aria-label="Quick maximum mileage"]',
+      '[aria-label="Quick mileage up to"]',
     )!;
     act(() => Simulate.change(mileage, { target: { value: "50000" } } as any));
     expect(new URLSearchParams(window.location.search).get("mileageMax")).toBe(
@@ -372,19 +381,23 @@ describe("Market filter journey", () => {
     await render();
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLInputElement>('[aria-label="Search location"]')!,
+        host.querySelector<HTMLInputElement>(
+          '[aria-label="ZIP or city, state"]',
+        )!,
         { target: { value: "63101" } } as any,
       ),
     );
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLSelectElement>('[aria-label="Search radius"]')!,
+        host.querySelector<HTMLSelectElement>(
+          '[aria-label="Distance from location"]',
+        )!,
         { target: { value: "150" } } as any,
       ),
     );
     act(() =>
       Simulate.submit(
-        host.querySelector('section[aria-label="Location and radius"] form')!,
+        host.querySelector('section[aria-label="Search area"] form')!,
       ),
     );
     expect(new URLSearchParams(window.location.search).get("near")).toBe(
@@ -396,6 +409,8 @@ describe("Market filter journey", () => {
     expect(new URLSearchParams(window.location.search).has("states")).toBe(
       false,
     );
+    expect(host.textContent).toContain("Within 150 mi of 63101");
+    expect(host.textContent).not.toContain("150 mi radius");
     act(() =>
       Simulate.change(
         host.querySelector<HTMLSelectElement>(
@@ -406,7 +421,9 @@ describe("Market filter journey", () => {
     );
     act(() =>
       Simulate.change(
-        host.querySelector<HTMLSelectElement>('[aria-label="Search area"]')!,
+        host.querySelector<HTMLSelectElement>(
+          '[aria-label="Search area shortcut"]',
+        )!,
         { target: { value: "nationwide" } } as any,
       ),
     );

@@ -7,13 +7,13 @@ import { Ico } from "./Ico";
 // Makes it easy for users to select price ranges with intuitive controls
 
 const PRICE_PRESETS = [
-  { label: "Under $5k", min: 0, max: 5000 },
-  { label: "$5k - $10k", min: 5000, max: 10000 },
-  { label: "$10k - $15k", min: 10000, max: 15000 },
-  { label: "$15k - $20k", min: 15000, max: 20000 },
-  { label: "$20k - $30k", min: 20000, max: 30000 },
-  { label: "$30k - $50k", min: 30000, max: 50000 },
-  { label: "$50k+", min: 50000, max: null },
+  { label: "Up to $5k", min: 0, max: 5000 },
+  { label: "$5k to $10k", min: 5000, max: 10000 },
+  { label: "$10k to $15k", min: 10000, max: 15000 },
+  { label: "$15k to $20k", min: 15000, max: 20000 },
+  { label: "$20k to $30k", min: 20000, max: 30000 },
+  { label: "$30k to $50k", min: 30000, max: 50000 },
+  { label: "$50k and up", min: 50000, max: null },
 ];
 const PRICE_SLIDER_MAX = 100_000;
 
@@ -55,18 +55,21 @@ export function PriceRangeSelector({
   };
 
   const hasActiveFilter = minPrice || maxPrice;
+  const priceSummary = minPrice
+    ? maxPrice
+      ? `$${parseInt(minPrice).toLocaleString()} to $${parseInt(maxPrice).toLocaleString()}`
+      : `$${parseInt(minPrice).toLocaleString()} and up`
+    : maxPrice
+      ? `Up to $${parseInt(maxPrice).toLocaleString()}`
+      : "Any price";
 
   return (
     <div className={`space-y-4 ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-[var(--t1)]">Price Range</h3>
-          <p className="text-xs text-[var(--t4)]">
-            {hasActiveFilter
-              ? `$${parseInt(minPrice || "0").toLocaleString()} - ${maxPrice ? `$${parseInt(maxPrice).toLocaleString()}` : "Any"}`
-              : "Any price"}
-          </p>
+          <h3 className="text-sm font-bold text-[var(--t1)]">Price range</h3>
+          <p className="text-xs text-[var(--t4)]">{priceSummary}</p>
         </div>
         {hasActiveFilter && (
           <button
@@ -102,7 +105,7 @@ export function PriceRangeSelector({
 
       {/* Custom Range Input */}
       <div className="pt-3 border-t border-[var(--b1)]">
-        <p className="text-xs font-bold text-[var(--t3)] mb-2">Custom Range</p>
+        <p className="text-xs font-bold text-[var(--t3)] mb-2">Custom range</p>
         <div className="flex items-center gap-2">
           <div className="flex-1">
             <div className="relative">
@@ -111,7 +114,8 @@ export function PriceRangeSelector({
               </span>
               <input
                 type="number"
-                placeholder="Min"
+                aria-label="Price from"
+                placeholder="From"
                 value={minPrice}
                 onChange={(e) => {
                   onMinChange(e.target.value);
@@ -131,7 +135,8 @@ export function PriceRangeSelector({
               </span>
               <input
                 type="number"
-                placeholder="Max"
+                aria-label="Price up to"
+                placeholder="Up to"
                 value={maxPrice}
                 onChange={(e) => {
                   onMaxChange(e.target.value);
@@ -146,7 +151,7 @@ export function PriceRangeSelector({
 
       <div className="grid gap-3 rounded-xl bg-[var(--s2)] p-3 sm:grid-cols-2">
         <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
-          Minimum · $
+          From · $
           {Math.min(Number(minPrice) || 0, PRICE_SLIDER_MAX).toLocaleString()}
           <input
             aria-label="Minimum price slider"
@@ -166,12 +171,12 @@ export function PriceRangeSelector({
           />
         </label>
         <label className="text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
-          Maximum ·{" "}
+          Up to ·{" "}
           {maxPrice
             ? `$${Math.min(Number(maxPrice), PRICE_SLIDER_MAX).toLocaleString()}`
             : "$100k+"}
           <input
-            aria-label="Maximum price slider"
+            aria-label="Price up to slider"
             type="range"
             min="0"
             max={PRICE_SLIDER_MAX}

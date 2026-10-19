@@ -3072,12 +3072,16 @@ function ScanPageInner() {
     { label: "Model", value: model, clear: () => setModel("all") },
     { label: "Shown tag", value: category, clear: () => setCategory("all") },
     { label: "Min price", value: minPrice, clear: () => setMinPrice("any") },
-    { label: "Max price", value: maxPrice, clear: () => setMaxPrice("any") },
+    {
+      label: "Price up to",
+      value: maxPrice,
+      clear: () => setMaxPrice("any"),
+    },
     { label: "Year from", value: minYear, clear: () => setMinYear("any") },
     { label: "Year to", value: maxYear, clear: () => setMaxYear("any") },
     {
-      label: "Near",
-      value: zip ? `${zip} · ${radius} mi` : "any",
+      label: "Search area",
+      value: zip ? `Within ${radius} mi of ${zip}` : "any",
       clear: () => setZip(""),
     },
     {
@@ -3086,7 +3090,7 @@ function ScanPageInner() {
       clear: () => setMinMileage("any"),
     },
     {
-      label: "Max miles",
+      label: "Mileage up to",
       value: maxMileage,
       clear: () => setMaxMileage("any"),
     },
@@ -3168,9 +3172,9 @@ function ScanPageInner() {
         "State",
         "Make",
         "Model",
-        "Max price",
-        "Max miles",
-        "Near",
+        "Price up to",
+        "Mileage up to",
+        "Search area",
         "Source",
         "Verdict",
       ].includes(filter.label),
@@ -4875,12 +4879,12 @@ function ScanPageInner() {
             options={stateOptions}
           />
           <RangeInput
-            label="Max Price"
+            label="Price up to ($)"
             value={maxPrice}
             onChange={setMaxPrice}
           />
           <RangeInput
-            label="Max Miles"
+            label="Mileage up to"
             value={maxMileage}
             onChange={setMaxMileage}
           />
@@ -4891,7 +4895,7 @@ function ScanPageInner() {
             options={sourceOptions}
           />
           <label className="flex flex-col gap-1 text-[10px] font-semibold text-[var(--t3)]">
-            Near ZIP
+            ZIP code
             <input
               type="text"
               inputMode="numeric"

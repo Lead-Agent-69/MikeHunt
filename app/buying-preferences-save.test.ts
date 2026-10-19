@@ -110,7 +110,7 @@ describe("buying preferences", () => {
         .querySelector("input")!;
     for (const [label, value] of [
       ["Preferred model", "Bronco"],
-      ["Maximum mileage", "50000"],
+      ["Mileage up to", "50000"],
       ["Earliest year", "2020"],
       ["Latest year", "2026"],
     ]) {
@@ -137,7 +137,7 @@ describe("buying preferences", () => {
     );
     expect(account.save).not.toHaveBeenCalled();
     expect(host.textContent).toContain("earliest year must not exceed");
-    for (const name of ["Maximum mileage", "Earliest year", "Latest year"])
+    for (const name of ["Mileage up to", "Earliest year", "Latest year"])
       act(() =>
         Simulate.change(inputFor(name), { target: { value: "" } } as any),
       );

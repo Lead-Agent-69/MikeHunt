@@ -500,7 +500,7 @@ function broadenScopeAction(scope?: HealthScope) {
     return `No rows matched "${scope.q}". Try a broader vehicle type or clear the keyword.`;
   }
   if (scope.maxPrice) {
-    return `No rows under ${formatCurrency(scope.maxPrice)}. Raise the budget or clear max price.`;
+    return `No rows priced up to ${formatCurrency(scope.maxPrice)}. Raise the budget or clear the price limit.`;
   }
   if (scope.minPrice) {
     return `No rows over ${formatCurrency(scope.minPrice)}. Lower the minimum price or clear min price.`;

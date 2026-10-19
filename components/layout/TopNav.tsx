@@ -230,7 +230,11 @@ function TopNavContent() {
         }}
       >
         <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <span className="truncate">{radiusScope.radius} mi</span>
+        <span className="truncate">
+          {compact
+            ? `${radiusScope.radius} mi · ${radiusScope.near || "Here"}`
+            : `Within ${radiusScope.radius} mi of ${radiusScope.near || "your location"}`}
+        </span>
       </button>
     ) : (
       <MyStatesButton
@@ -367,7 +371,7 @@ function TopNavContent() {
 
         <div className="flex items-center justify-end gap-2 lg:hidden">
           {locationButton(
-            "inline-flex max-w-[88px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)]",
+            "inline-flex max-w-[92px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)] min-[390px]:max-w-[116px]",
             true,
           )}
           <AccountMenu floating={false} />

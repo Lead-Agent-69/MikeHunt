@@ -163,8 +163,8 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <input
-          aria-label="Max price"
-          placeholder="Max price"
+          aria-label="Price up to"
+          placeholder="Price up to"
           inputMode="numeric"
           value={priceMax}
           onChange={(e) => setPriceMax(e.target.value)}
@@ -180,7 +180,7 @@ export function AlsoSearchOn({
           className={FIELD}
         />
         <select
-          aria-label="Radius"
+          aria-label="Within"
           value={radius}
           onChange={(e) => setRadius(e.target.value)}
           className={FIELD}
@@ -213,8 +213,8 @@ export function AlsoSearchOn({
             className={FIELD}
           />
           <input
-            aria-label="Max miles"
-            placeholder="Max miles"
+            aria-label="Mileage up to"
+            placeholder="Mileage up to"
             inputMode="numeric"
             value={milesMax}
             onChange={(e) => setMilesMax(e.target.value)}

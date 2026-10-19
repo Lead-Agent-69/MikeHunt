@@ -79,7 +79,7 @@ export function inventoryScopeLabel(params: URLSearchParams) {
       : DEFAULT_RADIUS_MI;
   if (zip)
     return /^\d{5}$/.test(zip)
-      ? `${radius} mi of ${zip}`
+      ? `Within ${radius} mi of ${zip}`
       : "Location needs checking";
   return inventoryScopeStates(params)?.join(", ") || "Nationwide";
 }

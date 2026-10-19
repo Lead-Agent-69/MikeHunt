@@ -121,8 +121,8 @@ export const INVENTORY_DETAIL_GROUPS: {
         label: "Buy now",
         options: [{ value: "1", label: "Available" }],
       },
-      { key: "minBuyNow", label: "Buy now price from ($)", type: "number" },
-      { key: "maxBuyNow", label: "Buy now price to ($)", type: "number" },
+      { key: "minBuyNow", label: "Buy-now price from ($)", type: "number" },
+      { key: "maxBuyNow", label: "Buy-now price up to ($)", type: "number" },
       {
         key: "auctionFrom",
         label: "Auction end date from (UTC)",

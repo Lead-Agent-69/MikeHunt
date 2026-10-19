@@ -54,7 +54,7 @@ export function MarketLocation({
   };
   return (
     <section
-      aria-label="Location and radius"
+      aria-label="Search area"
       className="overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-1.5 lg:p-4"
     >
       <form
@@ -80,13 +80,13 @@ export function MarketLocation({
         <label className="min-w-0 text-xs font-semibold text-[var(--t3)]">
           <span className="sr-only mb-1 items-center gap-1 lg:not-sr-only lg:flex">
             <MapPin className="h-3 w-3" />
-            ZIP or city, state
+            Search location
           </span>
           <input
             id="market-search-location"
-            aria-label="Search location"
+            aria-label="ZIP or city, state"
             list="market-city-anchors"
-            placeholder="ZIP or city"
+            placeholder="ZIP or city, state"
             value={near}
             onChange={(event) => setNear(event.target.value)}
             maxLength={100}
@@ -95,9 +95,9 @@ export function MarketLocation({
         </label>
         <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_2.75rem_2.75rem] gap-2 min-[360px]:grid-cols-[6.75rem_2.75rem_2.75rem_minmax(0,1fr)] lg:contents">
           <label className="min-w-0 text-xs font-semibold text-[var(--t3)]">
-            <span className="sr-only lg:not-sr-only">Radius</span>
+            <span className="sr-only lg:not-sr-only">Within</span>
             <select
-              aria-label="Search radius"
+              aria-label="Distance from location"
               value={radius}
               onChange={(event) => setRadius(event.target.value)}
               className="field min-h-11 !w-full !py-2 !text-base lg:mt-1"
@@ -112,11 +112,11 @@ export function MarketLocation({
           <div className="contents lg:flex lg:items-center lg:gap-2">
             <button
               type="submit"
-              aria-label="Search this area"
+              aria-label="Apply search area"
               className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[var(--accent)] text-sm font-bold text-[var(--on-accent)] lg:flex lg:w-auto lg:px-3"
             >
               <SearchIcon className="h-4 w-4 lg:hidden" aria-hidden="true" />
-              <span className="sr-only lg:not-sr-only">Search</span>
+              <span className="sr-only lg:not-sr-only">Apply</span>
             </button>
             <button
               type="button"
@@ -159,9 +159,9 @@ export function MarketLocation({
               />
             </button>
             <label className="col-span-3 min-w-0 min-[360px]:col-span-1 lg:w-auto lg:flex-1">
-              <span className="sr-only">Search area</span>
+              <span className="sr-only">Search area shortcut</span>
               <select
-                aria-label="Search area"
+                aria-label="Search area shortcut"
                 value={
                   value.near || value.lat
                     ? home?.zip === value.near ||
@@ -213,12 +213,15 @@ export function MarketLocation({
               >
                 <option value="nationwide">Nationwide</option>
                 {(value.near || value.lat) && (
-                  <option value="nearby">Nearby</option>
+                  <option value="nearby">
+                    Within {value.radius || radius || "100"} mi of{" "}
+                    {value.near || "your location"}
+                  </option>
                 )}
                 {value.states.length > 0 && (
                   <option value="states">Selected states</option>
                 )}
-                {home && <option value="home">Saved home</option>}
+                {home && <option value="home">Saved home area</option>}
                 {(home?.state || value.states[0]) && (
                   <option value="surrounding">Home + nearby states</option>
                 )}
@@ -239,9 +242,9 @@ export function MarketLocation({
           {message}
         </p>
       )}
-      <p className="mt-1 hidden text-[11px] leading-relaxed text-[var(--t3)] lg:block">
+      <p className="mt-1 text-[11px] leading-relaxed text-[var(--t3)]">
         {value.near || value.lat
-          ? `${value.radius || "100"} mi of ${value.near || "your location"} · approximate locations; vehicles without coordinates excluded.`
+          ? `Within ${value.radius || "100"} mi of ${value.near || "your location"}. Location is approximate; vehicles without coordinates are excluded.`
           : value.states.length
             ? `Searching ${value.states.join(", ")}. Add a ZIP or city for a radius search.`
             : "Nationwide · all collected states"}

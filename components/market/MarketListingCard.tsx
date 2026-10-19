@@ -94,6 +94,15 @@ function ListingCard({
           ? `Seen ${hours}h ago`
           : `Seen ${Math.floor(hours / 24)}d ago`;
   const price = row.price;
+  const location = vehicleLocation(row.locationCity, row.locationState);
+  const priceGapLabel =
+    row.priceGap == null
+      ? null
+      : row.priceGap > 0
+        ? "Below supported estimate"
+        : row.priceGap < 0
+          ? "Above supported estimate"
+          : "At supported estimate";
   return (
     <article
       ref={cardRef}
@@ -156,7 +165,6 @@ function ListingCard({
           </button>
         )}
         <div
-          aria-hidden="true"
           data-testid="market-price-preview"
           className="pointer-events-none absolute left-3 top-12 max-w-[calc(100%_-_4.5rem)] rounded bg-[var(--s1)] px-2 py-1 text-[var(--t1)] shadow-sm"
         >
@@ -236,25 +244,25 @@ function ListingCard({
             </Link>
           </h3>
           {row.trim && <p className="text-xs text-[var(--t3)]">{row.trim}</p>}
+          <p className="mt-1 flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
+            <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {location}
+            {row.distanceMiles != null && (
+              <span>
+                {" "}
+                · ~{Math.round(row.distanceMiles).toLocaleString()} mi away
+              </span>
+            )}
+          </p>
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-2 border-t border-[var(--b1)] pt-2.5">
-          <div>
-            <p className="text-[10px] font-semibold text-[var(--t3)]">
-              {price?.label || "Unverified advertised amount"}
-            </p>
-            <p className="text-xl font-extrabold tabular-nums">
-              {reportedPrice(price?.amount)}
-            </p>
-          </div>
-          {price?.buyNowPrice != null && price.kind !== "buy_now" && (
-            <div className="text-right">
-              <p className="text-[10px] text-[var(--t3)]">Buy now</p>
-              <p className="text-sm font-bold tabular-nums">
-                {reportedPrice(price.buyNowPrice)}
-              </p>
-            </div>
-          )}
-        </div>
+        {price?.buyNowPrice != null && price.kind !== "buy_now" && (
+          <p className="border-t border-[var(--b1)] pt-2 text-xs text-[var(--t3)]">
+            Buy-now option:{" "}
+            <span className="font-bold tabular-nums text-[var(--t1)]">
+              {reportedPrice(price.buyNowPrice)}
+            </span>
+          </p>
+        )}
         {price?.advertisedAmount != null &&
           price.amount !== price.advertisedAmount && (
             <p className="text-[11px] text-[var(--t3)]">
@@ -315,16 +323,27 @@ function ListingCard({
             · {row.valuationEvidence?.label || "Estimate basis not recorded"}
           </p>
         )}
-        {row.priceGap != null && (
-          <p className="text-xs text-[var(--t3)]">
-            Estimate minus asking:{" "}
-            {row.priceGap.toLocaleString("en-US", {
-              style: "currency",
-              currency: "USD",
-              maximumFractionDigits: 0,
-            })}{" "}
-            before repairs, fees and other costs.
-          </p>
+        {row.priceGap != null && priceGapLabel && (
+          <div
+            data-testid="market-price-gap"
+            className="flex items-start justify-between gap-3 rounded-lg border border-[var(--b1)] bg-[var(--s2)] p-2.5"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-[var(--t1)]">
+                {priceGapLabel}
+              </p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-[var(--t3)]">
+                Before repair costs, fees and transport
+              </p>
+            </div>
+            <strong className="shrink-0 text-sm tabular-nums text-[var(--t1)]">
+              {Math.abs(row.priceGap).toLocaleString("en-US", {
+                style: "currency",
+                currency: "USD",
+                maximumFractionDigits: 0,
+              })}
+            </strong>
+          </div>
         )}
         {flipDesk && row.valuationEvidence?.supported === false && (
           <p className="text-xs text-[var(--t3)]">
@@ -332,13 +351,6 @@ function ListingCard({
             details.
           </p>
         )}
-        <p className="flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
-          <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
-          {vehicleLocation(row.locationCity, row.locationState)}
-          {row.distanceMiles != null && (
-            <span> · ~{Math.round(row.distanceMiles).toLocaleString()} mi</span>
-          )}
-        </p>
         <p className="text-[10px] text-[var(--t3)]" title={row.lastSeenAt}>
           {freshness}
           {row.vin ? ` · VIN …${row.vin.slice(-6)}` : " · VIN not reported"}

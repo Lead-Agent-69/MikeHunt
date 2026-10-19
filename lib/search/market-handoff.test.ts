@@ -75,7 +75,7 @@ describe("wider market handoff", () => {
     expect(url.searchParams.get("transmission")).toBe("man");
     expect(url.searchParams.get("trim_kw")).toBe("A&B");
     expect(url.searchParams.has("maxprice")).toBe(false);
-    expect(result.reapply).toContain("Maximum price: NaN");
+    expect(result.reapply).toContain("Price up to: NaN");
     expect(result.reapply).toContain("State: XX");
     expect(result.reapply).toContain("Fuel: Electric");
   });
@@ -138,8 +138,8 @@ describe("wider market handoff", () => {
     expect(local.reapply).toContain("Damage: flood");
     expect(local.reapply).toContain("Repairable vehicles: excluded");
     const auction = results.find((r) => r.id === "ebay_motors")!;
-    expect(auction.reapply).toContain("Maximum year: 2022");
-    expect(auction.carried).not.toContain("Maximum year: 2022");
+    expect(auction.reapply).toContain("Year up to: 2022");
+    expect(auction.carried).not.toContain("Year up to: 2022");
   });
   it("does not call invalid or unconfirmed enum parameters transferred", () => {
     const results = marketHandoffs(

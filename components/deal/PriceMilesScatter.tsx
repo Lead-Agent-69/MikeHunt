@@ -178,7 +178,7 @@ export function PriceMilesScatter({ dealId }: Props) {
             step: 500,
           },
           {
-            label: "Maximum mileage",
+            label: "Mileage up to",
             value: maxMileage,
             change: setMaxMileage,
             step: 1000,

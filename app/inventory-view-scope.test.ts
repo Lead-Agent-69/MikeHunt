@@ -44,10 +44,10 @@ describe("cross-view scope preservation", () => {
   it("labels a radius search as local rather than nationwide", () => {
     expect(
       inventoryScopeLabel(new URLSearchParams("zip=63101&radius=50")),
-    ).toBe("50 mi of 63101");
+    ).toBe("Within 50 mi of 63101");
     expect(
       inventoryScopeLabel(new URLSearchParams("zip=63101&radius=-1")),
-    ).toBe("100 mi of 63101");
+    ).toBe("Within 100 mi of 63101");
     expect(inventoryScopeLabel(new URLSearchParams("states=MO,IL"))).toBe(
       "MO, IL",
     );

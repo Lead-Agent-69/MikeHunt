@@ -51,9 +51,13 @@ beforeEach(() => {
   root = createRoot(host);
 });
 
-it.each([0, -1500, 2500])(
-  "labels a %s price gap as before-cost evidence, never profit",
-  async (gap) => {
+it.each([
+  [0, "At supported estimate", "$0"],
+  [-1500, "Above supported estimate", "$1,500"],
+  [2500, "Below supported estimate", "$2,500"],
+] as const)(
+  "labels a %s price gap direction plainly, never as profit",
+  async (gap, label, amount) => {
     await act(async () =>
       root.render(
         <MarketListingCard
@@ -62,10 +66,13 @@ it.each([0, -1500, 2500])(
         />,
       ),
     );
+    expect(host.textContent).toContain(label);
+    expect(
+      host.querySelector('[data-testid="market-price-gap"]')?.textContent,
+    ).toContain(amount);
     expect(host.textContent).toContain(
-      `Estimate minus asking: ${gap.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })}`,
+      "Before repair costs, fees and transport",
     );
-    expect(host.textContent).toContain("before repairs, fees and other costs");
   },
 );
 
@@ -144,6 +151,7 @@ it("keeps vehicle identity and bid meaning in the photo preview, with separate d
   expect(preview.textContent).toContain("2020 Ford Mustang");
   expect(preview.textContent).toContain("Current bid");
   expect(preview.textContent).toContain("$1,000");
+  expect(host.textContent?.match(/\$1,000/g)).toHaveLength(1);
   expect(
     host
       .querySelector('a[aria-label^="Open details for"]')
