@@ -49,6 +49,7 @@ it("returns friendly non-cacheable failure and recovers on the next request", as
   const res = await GET(req());
   expect(res.status).toBe(503);
   expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+  expect(res.headers.get("Retry-After")).toBe("2");
   expect(JSON.stringify(await res.json())).not.toContain("SQL");
   expect(console.warn).toHaveBeenCalledWith(
     "[status/public] inventory check failed",
@@ -61,12 +62,48 @@ it("returns friendly non-cacheable failure and recovers on the next request", as
   expect((await GET(req())).status).toBe(200);
 });
 
-it("keeps per-read diagnostics server-only and never caches a failed check", async () => {
-  mocks.inventory.mockRejectedValueOnce(
-    new InventoryStatusReadError("fresh_photos", "deadline", 4001, null),
+it("recovers from one transient cold inventory read inside the request", async () => {
+  mocks.inventory
+    .mockRejectedValueOnce(
+      new InventoryStatusReadError("fresh_photos", "deadline", 4001, null),
+    )
+    .mockResolvedValueOnce({
+      activeDeals: 2,
+      buyerReady: true,
+      decisionReady: false,
+    });
+  const response = await GET(req());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    activeDeals: 2,
+    buyerReady: true,
+    decisionReady: false,
+  });
+  expect(mocks.inventory).toHaveBeenCalledTimes(2);
+  expect(console.warn).not.toHaveBeenCalled();
+});
+
+it("retries a transient upstream database response once", async () => {
+  mocks.inventory
+    .mockRejectedValueOnce(
+      new InventoryStatusReadError("active", "database", 80, 503),
+    )
+    .mockResolvedValueOnce({ activeDeals: 2, buyerReady: true });
+  expect((await GET(req())).status).toBe(200);
+  expect(mocks.inventory).toHaveBeenCalledTimes(2);
+});
+
+it("keeps repeated transient diagnostics server-only and never caches the failure", async () => {
+  const failure = new InventoryStatusReadError(
+    "fresh_photos",
+    "deadline",
+    4001,
+    null,
   );
+  mocks.inventory.mockRejectedValueOnce(failure).mockRejectedValueOnce(failure);
   const response = await GET(req());
   expect(response.status).toBe(503);
+  expect(response.headers.get("Retry-After")).toBe("2");
   expect(await response.json()).toEqual({
     error: "We couldn't check inventory status. Please try again shortly.",
   });
@@ -84,5 +121,14 @@ it("keeps per-read diagnostics server-only and never caches a failed check", asy
     decisionReady: false,
   });
   expect((await GET(req())).status).toBe(200);
-  expect(mocks.inventory).toHaveBeenCalledTimes(2);
+  expect(mocks.inventory).toHaveBeenCalledTimes(3);
+});
+
+it.each([
+  new InventoryStatusReadError("active", "invalid_count", 10, 200),
+  new InventoryStatusReadError("active", "database", 10, 400),
+])("does not retry a non-transient inventory failure", async (failure) => {
+  mocks.inventory.mockRejectedValueOnce(failure);
+  expect((await GET(req())).status).toBe(503);
+  expect(mocks.inventory).toHaveBeenCalledTimes(1);
 });

@@ -605,6 +605,36 @@ async function computeFullStatus(): Promise<Record<string, any>> {
 }
 
 const PUBLIC_READINESS_IDS = new Set(["google-login"]);
+const PUBLIC_INVENTORY_RETRY_DELAY_MS = 150;
+
+function shouldRetryPublicInventoryStatus(error: unknown) {
+  const diagnostic = inventoryFailureDiagnostic(error);
+  return (
+    diagnostic.reason === "deadline" ||
+    diagnostic.reason === "transport" ||
+    diagnostic.reason === "database_canceled" ||
+    diagnostic.reason === "rate_limited" ||
+    (diagnostic.reason === "database" &&
+      typeof diagnostic.httpStatus === "number" &&
+      diagnostic.httpStatus >= 500)
+  );
+}
+
+async function loadPublicInventoryStatus() {
+  let failure: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return await publicInventoryStatus(createServerComponentClient());
+    } catch (error) {
+      failure = error;
+      if (attempt > 0 || !shouldRetryPublicInventoryStatus(error)) break;
+      await new Promise((resolve) =>
+        setTimeout(resolve, PUBLIC_INVENTORY_RETRY_DELAY_MS),
+      );
+    }
+  }
+  throw failure;
+}
 
 /**
  * Public projection of the status payload. Anonymous and non-admin callers (register page, Google
@@ -686,12 +716,12 @@ export async function GET(request: NextRequest) {
     });
   }
   try {
-    const payload = await cached("status:public:v2", 120_000, async () => {
+    const payload = await cached("status:public:v3", 120_000, async () => {
       if (!isSupabaseConfigured())
         return toPublicStatus(await computeFullStatus());
       const [authProviders, inventory] = await Promise.all([
         loadAuthProviders(),
-        publicInventoryStatus(createServerComponentClient()),
+        loadPublicInventoryStatus(),
       ]);
       const publicStatus = toPublicStatus({
         configured: true,
@@ -712,7 +742,13 @@ export async function GET(request: NextRequest) {
       {
         error: "We couldn't check inventory status. Please try again shortly.",
       },
-      { status: 503, headers: { "Cache-Control": "private, no-store" } },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "private, no-store",
+          "Retry-After": "2",
+        },
+      },
     );
   }
 }
