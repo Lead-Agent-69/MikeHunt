@@ -130,7 +130,7 @@ export default function StatusPage() {
     (s) => s.readiness === "needs_login",
   );
   const blockedSources = healthSources.filter((s) => s.readiness === "blocked");
-  const publicRows = healthSources.reduce(
+  const storedRows = healthSources.reduce(
     (sum, s) => sum + (Number(s.activeRows) || 0),
     0,
   );
@@ -156,52 +156,61 @@ export default function StatusPage() {
       blockedSources.length,
   );
   const proofRows = Number(
-    healthSummary.activeRows ?? healthSummary.activeDeals ?? publicRows,
+    healthSummary.activeRows ?? healthSummary.activeDeals ?? storedRows,
   );
   const proofPhotoRows = Number(healthSummary.rowsWithPhotos ?? photoRows);
   const proofAverageQuality = Number(healthSummary.averageQuality ?? 0);
   const sourceProofIsComplete =
     sourceHealth?.inventoryProofMode === "database_rollup";
-  const bestPublicSource = readySources
+  const bestReadySource = readySources
     .slice()
     .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))[0];
-  const bestReadyScanHref = bestPublicSource
-    ? scanHrefForSource(bestPublicSource)
+  const bestReadyScanHref = bestReadySource
+    ? scanHrefForSource(bestReadySource)
     : "/scan";
+  const persistenceReady = Boolean(
+    readiness?.items?.find((item: any) => item.id === "supabase")?.status ===
+    "ready",
+  );
+  const scopedSearchReady = Boolean(
+    readiness?.items?.find((item: any) => item.id === "scrape-control")
+      ?.status === "ready",
+  );
+  const operatingStackReady = persistenceReady && scopedSearchReady;
   const launchQueue = [
     {
-      title: "1. Keep public preview useful",
+      title: "1. Work proven inventory first",
       done: readySourceCount > 0,
       detail: readySourceCount
-        ? `${readySourceCount} public source${readySourceCount === 1 ? "" : "s"} can show cars now. Use these while database setup is pending.`
-        : "No public source is returning usable vehicles yet.",
+        ? `${readySourceCount} source${readySourceCount === 1 ? "" : "s"} can show stored inventory now. Start with proven rows while expanding coverage.`
+        : "No source is returning usable vehicles yet.",
       href: bestReadyScanHref,
       action: "Open ready scan",
     },
     {
-      title: "2. Connect persistence",
-      done: Boolean(
-        readiness?.items?.find((item: any) => item.id === "supabase")
-          ?.status === "ready",
-      ),
-      detail:
-        "Supabase public keys turn preview rows into saved inventory, synced watchlists, source history, and real user preferences.",
+      title: persistenceReady
+        ? "2. Keep account data synchronized"
+        : "2. Connect account persistence",
+      done: persistenceReady,
+      detail: persistenceReady
+        ? "Saved vehicles, watchlists, source history, and preferences are synced to the production database."
+        : "Connect the production database so saved vehicles, watchlists, source history, and preferences persist across sessions.",
       href: "/status",
-      action: "Review env keys",
+      action: persistenceReady ? "Review data status" : "Review setup",
     },
     {
-      title: "3. Enable scoped source searches",
-      done: Boolean(
-        readiness?.items?.find((item: any) => item.id === "scrape-control")
-          ?.status === "ready",
-      ),
-      detail:
-        "Once scraper control is authorized, Scan can run only the buyer-selected lane/source instead of broad scraping.",
+      title: scopedSearchReady
+        ? "3. Use scoped source searches"
+        : "3. Enable scoped source searches",
+      done: scopedSearchReady,
+      detail: scopedSearchReady
+        ? "Scoped searches are active, so Scan can honor the selected lane and source without broad, quota-heavy runs."
+        : "Authorize scraper control so Scan can run only the selected lane and source instead of broad scraping.",
       href: "/scan",
       action: "Open Scan",
     },
     {
-      title: "4. Add protected-source access",
+      title: "4. Expand approved source access",
       done: loginSourceCount === 0,
       detail: loginSourceCount
         ? `${loginSourceCount} source${loginSourceCount === 1 ? "" : "s"} still need credentials, dealer access, proxy, or captcha strategy.`
@@ -1164,15 +1173,19 @@ export default function StatusPage() {
             <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-                  Launch order
+                  {operatingStackReady
+                    ? "Operating priorities"
+                    : "Launch order"}
                 </p>
                 <h2 className="mt-1 text-lg font-black text-[var(--t1)]">
-                  Fix the adoption blockers in the order users feel them.
+                  {operatingStackReady
+                    ? "Protect what works, then deepen buyer confidence."
+                    : "Bring the buyer path online in the order users feel it."}
                 </h2>
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[var(--t4)]">
-                  This keeps the product useful with public preview data while
-                  the real database, login, import, and protected-source work
-                  comes online.
+                  {operatingStackReady
+                    ? "Production data and scoped search are connected. The remaining priorities improve freshness, approved source coverage, and decision evidence."
+                    : "Keep usable inventory visible while persistence, account sync, imports, and approved source access come online."}
                 </p>
               </div>
               <Link

@@ -67,11 +67,25 @@ function systemSnapshot() {
       ready: true,
       items: [
         {
+          id: "supabase",
+          label: "Supabase data API",
+          status: "ready",
+          detail: "Persistence is configured.",
+          nextStep: "Monitor data health.",
+        },
+        {
           id: "google-login",
           label: "Google login",
           status: "ready",
           detail: "Google login is configured.",
           nextStep: "Retest after OAuth changes.",
+        },
+        {
+          id: "scrape-control",
+          label: "Scraper control",
+          status: "ready",
+          detail: "Scoped source searches are configured.",
+          nextStep: "Monitor source health.",
         },
       ],
       summary: {},
@@ -139,6 +153,50 @@ describe("status page resilience", () => {
     expect(html).toContain("Google login is ready for synced watchlists");
     expect(html).toContain("Remaining trust limits");
     expect(html).not.toContain("Google account creation is not fully proven");
+  });
+
+  it("describes configured production capabilities without setup-era copy", () => {
+    state.system.data = systemSnapshot();
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Operating priorities");
+    expect(html).toContain("1 source can show stored inventory now");
+    expect(html).toContain("Keep account data synchronized");
+    expect(html).toContain("synced to the production database");
+    expect(html).toContain("Scoped searches are active");
+    expect(html).not.toContain("public preview");
+    expect(html).not.toContain("database setup is pending");
+    expect(html).not.toContain("Once scraper control is authorized");
+  });
+
+  it("keeps setup guidance when persistence and scraper control are missing", () => {
+    const snapshot = systemSnapshot();
+    snapshot.readiness.ready = false;
+    snapshot.readiness.items = [
+      {
+        id: "supabase",
+        label: "Supabase data API",
+        status: "not_configured",
+        detail: "Persistence is not configured.",
+        nextStep: "Connect the production database.",
+      },
+      {
+        id: "scrape-control",
+        label: "Scraper control",
+        status: "not_configured",
+        detail: "Scoped source searches are not configured.",
+        nextStep: "Authorize scraper control.",
+      },
+    ];
+    state.system.data = snapshot;
+
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Launch order");
+    expect(html).toContain("Connect account persistence");
+    expect(html).toContain("Connect the production database");
+    expect(html).toContain("Enable scoped source searches");
+    expect(html).toContain("Authorize scraper control");
   });
 
   it("rejects HTTP failures before they can render as successful zeroes", async () => {
