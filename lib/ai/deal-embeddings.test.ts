@@ -20,6 +20,16 @@ interface Fixture {
   budgetError?: { message: string; code?: string } | null;
   budgetResponses?: {
     count: number | null;
+    error: {
+      message: string;
+      code?: string;
+      details?: string;
+      hint?: string;
+    } | null;
+    status: number;
+  }[];
+  headBudgetResponses?: {
+    count: number | null;
     error: { message: string; code?: string } | null;
     status: number;
   }[];
@@ -31,6 +41,7 @@ function database(f: Fixture = {}) {
   const writes: { id: string; patch: any }[] = [];
   const reads: Op[][] = [];
   let budgetReads = 0;
+  let headBudgetReads = 0;
   const has = (ops: Op[], ...m: any[]) =>
     ops.some((o) => m.every((v, i) => o[i] === v));
   function resolve(ops: Op[]) {
@@ -41,6 +52,22 @@ function database(f: Fixture = {}) {
       return { error: f.writeError ?? null };
     }
     reads.push(ops);
+    if (ops.some(([op]) => op === "rpc")) {
+      if (f.budgetResponses) {
+        const response =
+          f.budgetResponses[
+            Math.min(budgetReads++, f.budgetResponses.length - 1)
+          ];
+        return {
+          data: response.count,
+          error: response.error,
+          status: response.status,
+        };
+      }
+      return f.budgetError
+        ? { data: null, error: f.budgetError, status: 400 }
+        : { data: f.usedToday ?? 0, error: null, status: 200 };
+    }
     const sel = ops.find((o) => o[0] === "select")!;
     const c = f.counts ?? {
       active: 10,
@@ -50,13 +77,11 @@ function database(f: Fixture = {}) {
     };
     if (sel[2]?.head) {
       if (has(ops, "gte", "embedded_at")) {
-        if (f.budgetResponses)
-          return f.budgetResponses[
-            Math.min(budgetReads++, f.budgetResponses.length - 1)
+        if (f.headBudgetResponses)
+          return f.headBudgetResponses[
+            Math.min(headBudgetReads++, f.headBudgetResponses.length - 1)
           ];
-        return f.budgetError
-          ? { count: null, error: f.budgetError }
-          : { count: f.usedToday ?? 0, error: null };
+        return { count: f.usedToday ?? 0, error: null, status: 200 };
       }
       if (has(ops, "not", "embedding_source_hash"))
         return { count: c.hashTracked, error: null };
@@ -95,7 +120,14 @@ function database(f: Fixture = {}) {
     b.then = (ok: any, bad: any) => Promise.resolve(resolve(ops)).then(ok, bad);
     return b;
   }
-  return { client: { from: () => builder([]) } as any, writes, reads };
+  return {
+    client: {
+      from: () => builder([]),
+      rpc: (name: string, args: any) => builder([["rpc", name, args]]),
+    } as any,
+    writes,
+    reads,
+  };
 }
 
 const vec = () => Array(768).fill(0.5);
@@ -118,7 +150,7 @@ afterEach(() => {
 });
 
 describe("Embedding backfill proof", () => {
-  it("retries one transient budget HEAD failure without duplicating provider work", async () => {
+  it("retries one transient budget RPC failure without duplicating provider work", async () => {
     generate.mockResolvedValue([vec()]);
     const db = database({
       missing: [deal("one", "2026-10-16")],
@@ -133,7 +165,7 @@ describe("Embedding backfill proof", () => {
     expect(generate).toHaveBeenCalledTimes(1);
     expect(db.writes).toHaveLength(1);
     const budgetReads = db.reads.filter((ops) =>
-      ops.some(([op]) => op === "gte"),
+      ops.some(([op]) => op === "rpc"),
     );
     expect(budgetReads).toHaveLength(2);
     for (const ops of budgetReads)
@@ -203,6 +235,58 @@ describe("Embedding backfill proof", () => {
       expect(db.writes).toHaveLength(0);
     }
     expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("uses the exact-count fallback only while the RPC is not deployed", async () => {
+    const db = database({
+      usedToday: 900,
+      budgetResponses: [
+        {
+          count: null,
+          error: {
+            message:
+              "Could not find the function public.embedding_budget_used_since in the schema cache",
+            code: "PGRST202",
+          },
+          status: 404,
+        },
+      ],
+    });
+    const result = await backfillEmbeddings(db.client, 250, { sleep });
+    expect(result.budgetExhausted).toBe(true);
+    expect(db.reads.filter((ops) => hasOp(ops, "rpc"))).toHaveLength(1);
+    expect(db.reads.filter((ops) => hasOp(ops, "gte"))).toHaveLength(1);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
+  });
+
+  it("logs only sanitized budget diagnostics and fails closed", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const secret = "service_role=do-not-log";
+    const db = database({
+      budgetResponses: [
+        {
+          count: null,
+          error: {
+            message: secret,
+            details: `Authorization: Bearer ${secret}`,
+            hint: secret,
+            code: "PGRST_503!",
+          },
+          status: 503,
+        },
+      ],
+    });
+    await expect(backfillEmbeddings(db.client, 250, { sleep })).rejects.toThrow(
+      "budget read failed",
+    );
+    const logged = JSON.stringify(warn.mock.calls);
+    expect(logged).not.toContain(secret);
+    expect(logged).not.toContain("Authorization");
+    expect(logged).toContain("PGRST_503");
+    expect(logged).toContain("elapsedMs");
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.writes).toHaveLength(0);
   });
 
   it("reports a database failure rather than successful zero work", async () => {
@@ -296,7 +380,8 @@ describe("Embedding backfill proof", () => {
       db.reads.filter((ops) =>
         ops.some((o) => o[0] === "select" && o[2]?.head),
       ),
-    ).toHaveLength(5);
+    ).toHaveLength(4);
+    expect(db.reads.filter((ops) => hasOp(ops, "rpc"))).toHaveLength(1);
   });
 
   it("keeps the workflow consumer explicit about unmeasured content freshness", () => {
@@ -312,6 +397,37 @@ describe("Embedding backfill proof", () => {
     expect(workflow).toContain("github.event.inputs.limit || '100'");
     expect(workflow).toContain("max 100");
     expect(workflow).not.toContain("max 250");
+  });
+});
+
+function hasOp(ops: Op[], operation: string): boolean {
+  return ops.some(([op]) => op === operation);
+}
+
+describe("embedding budget database contract", () => {
+  const sql = readFileSync(
+    "supabase/migrations/20261019200955_embedding_budget_read.sql",
+    "utf8",
+  );
+
+  it("uses the honest quota predicate with a matching partial index", () => {
+    expect(sql).toMatch(
+      /create index if not exists deals_embedding_budget_idx\s+on public\.deals \(embedded_at\)\s+where embedding_source_hash is not null;/i,
+    );
+    expect(sql).toMatch(/d\.embedding_source_hash is not null/i);
+    expect(sql).toMatch(/d\.embedded_at >= p_since/i);
+    expect(sql).not.toMatch(/d\.active\s*=\s*true/i);
+  });
+
+  it("keeps the quota function invoker-safe and service-only", () => {
+    expect(sql).toMatch(/security invoker/i);
+    expect(sql).toMatch(/set search_path = ''/i);
+    expect(sql).toMatch(
+      /revoke all on function public\.embedding_budget_used_since\(timestamptz\)\s+from public, anon, authenticated, service_role;/i,
+    );
+    expect(sql).toMatch(
+      /grant execute on function public\.embedding_budget_used_since\(timestamptz\)\s+to service_role;/i,
+    );
   });
 });
 
