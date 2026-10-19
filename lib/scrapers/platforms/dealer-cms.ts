@@ -276,7 +276,8 @@ function dedupeWords(s: string) {
 }
 
 /** "SOLD" / "On Hold" badges. "Sold as-is" in a description is not a sold badge. */
-const SOLD_RE = /\bsold\b(?!\s+as[\s-]?is)|\bon hold\b|\bsale pending\b/i;
+const SOLD_RE =
+  /\bsold\b(?!\s+as[\s-]?is)|\bon hold\b|\bsale pending\b|\(\s*pending\s*\)/i;
 
 /** Card text without long description blurbs, so badges are read but sales copy isn't. */
 function badgeText($: CheerioAPI, card: any) {
@@ -313,6 +314,8 @@ export interface ParsedPage {
   total: number | null;
   /** "page 1 of 6", or the highest page number linked. */
   lastPage: number | null;
+  /** Explicit same-host continuation; preserves vendor-specific query/cursor parameters. */
+  nextUrl?: string;
 }
 
 /** D&G's October 2026 redesign publishes its entire inventory as native cards. */
@@ -404,6 +407,58 @@ function spacedText($: CheerioAPI, el: any): string {
   return clean($("<div>").html(stripped).text());
 }
 
+function cardPhoto($: CheerioAPI, card: any, pageUrl: string) {
+  let photo: string | undefined;
+  card.find("img").each((_: number, node: any) => {
+    if (photo) return;
+    const image = $(node);
+    for (const raw of [
+      image.attr("data-src"),
+      image.attr("data-original"),
+      image.attr("src"),
+    ]) {
+      if (!raw || /^(?:data:|blob:|javascript:)/i.test(raw)) continue;
+      try {
+        const url = new URL(raw, pageUrl);
+        if (!/^https?:$/.test(url.protocol)) continue;
+        // Status artwork and lazy placeholders are not vehicle photos.
+        if (
+          /(?:^|[\/_.-])(?:sold|pending|logo|placeholder|no[-_]?image|no[-_]?photo|loading|spacer)(?:[\/_.-]|$)/i.test(
+            url.pathname,
+          )
+        )
+          continue;
+        photo = url.toString();
+        break;
+      } catch {
+        /* Ignore malformed image URLs. */
+      }
+    }
+  });
+  return photo;
+}
+
+function nextListingPage($: CheerioAPI, pageUrl: string) {
+  const links = $(
+    'a[rel~="next"], .pagination a.next, .pagination .next a, a[aria-label="Next"]',
+  );
+  for (const node of links.toArray()) {
+    const link = $(node);
+    if (link.closest('.disabled, [aria-disabled="true"]').length) continue;
+    const href = link.attr("href")?.trim();
+    if (!href || /^(?:#|javascript:|mailto:|tel:|data:)/i.test(href)) continue;
+    try {
+      const url = new URL(href, pageUrl);
+      url.hash = "";
+      if (url.origin === new URL(pageUrl).origin && url.toString() !== pageUrl)
+        return url.toString();
+    } catch {
+      /* Malformed pagination cannot expand a crawl. */
+    }
+  }
+  return undefined;
+}
+
 /** The smallest ancestor of `link` whose detail links all point to `id`. */
 function cardFor($: CheerioAPI, link: any, id: string, patterns: RegExp[]) {
   let node = $(link);
@@ -493,7 +548,7 @@ export function parseListingPage(
     const stock =
       text.match(/(?:stock\s*#|#:?)\s*([A-Z0-9][A-Z0-9-]{2,})/i)?.[1] ??
       undefined;
-    const img = card.find("img[src]").first().attr("src");
+    const image = cardPhoto($, card, pageUrl);
     let parts = splitTitle(title);
     if (parts.year && !parts.model) {
       // "2025 Kia" heading with the model on its own line below (<p>K5 GT Line</p>, 4cdg featured grid).
@@ -522,7 +577,7 @@ export function parseListingPage(
       mileage,
       condition: titleBrand(text.replace(title, " ")) ?? titleBrand(title),
       stock,
-      image: img ? abs(img, pageUrl) : undefined,
+      image,
       sold: SOLD_RE.test(badgeText($, card)),
     });
   });
@@ -544,6 +599,7 @@ export function parseListingPage(
     cards,
     total: total ? Number(total.replace(/,/g, "")) : null,
     lastPage: pageOf ? Number(pageOf) : maxLinked || null,
+    nextUrl: nextListingPage($, pageUrl),
   };
 }
 
@@ -794,8 +850,13 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
   let sold = 0;
   let offSite = 0;
   let pages = 1;
-  for (let n = 1; n <= pages; n++) {
-    const url = pageUrlFor(site, n);
+  let nextUrl: string | undefined;
+  const visited = new Set<string>();
+  const maxPages = Math.max(1, Math.min(50, Math.floor(site.maxPages || 15)));
+  for (let n = 1; n <= pages && n <= maxPages; n++) {
+    const url = nextUrl ?? pageUrlFor(site, n);
+    if (visited.has(url)) break;
+    visited.add(url);
     const res = await deps.fetchHtml(url);
     if (!res.ok) {
       if (n === 1)
@@ -809,7 +870,7 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
       site.layout === "dg-native"
         ? parseDgInventory(deps.load(res.body), url)
         : null;
-    const parsed =
+    const parsed: ParsedPage =
       native ??
       (site.layout === "text-lines"
         ? parseTextListing(deps.load(res.body), url, patterns)
@@ -836,6 +897,8 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     }
     if (n === 1)
       pages = site.singlePage ? 1 : plannedPages(parsed, site.maxPages ?? 15);
+    nextUrl = site.singlePage ? undefined : parsed.nextUrl;
+    if (nextUrl && !visited.has(nextUrl)) pages = Math.max(pages, n + 1);
     let fresh = 0;
     for (const card of parsed.cards) {
       if (!isSameSiteHref(card.url, site.baseUrl)) {
@@ -854,7 +917,7 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     if (n > 1 && fresh === 0) break;
   }
   log(
-    `[DealerCMS] ${site.name}: ${byId.size} listings over ${pages} page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
+    `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
 }
