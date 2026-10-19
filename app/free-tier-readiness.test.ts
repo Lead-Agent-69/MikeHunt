@@ -76,4 +76,18 @@ describe("free-tier readiness", () => {
       expect(route).toContain("export const maxDuration = 60");
     }
   });
+  it("keeps Zeus workflows on supported actions without the broken archive cache", () => {
+    for (const file of [
+      ".github/workflows/ci.yml",
+      ".github/workflows/accuracy.yml",
+    ]) {
+      const workflow = readFileSync(file, "utf8");
+      expect(workflow).toContain("actions/checkout@v7");
+      expect(workflow).toContain("actions/setup-node@v7");
+      expect(workflow).toContain("node-version: 22");
+      expect(workflow).toContain("package-manager-cache: false");
+      expect(workflow).not.toContain("cache: npm");
+      expect(workflow).not.toMatch(/actions\/(checkout|setup-node)@v4/);
+    }
+  });
 });
