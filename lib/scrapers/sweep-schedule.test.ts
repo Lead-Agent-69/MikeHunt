@@ -185,9 +185,17 @@ describe("sweep state file", () => {
       startedAt: "2026-10-05T00:00:00.000Z",
       sources: ["a", "b"],
       index: 1,
+      plan: {
+        states: ["MO", "IL", "CA"],
+        demandStates: ["MO", "IL"],
+        zipsByState: { MO: ["63101"], IL: ["62201"], CA: ["90001"] },
+      },
     };
     await saveSweepState(state, file);
     expect(await loadSweepState(file)).toEqual(state);
+    const resumed = nextSweepStep(await loadSweepState(file), ["other"], HOUR);
+    expect(resumed.kind).toBe("run");
+    if (resumed.kind === "run") expect(resumed.state.plan).toEqual(state.plan);
   });
 });
 

@@ -1,5 +1,6 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { SweepPlan } from "./sweep-plan";
 
 /**
  * Broad inventory sweeps for the Docker scraper.
@@ -270,7 +271,7 @@ export interface SweepState {
   /** Index of the next source to run in `sources`. */
   index: number;
   /** States and search ZIPs this sweep covers. Fixed at sweep start so a resume keeps them. */
-  plan?: { states: string[]; zipsByState: Record<string, string[]> };
+  plan?: SweepPlan;
   lastCompletedAt?: string;
 }
 

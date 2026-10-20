@@ -52,9 +52,10 @@ import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { UrlNotAllowedError } from "@/lib/net/public-url";
 import {
   curatedRingStates,
-  curatedSiteKey,
+  curatedPriorityStates,
   loadCuratedRotation,
   planCuratedRotation,
+  recordCuratedAttempt,
   saveCuratedRotation,
   scopeDemandStates,
   selectCuratedSitesForDemand,
@@ -1242,6 +1243,9 @@ export async function scrapeCuratedSites(
   const plannedStates = demandStates.length
     ? curatedRingStates(demandStates)
     : getSweepPlan()?.states || [];
+  const priorityStates = demandStates.length
+    ? demandStates
+    : curatedPriorityStates(getSweepPlan());
   const persistOutcome = async (outcome: CuratedOutcome) => {
     try {
       await recordCuratedOutcome(outcome);
@@ -1266,7 +1270,7 @@ export async function scrapeCuratedSites(
   const sites = (
     demandStates.length
       ? selectCuratedSitesForDemand(eligible, rotation, demandStates)
-      : planCuratedRotation(eligible, rotation, plannedStates)
+      : planCuratedRotation(eligible, rotation, priorityStates)
   ).slice(0, maxSites);
   if (demandStates.length)
     console.log(
@@ -1316,7 +1320,7 @@ export async function scrapeCuratedSites(
     const attempt = startCuratedOutcome(site.url, demandStates);
     await persistOutcome(attempt);
     attempted += 1;
-    rotation.lastAttempted[curatedSiteKey(site)] = Date.now();
+    recordCuratedAttempt(rotation, site, priorityStates);
     // Persist before browser work so a killed or timed-out dealer does not monopolize restarts.
     try {
       await saveCuratedRotation(rotation);
