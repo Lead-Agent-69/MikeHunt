@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 
 // GET /api/market/sold?make=Honda&model=Accord&year=2018
 // Recent SOLD comps (actual transaction prices) — far more accurate than asking prices. Reads the
@@ -23,20 +24,26 @@ export async function GET(req: NextRequest) {
     );
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("sold_listings")
-    .select("sold_price, sold_at, mileage, source, source_url, location_state")
-    .ilike("make", make)
-    .ilike("model", `%${model.split(" ")[0]}%`)
-    .eq("currency_code", "USD")
-    .eq("country_code", "US")
-    .gt("sold_price", 0)
-    .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())
-    .order("sold_at", { ascending: false })
-    .limit(50);
-  if (year) q = q.gte("year", year - 1).lte("year", year + 1);
-
-  const { data } = await q;
+  const { data } = await withRetailSold(async (scope) => {
+    let query = applyRetailSoldScope(
+      supabase
+        .from("sold_listings")
+        .select(
+          "sold_price, sold_at, mileage, source, source_url, location_state",
+        ),
+      scope,
+    )
+      .ilike("make", make)
+      .ilike("model", `%${model.split(" ")[0]}%`)
+      .eq("currency_code", "USD")
+      .eq("country_code", "US")
+      .gt("sold_price", 0)
+      .gte("sold_at", new Date(Date.now() - 90 * 86400000).toISOString())
+      .order("sold_at", { ascending: false })
+      .limit(50);
+    if (year) query = query.gte("year", year - 1).lte("year", year + 1);
+    return query;
+  });
   const rows = data || [];
   const prices = rows
     .map((r: any) => Number(r.sold_price))

@@ -26,6 +26,7 @@ import {
   unconfiguredAuthProviders,
   type AuthProviderReadiness,
 } from "@/lib/auth/provider-readiness";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 
 let providerLoad: Promise<AuthProviderReadiness> | null = null;
 
@@ -567,10 +568,12 @@ async function computeFullStatus(): Promise<Record<string, any>> {
         .not("true_net_profit", "is", null)
         .not("profit_score", "is", null),
     ),
-    sb
-      .from("sold_listings")
-      .select("id", { count: "exact", head: true })
-      .then((r: any) => r.count ?? 0),
+    withRetailSold((scope) =>
+      applyRetailSoldScope(
+        sb.from("sold_listings").select("id", { count: "exact", head: true }),
+        scope,
+      ),
+    ).then((r: any) => r.count ?? 0),
     sb
       .from("market_aggregates")
       .select("year", { count: "exact", head: true })

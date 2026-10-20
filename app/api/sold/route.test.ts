@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const state = vi.hoisted(() => ({
   result: { data: [] as any[], error: null as any },
+  govResult: { data: [] as any[], error: null as any },
   reject: false,
 }));
 vi.mock("@/lib/rate-limit", () => ({
@@ -13,10 +14,12 @@ vi.mock("@/lib/supabase", () => ({
   createServerComponentClient: () => ({
     from: () => {
       const query: any = {};
+      let governmentLane = false;
       for (const method of [
         "select",
         "ilike",
         "eq",
+        "is",
         "gt",
         "gte",
         "lte",
@@ -24,10 +27,14 @@ vi.mock("@/lib/supabase", () => ({
         "limit",
       ])
         query[method] = () => query;
+      query.in = (column: string) => {
+        if (column === "sale_channel") governmentLane = true;
+        return query;
+      };
       query.then = (resolve: any, reject: any) =>
         state.reject
           ? reject(new Error("private database diagnostic"))
-          : resolve(state.result);
+          : resolve(governmentLane ? state.govResult : state.result);
       return query;
     },
   }),
@@ -40,6 +47,7 @@ const request = () =>
   );
 beforeEach(() => {
   state.result = { data: [], error: null };
+  state.govResult = { data: [], error: null };
   state.reject = false;
 });
 
@@ -115,5 +123,35 @@ describe("source-reported sold evidence", () => {
     expect(data.count).toBe(1);
     expect(data.median).toBeNull();
     expect(data.sales).toHaveLength(1);
+  });
+
+  it("keeps attributed government outcomes in a separate safe lane", async () => {
+    const sold_at = new Date(Date.now() - 86400000).toISOString();
+    state.govResult.data = [
+      {
+        year: 2018,
+        make: "Honda",
+        model: "Accord",
+        title: "stored text must not be echoed",
+        sold_price: 3200,
+        sold_at,
+        basis: "sold",
+        sale_channel: "gov_impound_auction",
+        source: "gov_norfolk_impound",
+        source_url: "javascript:alert(1)",
+        attribution: "City of Norfolk Open Data",
+      },
+    ];
+    const data = await (await GET(request())).json();
+    expect(data.count).toBe(0);
+    expect(data.govLane).toEqual([
+      expect.objectContaining({
+        title: "2018 Honda Accord (government impound auction)",
+        price: 3200,
+        sourceUrl: null,
+        attribution: "City of Norfolk Open Data",
+      }),
+    ]);
+    expect(JSON.stringify(data.govLane)).not.toContain("stored text");
   });
 });

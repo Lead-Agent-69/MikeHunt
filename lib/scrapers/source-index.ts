@@ -53,6 +53,7 @@ export const IMPLEMENTED_SCRAPER_IDS: readonly string[] = [
   "allsurplus",
   "municibid",
   "gsa_auctions",
+  "gov_norfolk_towing",
   "offerup",
   "auto_discover",
 ];

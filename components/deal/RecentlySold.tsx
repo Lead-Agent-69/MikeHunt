@@ -4,7 +4,7 @@ import React from "react";
 import useSWR from "swr";
 import { Card, CardContent } from "@/components/ui/card";
 import { Mono } from "@/components/shared/Mono";
-import { RefreshCw } from "lucide-react";
+import { ExternalLink, Landmark, RefreshCw } from "lucide-react";
 
 // Distinguish source-reported sale records from verified transaction/title evidence.
 const fetcher = async (u: string) => {
@@ -44,6 +44,14 @@ export function RecentlySold({
   });
   const cleanCount = Number(data?.count || 0);
   const showPrice = data?.median != null && cleanCount >= 3;
+  const govLane = Array.isArray(data?.govLane) ? data.govLane : [];
+  const govCredits = Array.from(
+    new Set(
+      govLane
+        .map((row: any) => String(row.attribution || "").trim())
+        .filter(Boolean),
+    ),
+  );
   if (!key) return null;
 
   return (
@@ -135,6 +143,81 @@ export function RecentlySold({
               </a>
             ))}
           </div>
+        ) : null}
+
+        {govLane.length > 0 && !error ? (
+          <section className="mt-5 border-t border-[var(--b1)] pt-5">
+            <div className="mb-3 flex items-start gap-3">
+              <Landmark
+                size={18}
+                className="mt-0.5 shrink-0 text-[var(--blue)]"
+                aria-hidden="true"
+              />
+              <div>
+                <h3 className="text-sm font-bold text-[var(--t1)]">
+                  Government auction results
+                </h3>
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--t4)]">
+                  Separate market lane. Impound and fleet prices are not used as
+                  clean retail comps.
+                </p>
+              </div>
+            </div>
+            <div className="divide-y divide-[var(--b1)]">
+              {govLane.map((sale: any, index: number) => {
+                const content = (
+                  <>
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-[var(--t2)]">
+                        {sale.title}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-[var(--t4)]">
+                        {sale.basis === "last_bid"
+                          ? "Last observed bid at close"
+                          : "Reported sold price"}
+                        {soldOn(sale.soldAt) ? ` · ${soldOn(sale.soldAt)}` : ""}
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Mono className="font-bold text-[var(--t1)]">
+                        {money(sale.price)}
+                      </Mono>
+                      {sale.sourceUrl ? (
+                        <ExternalLink
+                          size={14}
+                          className="text-[var(--t4)]"
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </span>
+                  </>
+                );
+                return sale.sourceUrl ? (
+                  <a
+                    key={`${sale.source || "gov"}-${sale.soldAt || index}`}
+                    href={sale.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex min-h-14 items-center justify-between gap-3 py-2"
+                  >
+                    {content}
+                  </a>
+                ) : (
+                  <div
+                    key={`${sale.source || "gov"}-${sale.soldAt || index}`}
+                    className="flex min-h-14 items-center justify-between gap-3 py-2"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+            {govCredits.length > 0 ? (
+              <p className="mt-3 text-[11px] leading-relaxed text-[var(--t5)]">
+                Sources: {govCredits.join(" ")}
+              </p>
+            ) : null}
+          </section>
         ) : null}
         {data && !error && (
           <p className="mt-3 text-xs leading-relaxed text-[var(--t4)]">

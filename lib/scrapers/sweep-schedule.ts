@@ -54,6 +54,7 @@ export const SWEEP_SOURCE_TIER: Record<string, SweepSourceTier> = {
   govdeals: "secondary",
   allsurplus: "secondary",
   ebay_sold: "secondary",
+  gov_norfolk_towing: "secondary",
   copart: "secondary",
   municibid: "secondary",
 };
@@ -105,6 +106,7 @@ export const DEFAULT_SWEEP_SOURCES = [
   "ebay_sold",
   "cargurus",
   "independent_dealer",
+  "gov_norfolk_towing",
   "publicsurplus",
   "govdeals",
   "allsurplus",
