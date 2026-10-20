@@ -27,6 +27,11 @@ import {
   type AuthProviderReadiness,
 } from "@/lib/auth/provider-readiness";
 import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
+import {
+  summarizeInventoryProofRollups,
+  type InventoryProofRollup,
+  type InventoryReadinessProof,
+} from "@/lib/inventory-readiness-proof";
 
 let providerLoad: Promise<AuthProviderReadiness> | null = null;
 
@@ -58,6 +63,11 @@ type SourceBreakdownRollup = {
   active_rows: number | string;
   rows_with_photos: number | string;
   newest_seen?: string | null;
+};
+
+type SourceProof = {
+  sourceBreakdown: ReturnType<typeof buildSourceBreakdownFromRollups>;
+  inventory: InventoryReadinessProof | null;
 };
 
 function loadAuthProviders(): Promise<AuthProviderReadiness> {
@@ -152,21 +162,42 @@ export function buildSourceBreakdownFromRollups(
     .sort((a, b) => b.active - a.active);
 }
 
-// Per-source inventory proof is cached for five minutes. Shared database enums
-// are split back into their public source identities using the normalized host.
-async function loadSourceBreakdown(sb: any) {
-  return cached("status:source-breakdown:v7", 300_000, async () => {
+// Per-source inventory proof is cached for five minutes. V2 applies the same
+// freshness/photo/auction window as customer inventory and returns exact field
+// counts, avoiding a biased first-page sample. Shared database enums are split
+// back into their public source identities using the normalized host.
+async function loadSourceProof(sb: any): Promise<SourceProof> {
+  return cached("status:source-proof:v8", 300_000, async () => {
     if (typeof sb.rpc === "function") {
+      try {
+        const { data: rollups, error: rollupError } = await sb.rpc(
+          "scrape_health_inventory_rollup_v2",
+          { p_sources: STATUS_DEAL_SOURCES },
+        );
+        if (!rollupError && Array.isArray(rollups)) {
+          return {
+            sourceBreakdown: buildSourceBreakdownFromRollups(rollups),
+            inventory: summarizeInventoryProofRollups(
+              rollups as InventoryProofRollup[],
+            ),
+          };
+        }
+      } catch {
+        // App and database deploy independently; try the earlier compact rollup.
+      }
       try {
         const { data: rollups, error: rollupError } = await sb.rpc(
           "scrape_health_inventory_rollup",
           { p_sources: STATUS_DEAL_SOURCES },
         );
         if (!rollupError && Array.isArray(rollups)) {
-          return buildSourceBreakdownFromRollups(rollups);
+          return {
+            sourceBreakdown: buildSourceBreakdownFromRollups(rollups),
+            inventory: null,
+          };
         }
       } catch {
-        // App and database deploy independently; retain the bounded row fallback.
+        // Retain the bounded row fallback when neither database function exists.
       }
     }
 
@@ -206,7 +237,7 @@ async function loadSourceBreakdown(sb: any) {
       }
       groups.set(key, group);
     }
-    return Array.from(groups.entries())
+    const sourceBreakdown = Array.from(groups.entries())
       .map(([source, group]) => {
         const ageHours = group.newest
           ? Math.round(
@@ -225,6 +256,7 @@ async function loadSourceBreakdown(sb: any) {
       })
       .filter((row) => row.active > 0)
       .sort((a, b) => b.active - a.active);
+    return { sourceBreakdown, inventory: null };
   });
 }
 
@@ -365,6 +397,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
         dealMathReady: 0,
         dealMathReadyPct: 0,
         soldComps: 0,
+        attributedAuctionSales: 0,
         aggregateGroups: 0,
       },
       learning: {
@@ -409,6 +442,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
             source: 0,
           },
           total: 0,
+          mode: "unconfigured",
         },
       },
       sources: [],
@@ -433,8 +467,6 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     new24,
     new7,
     updated24,
-    withVin,
-    withImages,
     geocoded,
     withCity,
     go,
@@ -442,15 +474,12 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     health,
     recent,
     newest,
-    qualityRows,
-    sourceBreakdown,
+    sourceProof,
   ] = await Promise.all([
     countActive((q: any) => q),
     countActive((q: any) => q.gt("created_at", since24)),
     countActive((q: any) => q.gt("created_at", since7)),
     countActive((q: any) => q.gt("updated_at", since24)),
-    countActive((q: any) => q.not("vin", "is", null).neq("vin", "")),
-    countActive((q: any) => q.not("images", "is", null).neq("images", "{}")),
     countActive((q: any) => q.not("lat", "is", null)),
     countActive((q: any) => q.not("location_city", "is", null)),
     countActive((q: any) => q.eq("deal_verdict", "go")),
@@ -488,22 +517,36 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       .limit(1)
       .maybeSingle()
       .then((r: any) => r.data?.last_seen_at ?? null),
-    sb
-      .from("deals")
-      .select(
-        "images, vin, title, condition, damage_type, mileage, location_city, location_state, ask_price, auction_end_at, source_url, options",
-      )
-      .eq("active", true)
-      .limit(5000)
-      .then((r: any) => r.data ?? []),
-    loadSourceBreakdown(sb),
+    loadSourceProof(sb),
   ]);
 
-  const pct = (n: number) => (active ? Math.round((n / active) * 100) : 0);
-  const hoursSince = newest
-    ? Math.round((Date.now() - new Date(newest).getTime()) / 3600_000)
+  const exactCoverage = sourceProof.inventory?.total
+    ? sourceProof.inventory
     : null;
-  const qualityBase = qualityRows.length || active || 0;
+  const sourceBreakdown = sourceProof.sourceBreakdown;
+  const [withVin, withImages, qualityRows] = exactCoverage
+    ? [0, 0, []]
+    : await Promise.all([
+        countActive((q: any) => q.not("vin", "is", null).neq("vin", "")),
+        countActive((q: any) =>
+          q.not("images", "is", null).neq("images", "{}"),
+        ),
+        sb
+          .from("deals")
+          .select(
+            "images, vin, title, condition, damage_type, mileage, location_city, location_state, ask_price, auction_end_at, source_url, source, options",
+          )
+          .eq("active", true)
+          .limit(5000)
+          .then((r: any) => r.data ?? []),
+      ]);
+
+  const pct = (n: number) => (active ? Math.round((n / active) * 100) : 0);
+  const newestVisible = exactCoverage?.newestSeen || newest;
+  const hoursSince = newestVisible
+    ? Math.round((Date.now() - new Date(newestVisible).getTime()) / 3600_000)
+    : null;
+  const qualityBase = exactCoverage?.total || qualityRows.length || active || 0;
   const qualityCount = (predicate: (row: any) => boolean) =>
     qualityRows.reduce(
       (sum: number, row: any) => sum + (predicate(row) ? 1 : 0),
@@ -521,7 +564,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     const meta = sourceMeta(sourceKey);
     return Boolean(row.source_url || row.source || meta.channel);
   };
-  const detailCoverage = {
+  const detailCoverage = exactCoverage?.counts || {
     photo: qualityCount(
       (row) => Array.isArray(row.images) && row.images.length > 0,
     ),
@@ -551,13 +594,15 @@ async function computeFullStatus(): Promise<Record<string, any>> {
 
   // Price knowledge base: the value signals that feed valuation accuracy and compound as we scrape.
   // marketValueBacked = deals carrying a real third-party market value (e.g. AutoTrader's free KBB
-  // Fair Purchase Price); soldComps = real completed-sale price points; aggregateGroups = learned
-  // make/model/year/state value buckets the nightly rollup builds from mmr_value.
+  // Fair Purchase Price); soldComps = retail completed-sale price points; attributedAuctionSales
+  // are honest government auction outcomes kept out of retail resale math; aggregateGroups are
+  // learned make/model/year/state value buckets the nightly rollup builds from mmr_value.
   const [
     marketValueBacked,
     resaleEstimateBacked,
     dealMathReady,
     soldComps,
+    attributedAuctionSales,
     aggregateGroups,
   ] = await Promise.all([
     countActive((q: any) => q.gt("mmr_value", 0)),
@@ -575,22 +620,30 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       ),
     ).then((r: any) => r.count ?? 0),
     sb
+      .from("sold_listings")
+      .select("id", { count: "exact", head: true })
+      .eq("basis", "sold")
+      .not("sale_channel", "is", null)
+      .then((r: any) => r.count ?? 0),
+    sb
       .from("market_aggregates")
       .select("year", { count: "exact", head: true })
       .then((r: any) => r.count ?? 0),
   ]);
 
   const realData = buildRealDataReadiness({
-    activeDeals: active,
+    activeDeals: qualityBase,
     newLast24h: new24,
     newestAgeHours: hoursSince,
-    photoPct: pct(withImages),
+    photoPct: exactCoverage
+      ? qualityPct(detailCoverage.photo)
+      : pct(withImages),
     sourceLinkPct: qualityPct(detailCoverage.source),
     pricePct: qualityPct(detailCoverage.price),
     titlePct: qualityPct(detailCoverage.title),
     damagePct: qualityPct(detailCoverage.damage),
     mileagePct: qualityPct(detailCoverage.mileage),
-    vinPct: pct(withVin),
+    vinPct: exactCoverage ? qualityPct(detailCoverage.vin) : pct(withVin),
     sellerPct: qualityPct(detailCoverage.seller),
     sellerContactPct: qualityPct(detailCoverage.sellerContact),
     auctionDatePct: qualityPct(detailCoverage.auction),
@@ -661,6 +714,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       dealMathReady,
       dealMathReadyPct: pct(dealMathReady),
       soldComps,
+      attributedAuctionSales,
       aggregateGroups,
     },
     learning: {
@@ -678,8 +732,10 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     quality: {
       goDeals: go,
       watchCandidates,
-      vinPct: pct(withVin),
-      imagePct: pct(withImages),
+      vinPct: exactCoverage ? qualityPct(detailCoverage.vin) : pct(withVin),
+      imagePct: exactCoverage
+        ? qualityPct(detailCoverage.photo)
+        : pct(withImages),
       geocodedPct: pct(geocoded),
       cityPct: pct(withCity),
       titlePct: qualityPct(detailCoverage.title),
@@ -693,6 +749,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       detailCoverage: {
         counts: detailCoverage,
         total: qualityBase,
+        mode: exactCoverage ? "customer_visible_rollup" : "bounded_sample",
       },
     },
     sources: mergedSources,
@@ -725,13 +782,13 @@ const loadPersistedFullStatus = unstable_cache(
     }
     return payload;
   },
-  ["system-status-full-v2"],
+  ["system-status-full-v3"],
   { revalidate: 60, tags: ["system-status-full"] },
 );
 
 function loadFullStatus() {
   return cached(
-    "status:full:v2",
+    "status:full:v3",
     60_000,
     async () => {
       try {

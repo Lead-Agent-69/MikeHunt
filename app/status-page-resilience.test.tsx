@@ -39,7 +39,7 @@ function systemSnapshot() {
       sellerContactPct: 91,
       auctionDatePct: 9,
       vinPct: 86,
-      detailCoverage: { total: 5_000 },
+      detailCoverage: { total: 5_000, mode: "bounded_sample" },
     },
     sourceHealth: {
       readySources: 1,
@@ -93,6 +93,7 @@ function systemSnapshot() {
     knowledgeBase: {
       dealMathReadyPct: 96,
       soldComps: 0,
+      attributedAuctionSales: 486,
     },
     realData: {
       buyerReady: true,
@@ -153,6 +154,21 @@ describe("status page resilience", () => {
     expect(html).not.toContain("No source is ready to show inventory yet");
   });
 
+  it("labels the exact customer-visible rollup as proof instead of a sample", () => {
+    const snapshot = systemSnapshot();
+    snapshot.quality.detailCoverage = {
+      total: 1_869,
+      mode: "customer_visible_rollup",
+    };
+    state.system.data = snapshot;
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Inventory quality proof");
+    expect(html).toContain("1,869");
+    expect(html).toContain("current, buyer-visible rows");
+    expect(html).not.toContain("separate sample of up to");
+  });
+
   it("does not contradict a verified Google login state", () => {
     state.system.data = systemSnapshot();
     const html = renderToStaticMarkup(<StatusPage />);
@@ -203,6 +219,19 @@ describe("status page resilience", () => {
     );
     expect(html).toContain("100%");
     expect(html).not.toContain("evidence pending");
+  });
+
+  it("separates retail resale comps from attributed auction outcomes", () => {
+    state.system.data = systemSnapshot();
+    const html = renderToStaticMarkup(<StatusPage />);
+
+    expect(html).toContain("Retail sold comps");
+    expect(html).toContain("Auction sale observations");
+    expect(html).toContain("486");
+    expect(html).toContain(
+      "Auction sale observations are real acquisition evidence",
+    );
+    expect(html).toContain("stay out of retail resale medians");
   });
 
   it("keeps setup guidance when persistence and scraper control are missing", () => {
