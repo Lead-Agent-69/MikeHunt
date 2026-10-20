@@ -1,8 +1,10 @@
-﻿export const dynamic = "force-dynamic";
+import { OUTCOME_LEDGER_COLUMNS } from "@/lib/outcomes/ledger";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
+import { internalError } from "@/lib/api/http-error";
 import { aggregateOutcomes } from "@/lib/insights/source-roi";
 
 // /api/insights/source-roi — MikeHunt-exclusive moat. From the dealer's OWN logged outcomes,
@@ -15,19 +17,31 @@ export async function GET() {
     data: { user },
   } = await getServerUser();
   if (!user?.id)
-    return NextResponse.json({ bySource: [], byChannel: [], totalDeals: 0 });
+    return NextResponse.json({
+      bySource: [],
+      byChannel: [],
+      totalDeals: 0,
+      ownerId: null,
+    });
 
   const supabase = createServerComponentClient();
-  const { data: outcomes } = await supabase
+  const { data: outcomes, error } = await supabase
     .from("deal_outcomes")
-    .select(
-      "deal_id, actual_profit, sell_price, purchase_price, days_to_sell, sold_where",
-    )
-    .eq("user_id", user.id);
+    .select(`${OUTCOME_LEDGER_COLUMNS},sold_where`)
+    .eq("user_id", user.id)
+    .eq("costs_complete", true)
+    .order("updated_at", { ascending: false })
+    .limit(2000);
 
+  if (error) return internalError("outcome-source-results", error);
   const rows = outcomes ?? [];
   if (rows.length === 0)
-    return NextResponse.json({ bySource: [], byChannel: [], totalDeals: 0 });
+    return NextResponse.json({
+      bySource: [],
+      byChannel: [],
+      totalDeals: 0,
+      ownerId: user.id,
+    });
 
   // Resolve acquisition source for any outcome tied to a scraped deal.
   const dealIds = Array.from(
@@ -43,5 +57,10 @@ export async function GET() {
   }
 
   const { bySource, byChannel } = aggregateOutcomes(rows, sourceById);
-  return NextResponse.json({ bySource, byChannel, totalDeals: rows.length });
+  return NextResponse.json({
+    bySource,
+    byChannel,
+    totalDeals: bySource.reduce((sum, source) => sum + source.deals, 0),
+    ownerId: user.id,
+  });
 }

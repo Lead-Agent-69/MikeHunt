@@ -1,3 +1,7 @@
+import {
+  completeOutcomeRows,
+  OUTCOME_LEDGER_COLUMNS,
+} from "@/lib/outcomes/ledger";
 export const dynamic = "force-dynamic";
 import { AUCTION_DB_SOURCES } from "@/lib/discovery/auction-scope";
 
@@ -62,11 +66,13 @@ export async function GET() {
   // 1) PROVEN-PROFIT patterns — what this dealer has actually made money on (logged outcomes). Sparse.
   const { data: outcomes } = await supabase
     .from("deal_outcomes")
-    .select("make, model, actual_profit")
+    .select(`${OUTCOME_LEDGER_COLUMNS},make,model`)
     .eq("user_id", user.id)
+    .eq("costs_complete", true)
     .not("actual_profit", "is", null)
+    .order("updated_at", { ascending: false })
     .limit(200);
-  const patterns = extractWinPatterns(outcomes || []);
+  const patterns = extractWinPatterns(completeOutcomeRows(outcomes || []));
 
   // 2) INTEREST patterns — what the dealer GRAVITATES to, from implicit behavior (saves≫watchlist≫views).
   //    Plentiful + immediate, so recommendations sharpen from day one, before profit outcomes exist.

@@ -1,128 +1,65 @@
 import { describe, it, expect } from "vitest";
 import { aggregateOutcomes, outcomeProfit } from "./source-roi";
-
-describe("outcomeProfit", () => {
-  it("prefers logged actual_profit", () => {
+import { completeSale } from "@/lib/outcomes/ledger.fixture";
+describe("source net results", () => {
+  it("never treats gross spread or legacy profit as net", () => {
     expect(
-      outcomeProfit({ actual_profit: 2500, sell_price: 1, purchase_price: 1 }),
-    ).toBe(2500);
-  });
-  it("falls back to sell - purchase", () => {
-    expect(outcomeProfit({ sell_price: 17500, purchase_price: 12000 })).toBe(
-      5500,
-    );
-  });
-  it("returns null when neither is available", () => {
-    expect(outcomeProfit({ sold_where: "lot" })).toBeNull();
-  });
-  it("treats empty strings as missing", () => {
-    expect(
-      outcomeProfit({ actual_profit: "", sell_price: "", purchase_price: "" }),
+      outcomeProfit({ sell_price: 17500, purchase_price: 12000 }),
     ).toBeNull();
+    expect(outcomeProfit({ actual_profit: 999999 })).toBeNull();
+    expect(outcomeProfit(completeSale({ actual_profit: 999999 }))).toBe(2180);
   });
-  it("coerces numeric strings", () => {
-    expect(outcomeProfit({ actual_profit: "1200" })).toBe(1200);
-  });
-});
-
-describe("aggregateOutcomes", () => {
-  const sourceById = new Map([
-    ["d1", "copart"],
-    ["d2", "copart"],
-    ["d3", "facebook"],
-  ]);
-
-  it("buckets by source and computes avg, win rate, avg days", () => {
-    const { bySource } = aggregateOutcomes(
+  it("aggregates complete records, losses and same-day sales by source and normalized channel", () => {
+    const result = aggregateOutcomes(
       [
-        {
-          deal_id: "d1",
-          actual_profit: 3000,
-          days_to_sell: 20,
-          sold_where: "lot",
-        },
-        {
-          deal_id: "d2",
-          actual_profit: 1000,
-          days_to_sell: 40,
-          sold_where: "lot",
-        },
-        {
-          deal_id: "d3",
-          actual_profit: -500,
-          days_to_sell: 60,
-          sold_where: "private",
-        },
+        completeSale({
+          deal_id: "one",
+          sold_where: "CarMax",
+          sold_at: "2026-09-01",
+        }),
+        completeSale({
+          deal_id: "two",
+          sold_where: " carmax ",
+          sell_price: 12000,
+        }),
+        { deal_id: "three", actual_profit: 999999 },
       ],
-      sourceById,
+      new Map([
+        ["one", "copart"],
+        ["two", "copart"],
+      ]),
     );
-    const copart = bySource.find((b) => b.key === "copart")!;
-    expect(copart.deals).toBe(2);
-    expect(copart.avgProfit).toBe(2000);
-    expect(copart.winRate).toBe(100);
-    expect(copart.avgDays).toBe(30);
-
-    const fb = bySource.find((b) => b.key === "facebook")!;
-    expect(fb.avgProfit).toBe(-500);
-    expect(fb.winRate).toBe(0);
+    expect(result.bySource).toEqual([
+      {
+        key: "copart",
+        deals: 2,
+        totalProfit: 360,
+        avgProfit: 180,
+        winRate: 50,
+        avgDays: 15,
+      },
+    ]);
+    expect(result.byChannel[0]).toMatchObject({ key: "carmax", deals: 2 });
   });
-
-  it("sorts sources by avgProfit descending (best first)", () => {
-    const { bySource } = aggregateOutcomes(
+  it("deduplicates purchases and labels manual / unknown sources", () => {
+    const row = completeSale({ id: "one", inventory_id: "inv" });
+    const result = aggregateOutcomes(
       [
-        { deal_id: "d3", actual_profit: 8000 },
-        { deal_id: "d1", actual_profit: 1000 },
-      ],
-      sourceById,
-    );
-    expect(bySource[0].key).toBe("facebook");
-  });
-
-  it("labels outcomes without a deal_id as 'manual' and missing channel as 'unspecified'", () => {
-    const { bySource, byChannel } = aggregateOutcomes(
-      [{ actual_profit: 1500 }],
-      new Map(),
-    );
-    expect(bySource[0].key).toBe("manual");
-    expect(byChannel[0].key).toBe("unspecified");
-  });
-
-  it("labels a deal_id with no known source as 'unknown'", () => {
-    const { bySource } = aggregateOutcomes(
-      [{ deal_id: "ghost", actual_profit: 100 }],
-      new Map(),
-    );
-    expect(bySource[0].key).toBe("unknown");
-  });
-
-  it("normalizes channel casing/whitespace", () => {
-    const { byChannel } = aggregateOutcomes(
-      [
-        { actual_profit: 1, sold_where: "CarMax" },
-        { actual_profit: 1, sold_where: " carmax " },
+        row,
+        { ...row, id: "two" },
+        completeSale({ id: "three", deal_id: "ghost" }),
       ],
       new Map(),
     );
-    expect(byChannel).toHaveLength(1);
-    expect(byChannel[0].key).toBe("carmax");
-    expect(byChannel[0].deals).toBe(2);
+    expect(result.bySource.map((r) => [r.key, r.deals])).toEqual([
+      ["manual", 1],
+      ["unknown", 1],
+    ]);
+    expect(result.byChannel[0].key).toBe("unspecified");
   });
-
-  it("excludes outcomes with no derivable profit", () => {
-    const { bySource } = aggregateOutcomes(
-      [
-        { deal_id: "d1", sold_where: "lot" },
-        { deal_id: "d1", actual_profit: 500 },
-      ],
-      sourceById,
-    );
-    expect(bySource[0].deals).toBe(1);
-  });
-
-  it("returns empty arrays for no rows", () => {
+  it("returns empty results without complete sales", () =>
     expect(aggregateOutcomes([], new Map())).toEqual({
       bySource: [],
       byChannel: [],
-    });
-  });
+    }));
 });

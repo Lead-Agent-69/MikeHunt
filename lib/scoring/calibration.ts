@@ -1,133 +1,150 @@
-// lib/scoring/calibration.ts
-// The feedback loop that makes verdicts get SHARPER over time (not just broader). As a dealer logs
-// real outcomes (deal_outcomes), we measure how the engine's predictions diverged from reality and
-// derive per-dealer multipliers — their transport really runs 1.2× our baseline, their cars sell
-// for 0.94× our resale estimate, etc. Applied to future estimates, the app calibrates to THIS
-// dealer's actual cost structure and market. The more they log, the more personal it gets.
-
+// Personal model adjustments from complete owner-reported records and matched, dated snapshots.
 import type { SupabaseClient } from "@supabase/supabase-js";
-
+import {
+  ledgerTotals,
+  OUTCOME_LEDGER_COLUMNS,
+  type LedgerRow,
+} from "@/lib/outcomes/ledger";
 export interface DealerCalibration {
   sampleSize: number;
-  transportMultiplier: number; // actual transport / predicted
-  reconMultiplier: number; // actual recon / predicted
-  sellMultiplier: number; // actual sale price / predicted resale
-  profitAccuracyPct: number; // 100 - mean abs % error of profit prediction
-  profitBiasPct: number; // signed: + means we UNDER-predicted profit, - means OVER
+  transportMultiplier: number;
+  reconMultiplier: number;
+  sellMultiplier: number;
+  profitAccuracyPct: number | null;
+  profitBiasPct: number | null;
   message: string;
-}
-
-// Minimum logged outcomes before we trust calibration. Below this we don't bend estimates.
-const MIN_SAMPLES = 5;
-// Clamp multipliers so a couple of weird outliers can't wildly distort estimates.
-const CLAMP_LO = 0.5;
-const CLAMP_HI = 2.0;
-
-function clamp(n: number): number {
-  if (!Number.isFinite(n) || n <= 0) return 1;
-  return Math.min(CLAMP_HI, Math.max(CLAMP_LO, n));
-}
-
-// Mean of a ratio actual/predicted across rows where both sides are present & positive.
-function meanRatio(
-  rows: any[],
-  actualKey: string,
-  predictedKey: string,
-): number {
-  const ratios: number[] = [];
-  for (const r of rows) {
-    const a = Number(r[actualKey]);
-    const p = Number(r[predictedKey]);
-    if (Number.isFinite(a) && Number.isFinite(p) && a > 0 && p > 0)
-      ratios.push(a / p);
-  }
-  if (!ratios.length) return 1;
-  return ratios.reduce((s, x) => s + x, 0) / ratios.length;
-}
-
-/**
- * Compute a dealer's calibration from their logged outcomes. Returns null until there are enough
- * samples to be meaningful (so we never bend estimates on one lucky/unlucky flip).
- */
-export async function getDealerCalibration(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<DealerCalibration | null> {
-  const { data, error } = await supabase
-    .from("deal_outcomes")
-    .select(
-      "deal_id, inventory_id, predicted_profit, predicted_sell, predicted_transport, predicted_recon, actual_profit, sell_price, actual_transport, actual_recon",
-    )
-    .eq("user_id", userId)
-    .not("actual_profit", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error || !data) return null;
-
-  // Dedupe: a fleet seed (POST /api/inventory) and a later "Track this flip" log (POST /api/outcomes)
-  // can both land in deal_outcomes for the SAME deal. Count each real flip once so calibration isn't
-  // double-weighted. Rows are created_at DESC, so the latest (sale-confirmed) row per deal wins;
-  // untied manual logs (no deal_id/inventory_id) are always kept.
-  const seen = new Set<string>();
-  const dedup: any[] = [];
-  for (const r of data) {
-    const k = r.deal_id || r.inventory_id;
-    if (k) {
-      if (seen.has(k)) continue;
-      seen.add(k);
-    }
-    dedup.push(r);
-  }
-  if (dedup.length < MIN_SAMPLES) return null;
-  const rows = dedup;
-
-  const transportMultiplier = clamp(
-    meanRatio(rows, "actual_transport", "predicted_transport"),
-  );
-  const reconMultiplier = clamp(
-    meanRatio(rows, "actual_recon", "predicted_recon"),
-  );
-  const sellMultiplier = clamp(meanRatio(rows, "sell_price", "predicted_sell"));
-
-  // Profit accuracy: mean absolute % error; bias: signed mean % error.
-  const absErrs: number[] = [];
-  const biases: number[] = [];
-  for (const r of rows) {
-    const a = Number(r.actual_profit);
-    const p = Number(r.predicted_profit);
-    if (Number.isFinite(a) && Number.isFinite(p) && Math.abs(p) > 1) {
-      absErrs.push(Math.abs(a - p) / Math.abs(p));
-      biases.push((a - p) / Math.abs(p));
-    }
-  }
-  const mae = absErrs.length
-    ? absErrs.reduce((s, x) => s + x, 0) / absErrs.length
-    : 0;
-  const bias = biases.length
-    ? biases.reduce((s, x) => s + x, 0) / biases.length
-    : 0;
-  const profitAccuracyPct = Math.max(0, Math.round((1 - mae) * 100));
-  const profitBiasPct = Math.round(bias * 100);
-
-  const tPct = Math.round((transportMultiplier - 1) * 100);
-  const message =
-    tPct !== 0
-      ? `Based on ${rows.length} logged deals, your transport runs ${Math.abs(tPct)}% ${tPct > 0 ? "higher" : "lower"} than our baseline — estimates now adjust for it.`
-      : `Calibrated to your ${rows.length} logged deals.`;
-
-  return {
-    sampleSize: rows.length,
-    transportMultiplier: Number(transportMultiplier.toFixed(2)),
-    reconMultiplier: Number(reconMultiplier.toFixed(2)),
-    sellMultiplier: Number(sellMultiplier.toFixed(2)),
-    profitAccuracyPct,
-    profitBiasPct,
-    message,
+  matchedSamples?: {
+    sell: number;
+    transport: number;
+    recon: number;
+    profit: number;
   };
 }
-
-/** Apply a dealer's calibration to a raw deal estimate. Pure — safe to call with null calibration. */
+const MIN = 5;
+function mean(values: number[]) {
+  return values.reduce((sum, n) => sum + n, 0) / values.length;
+}
+function multiplier(values: number[]) {
+  return values.length < MIN
+    ? 1
+    : Number(Math.min(2, Math.max(0.5, mean(values))).toFixed(2));
+}
+export function calibrationFromRows(
+  input: LedgerRow[],
+): DealerCalibration | null {
+  const seen = new Set<string>();
+  const rows = input.filter((row) => {
+    if (
+      !ledgerTotals(row).complete ||
+      row.prediction_basis !== "market_supported" ||
+      !row.prediction_captured_at ||
+      !row.sold_at
+    )
+      return false;
+    const captured = Date.parse(row.prediction_captured_at);
+    if (
+      !Number.isFinite(captured) ||
+      captured > Date.now() ||
+      row.prediction_captured_at.slice(0, 10) > row.sold_at.slice(0, 10)
+    )
+      return false;
+    const key =
+      row.inventory_id ||
+      (row.deal_id
+        ? `${row.deal_id}:${row.purchased_at?.slice(0, 10)}`
+        : row.id);
+    if (key && seen.has(key)) return false;
+    if (key) seen.add(key);
+    return true;
+  });
+  if (rows.length < MIN) return null;
+  const ratio = (
+    actual: "sell_price" | "actual_transport" | "actual_recon",
+    predicted: "predicted_sell" | "predicted_transport" | "predicted_recon",
+  ) =>
+    rows.flatMap((row) => {
+      const a = row[actual],
+        p = row[predicted];
+      return a != null && typeof p === "number" && Number.isFinite(p) && p > 0
+        ? [Number(a) / p]
+        : [];
+    });
+  const sell = ratio("sell_price", "predicted_sell"),
+    transport = ratio("actual_transport", "predicted_transport"),
+    recon = ratio("actual_recon", "predicted_recon");
+  const profitPairs = rows.flatMap((row) => {
+    const a = ledgerTotals(row).profit,
+      p = row.predicted_profit;
+    return a != null &&
+      typeof p === "number" &&
+      Number.isFinite(p) &&
+      Math.abs(p) > 1
+      ? [{ actual: a, predicted: p }]
+      : [];
+  });
+  if (
+    Math.max(sell.length, transport.length, recon.length, profitPairs.length) <
+    MIN
+  )
+    return null;
+  const accuracy =
+    profitPairs.length >= MIN
+      ? Math.max(
+          0,
+          Math.round(
+            (1 -
+              mean(
+                profitPairs.map(
+                  (r) =>
+                    Math.abs(r.actual - r.predicted) / Math.abs(r.predicted),
+                ),
+              )) *
+              100,
+          ),
+        )
+      : null;
+  const bias =
+    profitPairs.length >= MIN
+      ? Math.round(
+          mean(
+            profitPairs.map(
+              (r) => (r.actual - r.predicted) / Math.abs(r.predicted),
+            ),
+          ) * 100,
+        )
+      : null;
+  return {
+    sampleSize: rows.length,
+    sellMultiplier: multiplier(sell),
+    transportMultiplier: multiplier(transport),
+    reconMultiplier: multiplier(recon),
+    profitAccuracyPct: accuracy,
+    profitBiasPct: bias,
+    matchedSamples: {
+      sell: sell.length,
+      transport: transport.length,
+      recon: recon.length,
+      profit: profitPairs.length,
+    },
+    message: `Based on ${rows.length} complete owner-reported sales with dated model snapshots. Each adjustment needs at least ${MIN} matched pairs; actual results can differ.`,
+  };
+}
+export async function getDealerCalibration(
+  sb: SupabaseClient,
+  userId: string,
+): Promise<DealerCalibration | null> {
+  const { data, error } = await sb
+    .from("deal_outcomes")
+    .select(
+      `${OUTCOME_LEDGER_COLUMNS},prediction_basis,prediction_captured_at,predicted_profit,predicted_sell,predicted_transport,predicted_recon`,
+    )
+    .eq("user_id", userId)
+    .eq("costs_complete", true)
+    .not("sell_price", "is", null)
+    .order("updated_at", { ascending: false })
+    .limit(100);
+  return error || !data ? null : calibrationFromRows(data as LedgerRow[]);
+}
 export function applyCalibration(
   estimate: {
     sellEstimate?: number | null;
@@ -135,20 +152,16 @@ export function applyCalibration(
     recon?: number | null;
   },
   cal: DealerCalibration | null,
-): {
-  sellEstimate: number;
-  transport: number;
-  recon: number;
-  calibrated: boolean;
-} {
-  const sell = Number(estimate.sellEstimate) || 0;
-  const transport = Number(estimate.transport) || 0;
-  const recon = Number(estimate.recon) || 0;
-  if (!cal) return { sellEstimate: sell, transport, recon, calibrated: false };
+) {
+  const sell = Number(estimate.sellEstimate) || 0,
+    transport = Number(estimate.transport) || 0,
+    recon = Number(estimate.recon) || 0;
   return {
-    sellEstimate: Math.round(sell * cal.sellMultiplier),
-    transport: Math.round(transport * cal.transportMultiplier),
-    recon: Math.round(recon * cal.reconMultiplier),
-    calibrated: true,
+    sellEstimate: cal ? Math.round(sell * cal.sellMultiplier) : sell,
+    transport: cal
+      ? Math.round(transport * cal.transportMultiplier)
+      : transport,
+    recon: cal ? Math.round(recon * cal.reconMultiplier) : recon,
+    calibrated: !!cal,
   };
 }
