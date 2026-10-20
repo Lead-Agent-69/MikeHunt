@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import useSWR from "swr";
+import useSWR, { mutate as mutateCache } from "swr";
 import Link from "next/link";
 import { fetcher } from "@/lib/swr-config";
 import { Panel } from "@/components/shared/Panel";
@@ -519,7 +519,7 @@ interface MarkSoldModalProps {
   item: InventoryItem;
   returnFocus: HTMLElement | null;
   onClose: () => void;
-  onSold: (updatedItem: InventoryItem) => void;
+  onSold: (updatedItem: InventoryItem, message: string) => void;
 }
 
 function MarkSoldModal({
@@ -551,7 +551,11 @@ function MarkSoldModal({
       });
       const data = await res.json();
       if (res.ok && data.item?.id === item.id && data.item.stage === "sold")
-        onSold(data.item);
+        onSold(
+          data.item,
+          data.outcomeReview?.message ||
+            "Sale saved. Review all actual costs in Outcomes and learning.",
+        );
       else
         setErr(
           userFacingErrorMessage(
@@ -651,7 +655,7 @@ function MarkSoldModal({
               className="text-xs font-medium"
               style={{ color: "var(--t3)" }}
             >
-              {profit >= 0 ? "Recorded margin" : "Recorded loss"}
+              Spread over inventory costs
             </span>
             <Mono
               className="text-sm font-bold"
@@ -670,6 +674,11 @@ function MarkSoldModal({
           Based on recorded costs only; excludes unrecorded expenses and
           estimated carrying costs. This records a completed sale, not a listing
           or payment.
+        </p>
+
+        <p className="text-xs text-[var(--t3)]">
+          This preview uses the costs entered in Pipeline. Confirm every expense
+          in Outcomes and learning before treating it as net profit.
         </p>
 
         <div className="flex gap-2">
@@ -713,6 +722,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
   const [showExpense, setShowExpense] = useState(false);
   const [showMarkSold, setShowMarkSold] = useState(false);
   const [advanceError, setAdvanceError] = useState<string | null>(null);
+  const [saleMessage, setSaleMessage] = useState("");
   const recordOpener = useRef<HTMLElement | null>(null);
 
   const rate = item.dailyFloorRate > 0 ? item.dailyFloorRate : DAILY_FLOOR_RATE;
@@ -720,14 +730,15 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
     0,
     Math.floor((now - new Date(item.floorDate).getTime()) / 86_400_000),
   );
-  const carryNow = days * rate;
-  const totalAll = item.totalCost + carryNow;
+  const isOpen = item.stage !== "sold" && item.stage !== "wholesale";
+  const carryNow = isOpen ? days * rate : 0;
+  const totalAll = item.totalCost;
   const mmr = item.marketValue ?? 0;
   const list = item.listPrice ?? 0;
   const refVal = mmr > 0 ? mmr : list > 0 ? list : 0;
-  const estProfit = refVal > 0 ? refVal - totalAll : null;
+  const estProfit = isOpen && refVal > 0 ? refVal - totalAll : null;
   const breakEven = item.totalCost > 0 ? Math.ceil(item.totalCost / rate) : 60;
-  const isPast = days > breakEven;
+  const isPast = isOpen && days > breakEven;
 
   const handleAdvance = useCallback(async () => {
     if (advancing) return;
@@ -789,7 +800,12 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
       hide: !item.otherCosts,
       warn: false,
     },
-    { label: "Carrying", val: carryNow, hide: false, warn: true },
+    {
+      label: "Recorded holding",
+      val: item.holdingCost,
+      hide: !item.holdingCost,
+      warn: false,
+    },
   ].filter((r) => !r.hide);
 
   return (
@@ -847,10 +863,10 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
         </div>
 
         {/* Carrying Cost Clock */}
-        {item.stage !== "sold" && <CarryingClock item={item} now={now} />}
+        {isOpen && <CarryingClock item={item} now={now} />}
 
         {/* Stage Tracker */}
-        {item.stage !== "sold" && (
+        {isOpen && (
           <StageTracker
             currentStage={item.stage}
             onAdvance={handleAdvance}
@@ -902,7 +918,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
             style={{ borderTop: "1px solid var(--b1)" }}
           >
             <span className="text-xs font-bold" style={{ color: "var(--t2)" }}>
-              Total All-In
+              Recorded inventory costs
             </span>
             <Mono
               className="text-sm font-bold"
@@ -912,13 +928,19 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
               {totalAll.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </Mono>
           </div>
+          {isOpen && (
+            <p className="mt-2 text-xs text-[var(--t3)]">
+              Modeled holding to date: ${carryNow.toLocaleString()}. Estimate at
+              ${rate}/day; review actual holding expenses separately.
+            </p>
+          )}
           {estProfit !== null && (
             <div className="flex items-center justify-between mt-1">
               <span
                 className="text-xs font-medium"
                 style={{ color: "var(--t4)" }}
               >
-                Est. Profit
+                Spread to reference
               </span>
               <Mono
                 className="text-sm font-bold"
@@ -943,7 +965,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
             {advanceError}
           </p>
         )}
-        {item.stage !== "sold" && (
+        {isOpen && (
           <div className="flex gap-2">
             <button
               onClick={(event) => {
@@ -988,6 +1010,20 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
             </Mono>
           </div>
         )}
+        {saleMessage && (
+          <p
+            role="status"
+            className="rounded-lg border border-[var(--b2)] p-3 text-sm text-[var(--t2)]"
+          >
+            {saleMessage}{" "}
+            <Link
+              href="/insights"
+              className="inline-flex min-h-11 items-center underline"
+            >
+              Review outcome records
+            </Link>
+          </p>
+        )}
       </div>
 
       {showExpense && (
@@ -1006,7 +1042,8 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
           item={item}
           returnFocus={recordOpener.current}
           onClose={() => setShowMarkSold(false)}
-          onSold={(u) => {
+          onSold={(u, message) => {
+            setSaleMessage(message);
             onUpdated(u);
             setShowMarkSold(false);
           }}
@@ -1124,7 +1161,10 @@ export default function FleetPage() {
     fetcher,
   );
 
-  const fleet = (data?.items || []) as InventoryItem[];
+  const fleet = useMemo(
+    () => (data?.items || []) as InventoryItem[],
+    [data?.items],
+  );
   const needsSignIn = configured && !dealerLoading && !dealerId;
   const error = !configured
     ? null
@@ -1147,8 +1187,13 @@ export default function FleetPage() {
         },
         false,
       );
+      if (dealerId) {
+        void mutateCache(["/api/outcomes", dealerId]);
+        void mutateCache(["/api/calibration", dealerId]);
+        void mutateCache(["/api/insights/source-roi", dealerId]);
+      }
     },
-    [fleet, data, mutate],
+    [fleet, data, mutate, dealerId],
   );
 
   const stats = useMemo(() => {
@@ -1164,7 +1209,7 @@ export default function FleetPage() {
       const r = f.dailyFloorRate > 0 ? f.dailyFloorRate : DAILY_FLOOR_RATE;
       return a + d * r;
     }, 0);
-    const estProfit = fleet.reduce((a, f) => {
+    const estProfit = active.reduce((a, f) => {
       const mv = f.marketValue ?? f.listPrice ?? 0;
       return mv > 0 ? a + mv - f.totalCost : a;
     }, 0);
@@ -1202,7 +1247,9 @@ export default function FleetPage() {
       {!loading && !error && fleet.length > 0 && <FleetKPIs fleet={fleet} />}
 
       {/* Capital velocity: days-in-stage, capital deployed, floor-plan burn (uses /api/inventory + /api/outcomes) */}
-      {!loading && !error && fleet.length > 0 && <CapitalVelocityTracker />}
+      {!loading && !error && fleet.length > 0 && (
+        <CapitalVelocityTracker inventory={fleet} />
+      )}
 
       {/* Stats row */}
       {!loading && !error && fleet.length > 0 && (

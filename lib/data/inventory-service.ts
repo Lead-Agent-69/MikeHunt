@@ -87,7 +87,7 @@ export class InventoryService {
       floorDate: new Date(row.floor_date),
       dailyFloorRate: Number(row.daily_floor_rate || 0),
       soldDate: row.sold_date ? new Date(row.sold_date) : undefined,
-      soldPrice: row.sold_price ? Number(row.sold_price) : undefined,
+      soldPrice: row.sold_price != null ? Number(row.sold_price) : undefined,
       photos: row.photos || [],
       listedPlatforms: row.listed_platforms || [],
       leadCount: row.lead_count || 0,

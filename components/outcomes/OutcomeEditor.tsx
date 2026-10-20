@@ -3,10 +3,10 @@ import React from "react";
 import {
   ACTUAL_COST_FIELDS,
   LEDGER_MONEY_FIELDS,
-  actualAmount,
   actualCostFields,
   ledgerTotals,
   validateOutcome,
+  sameOutcomeActuals,
   type LedgerRow,
 } from "@/lib/outcomes/ledger";
 
@@ -25,7 +25,7 @@ type Props = {
   model?: string | null;
   onSaved: (record: LedgerRow) => void;
   onCancel: () => void;
-  onReload?: () => void;
+  onReload?: (recordId: string) => void | Promise<unknown>;
 };
 export function OutcomeEditor({
   ownerId,
@@ -65,6 +65,14 @@ export function OutcomeEditor({
   const [error, setError] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [conflict, setConflict] = React.useState(false);
+  const [reloading, setReloading] = React.useState(false);
+  const activeOwner = React.useRef<string | null>(ownerId);
+  React.useEffect(() => {
+    activeOwner.current = ownerId;
+    return () => {
+      activeOwner.current = null;
+    };
+  }, [ownerId]);
   const input = {
     ...fields,
     year: fields.year === "" ? null : Number(fields.year),
@@ -87,6 +95,7 @@ export function OutcomeEditor({
     setSaving(true);
     try {
       const response = await fetch("/api/outcomes", {
+        signal: AbortSignal.timeout(30000),
         method: record ? "PATCH" : "POST",
         headers: {
           "content-type": "application/json",
@@ -101,6 +110,7 @@ export function OutcomeEditor({
         }),
       });
       const result = await response.json();
+      if (activeOwner.current !== ownerId) return;
       if (!response.ok) {
         setConflict(response.status === 409);
         setErrors(result.fields ?? {});
@@ -113,25 +123,39 @@ export function OutcomeEditor({
         saved.user_id !== ownerId ||
         !Number.isInteger(saved?.revision) ||
         saved.revision < 1 ||
-        LEDGER_MONEY_FIELDS.some(
-          (key) =>
-            (actualAmount(saved[key]) ?? null) !==
-            (actualAmount(fields[key]) ?? null),
-        ) ||
-        saved.costs_complete !== confirmed
+        !sameOutcomeActuals(
+          saved,
+          validated.row,
+          !dealId && !record?.deal_id && !record?.inventory_id,
+        )
       )
         throw new Error(
           "Save was not confirmed. Retry with this same record before creating another.",
         );
       onSaved(saved);
     } catch (e) {
+      if (activeOwner.current !== ownerId) return;
       setError(
         e instanceof Error
           ? e.message
           : "Save was not confirmed. Retry this record.",
       );
     } finally {
-      setSaving(false);
+      if (activeOwner.current === ownerId) setSaving(false);
+    }
+  }
+  async function reloadSaved() {
+    if (!onReload || reloading || !recordId.current) return;
+    setReloading(true);
+    try {
+      await onReload(recordId.current);
+    } catch {
+      if (activeOwner.current === ownerId)
+        setError(
+          "The saved version could not be loaded. Your draft is still here. Retry reload when connected.",
+        );
+    } finally {
+      if (activeOwner.current === ownerId) setReloading(false);
     }
   }
   function field(key: string, label: string, type = "text", required = false) {
@@ -284,10 +308,11 @@ export function OutcomeEditor({
           {conflict && onReload && (
             <button
               type="button"
-              onClick={onReload}
+              onClick={reloadSaved}
+              disabled={reloading}
               className="mt-2 min-h-11 rounded-lg border border-[var(--b2)] px-3 font-semibold text-[var(--t1)]"
             >
-              Reload saved version
+              {reloading ? "Reloading..." : "Reload saved version"}
             </button>
           )}
         </div>

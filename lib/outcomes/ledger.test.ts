@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   actualAmount,
+  sameOutcomeActuals,
   completeOutcomeRows,
   ledgerTotals,
   publicOutcome,
@@ -105,5 +106,42 @@ describe("actual outcome ledger", () => {
         completeSale({ deal_id: "deal", purchased_at: "2026-09-02" }),
       ]),
     ).toHaveLength(3);
+  });
+  it("uses the latest reviewed duplicate regardless of query order, without mutating input", () => {
+    const old = completeSale({
+      id: "old",
+      inventory_id: "car",
+      updated_at: "2026-10-01",
+      sell_price: 16000,
+    });
+    const recent = {
+      ...old,
+      id: "recent",
+      updated_at: "2026-10-02",
+      sell_price: 12000,
+    };
+    const input = [old, recent];
+    expect(completeOutcomeRows(input).map((row) => row.id)).toEqual(["recent"]);
+    expect(input[0]).toBe(old);
+  });
+  it("acknowledges normalized money and dates, but never different dates, notes or missing costs", () => {
+    const row = completeSale({ notes: "receipt A", sold_where: "private" });
+    expect(
+      sameOutcomeActuals(
+        {
+          ...row,
+          purchase_price: "10000.00",
+          sold_at: "2026-10-01T00:00:00+00:00",
+        },
+        row,
+      ),
+    ).toBe(true);
+    for (const change of [
+      { sold_at: "2026-10-02" },
+      { notes: "receipt B" },
+      { actual_recon: null },
+      { sold_where: "dealer" },
+    ])
+      expect(sameOutcomeActuals({ ...row, ...change }, row)).toBe(false);
   });
 });

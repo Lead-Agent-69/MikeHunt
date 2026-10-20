@@ -44,6 +44,7 @@ export async function GET() {
       .select(OUTCOME_LEDGER_COLUMNS)
       .eq("costs_complete", true)
       .not("days_to_sell", "is", null)
+      .order("updated_at", { ascending: false })
       .limit(500),
     supabase
       .from("market_timing_signals")
@@ -63,7 +64,12 @@ export async function GET() {
 
   // Biggest mover by absolute % change.
   const sortedMovers = (movers.data || [])
-    .filter((m: any) => m.pct_change != null)
+    .filter(
+      (m: any) =>
+        m.pct_change != null &&
+        Number.isFinite(Number(m.pct_change)) &&
+        Number(m.data_points) >= 5,
+    )
     .sort(
       (a: any, b: any) =>
         Math.abs(Number(b.pct_change)) - Math.abs(Number(a.pct_change)),

@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   ledgerTotals,
+  completeOutcomeRows,
   OUTCOME_LEDGER_COLUMNS,
   type LedgerRow,
 } from "@/lib/outcomes/ledger";
@@ -32,8 +33,7 @@ function multiplier(values: number[]) {
 export function calibrationFromRows(
   input: LedgerRow[],
 ): DealerCalibration | null {
-  const seen = new Set<string>();
-  const rows = input.filter((row) => {
+  const rows = completeOutcomeRows(input).filter((row) => {
     if (
       !ledgerTotals(row).complete ||
       row.prediction_basis !== "market_supported" ||
@@ -48,13 +48,6 @@ export function calibrationFromRows(
       row.prediction_captured_at.slice(0, 10) > row.sold_at.slice(0, 10)
     )
       return false;
-    const key =
-      row.inventory_id ||
-      (row.deal_id
-        ? `${row.deal_id}:${row.purchased_at?.slice(0, 10)}`
-        : row.id);
-    if (key && seen.has(key)) return false;
-    if (key) seen.add(key);
     return true;
   });
   if (rows.length < MIN) return null;

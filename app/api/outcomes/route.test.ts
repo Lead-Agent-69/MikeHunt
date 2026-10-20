@@ -212,4 +212,12 @@ describe("owner outcome writes", () => {
     expect(state.filters).toContainEqual(["deal_outcomes", "user_id", owner]);
     expect(state.filters).toContainEqual(["deal_outcomes", "limit", 200]);
   });
+  it("canonicalizes valid uppercase record ids before confirming a save", async () => {
+    state.results.push({ data: saved(), error: null });
+    const response = await POST(
+      request({ ...completeSale(), id: id.toUpperCase() }),
+    );
+    expect(response.status).toBe(200);
+    expect(state.writes[0].id).toBe(id);
+  });
 });

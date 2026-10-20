@@ -5,7 +5,6 @@ import { motion } from "framer-motion";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { ownerOutcomeFetcher } from "@/lib/outcomes/fetcher";
-import { fetcher } from "@/lib/swr-config";
 import { useDealerId } from "@/hooks/useDealerId";
 import {
   completeOutcomeRows,
@@ -25,16 +24,12 @@ interface StageMetrics {
   color: string;
 }
 
-export function CapitalVelocityTracker() {
+export function CapitalVelocityTracker({
+  inventory,
+}: {
+  inventory: InventoryItem[];
+}) {
   const { dealerId, loading: dealerLoading } = useDealerId();
-
-  const { data: invData, isLoading } = useSWR(
-    dealerId && !dealerLoading
-      ? `/api/inventory?dealerId=${dealerId}&limit=200`
-      : null,
-    fetcher,
-    { refreshInterval: 60_000 },
-  );
 
   const { data: outData, error: outError } = useSWR(
     dealerId && !dealerLoading ? ["/api/outcomes", dealerId] : null,
@@ -45,10 +40,9 @@ export function CapitalVelocityTracker() {
   );
 
   const metrics = useMemo(() => {
-    const inventory = (invData?.items || []) as InventoryItem[];
-    const outcomes = completeOutcomeRows(
-      (outData?.outcomes ?? []) as LedgerRow[],
-    );
+    const outcomes = outError
+      ? []
+      : completeOutcomeRows((outData?.outcomes ?? []) as LedgerRow[]);
     const now = Date.now();
 
     const active = inventory.filter(
@@ -153,9 +147,9 @@ export function CapitalVelocityTracker() {
       completedCount: outcomes.length,
       winRate,
     };
-  }, [invData, outData]);
+  }, [inventory, outData, outError]);
 
-  if (isLoading || dealerLoading) {
+  if (dealerLoading) {
     return (
       <div className="glass-panel p-6 space-y-4 animate-pulse">
         <div className="h-4 w-32 rounded bg-[var(--s3)]" />

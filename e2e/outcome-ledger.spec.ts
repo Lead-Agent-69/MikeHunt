@@ -39,11 +39,15 @@ test.describe("actual outcome ledger", () => {
       await page.route("**/api/outcomes", async (route) => {
         if (route.request().method() === "POST") {
           attempts.push(route.request().postDataJSON());
-          if (attempts.length === 1)
+          if (attempts.length === 1) {
+            // The write succeeds but its acknowledgement is lost: retry must recover one row.
+            const persisted = await route.fetch();
+            expect(persisted.ok()).toBe(true);
             return route.fulfill({
               status: 500,
               json: { error: "Temporary save failure. Retry this record." },
             });
+          }
         }
         return route.continue();
       });
