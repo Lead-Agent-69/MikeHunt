@@ -95,6 +95,50 @@ const render = () =>
   });
 
 describe("Market filter journey", () => {
+  it("keeps the selected dealer through legacy inventory redirects and requests", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?lane=private&sellerType=dealer&dealerSourceIds=dealer-x2builders-com&source=independent_dealer&sort=score",
+    );
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("sources")).toBe("dealer-x2builders-com");
+    expect(params.get("lanes")).toBe("private");
+    expect(params.get("sellerTypes")).toBe("dealer");
+    const requests = state.keys.filter((key) =>
+      key?.startsWith("/api/market/explore?"),
+    );
+    expect(requests.length).toBeGreaterThan(0);
+    for (const request of requests)
+      expect(
+        new URL(request!, "https://example.test").searchParams.get("sources"),
+      ).toBe("dealer-x2builders-com");
+  });
+
+  it("preserves multiple legacy dealers without replacing explicit Market sources", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?dealerSourceIds=dealer-x2builders-com,dealer-billsmithauto-com",
+    );
+    await render();
+    expect(new URLSearchParams(window.location.search).get("sources")).toBe(
+      "dealer-x2builders-com,dealer-billsmithauto-com",
+    );
+    act(() => {
+      window.history.replaceState(
+        null,
+        "",
+        "/market?sources=copart&dealerSourceIds=dealer-x2builders-com",
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(new URLSearchParams(window.location.search).get("sources")).toBe(
+      "copart",
+    );
+  });
+
   it("normalizes legacy title aliases and allows clearing multiple sources from the everyday selector", async () => {
     window.history.replaceState(
       null,

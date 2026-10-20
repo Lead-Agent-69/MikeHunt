@@ -178,6 +178,8 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
   };
   copy("zip", "near");
   copy("make", "makes");
+  // Dealer selections are narrower than their shared independent_dealer source.
+  copy("dealerSourceIds", "sources");
   copy("source", "sources");
   copy("sellerType", "sellerTypes");
   copy("minPrice", "priceMin");
