@@ -19,6 +19,7 @@ import {
   LocalScraperCache,
 } from "../lib/scrapers/local-cache";
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
+import { curatedRingStates } from "../lib/scrapers/curated-rotation";
 import {
   claimNextScopedScrapeJob,
   recoveredClaimError,
@@ -525,6 +526,23 @@ async function runSweepTick(
     `[sweep] ${step.state.index + 1}/${step.state.sources.length} ${step.source}`,
   );
   try {
+    if (step.state.plan?.demandStates?.length) {
+      try {
+        const published = await cache.publishPendingDealers(
+          supabase,
+          curatedRingStates(step.state.plan.demandStates),
+        );
+        if (published)
+          console.log(
+            `[sweep] recovered ${published} recent local dealer listings; original observation dates retained`,
+          );
+      } catch {
+        // Recovery failures must not prevent a fresh source run or expose payloads.
+        console.warn(
+          "[sweep] pending dealer recovery deferred; continuing fresh collection",
+        );
+      }
+    }
     const results = await withLocalWriteContext(
       buildLocalContext(supabase),
       () =>
