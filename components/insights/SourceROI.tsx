@@ -1,15 +1,11 @@
 "use client";
 
 import React from "react";
+import { ownerOutcomeFetcher as fetcher } from "@/lib/outcomes/fetcher";
 import { useDealerId } from "@/hooks/useDealerId";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 
-const fetcher = async ([url]: [string, string]) => {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("Complete-cost results could not be loaded.");
-  return r.json();
-};
 const money = (v: any) =>
   `${Number(v) < 0 ? "-" : ""}$${Math.abs(Number(v) || 0).toLocaleString()}`;
 

@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { motion } from "framer-motion";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
+import { ownerOutcomeFetcher } from "@/lib/outcomes/fetcher";
 import { fetcher } from "@/lib/swr-config";
 import { useDealerId } from "@/hooks/useDealerId";
 import {
@@ -37,7 +38,7 @@ export function CapitalVelocityTracker() {
 
   const { data: outData, error: outError } = useSWR(
     dealerId && !dealerLoading ? ["/api/outcomes", dealerId] : null,
-    ([url]: [string, string]) => fetcher(url),
+    ownerOutcomeFetcher,
     {
       revalidateOnFocus: false,
     },

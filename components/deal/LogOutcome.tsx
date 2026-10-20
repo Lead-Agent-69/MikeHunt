@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ownerOutcomeFetcher as fetcher } from "@/lib/outcomes/fetcher";
 import { useDealerId } from "@/hooks/useDealerId";
 import useSWR, { mutate } from "swr";
 import { OutcomeEditor } from "@/components/outcomes/OutcomeEditor";
@@ -11,12 +12,7 @@ interface Props {
   make?: string | null;
   model?: string | null;
 }
-async function fetcher(url: string) {
-  const response = await fetch(url);
-  if (!response.ok)
-    throw new Error("Your outcome records could not be loaded.");
-  return response.json();
-}
+
 export function LogOutcome(props: Props) {
   const { dealerId, loading: accountLoading } = useDealerId();
   const url = `/api/outcomes?dealId=${encodeURIComponent(props.dealId)}`;
@@ -25,11 +21,9 @@ export function LogOutcome(props: Props) {
     error,
     isLoading,
     mutate: reload,
-  } = useSWR(
-    dealerId && !accountLoading ? [url, dealerId] : null,
-    ([path]: [string, string]) => fetcher(path),
-    { revalidateOnFocus: false },
-  );
+  } = useSWR(dealerId && !accountLoading ? [url, dealerId] : null, fetcher, {
+    revalidateOnFocus: false,
+  });
   const [open, setOpen] = React.useState(false);
   const [message, setMessage] = React.useState("");
   React.useEffect(() => {

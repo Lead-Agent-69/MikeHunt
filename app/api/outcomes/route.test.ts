@@ -205,7 +205,9 @@ describe("owner outcome writes", () => {
     const response = await GET(
       new NextRequest(`http://localhost/api/outcomes?dealId=${deal}`),
     );
-    expect((await response.json()).outcomes[0].actual_profit).toBeNull();
+    const body = await response.json();
+    expect(body.ownerId).toBe(owner);
+    expect(body.outcomes[0].actual_profit).toBeNull();
     expect(state.filters).toContainEqual(["deal_outcomes", "deal_id", deal]);
     expect(state.filters).toContainEqual(["deal_outcomes", "user_id", owner]);
     expect(state.filters).toContainEqual(["deal_outcomes", "limit", 200]);

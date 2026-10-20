@@ -13,7 +13,7 @@ export async function GET() {
   const {
     data: { user },
   } = await getServerUser();
-  if (!user?.id) return NextResponse.json({ calibration: null });
+  if (!user?.id) return NextResponse.json({ calibration: null, ownerId: null });
 
   const supabase = createServerComponentClient();
 
@@ -22,6 +22,7 @@ export async function GET() {
     if (!hasFullCustomerAccess(plan)) {
       return NextResponse.json({
         calibration: null,
+        ownerId: user.id,
         locked: true,
         feature: "calibration",
         plan,
@@ -30,5 +31,5 @@ export async function GET() {
   }
 
   const calibration = await getDealerCalibration(supabase, user.id);
-  return NextResponse.json({ calibration });
+  return NextResponse.json({ calibration, ownerId: user.id });
 }

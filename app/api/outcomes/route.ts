@@ -277,7 +277,11 @@ export async function GET(req?: NextRequest) {
   if (!user?.id)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isSupabaseConfigured())
-    return NextResponse.json({ outcomes: [], configured: false });
+    return NextResponse.json({
+      outcomes: [],
+      ownerId: user.id,
+      configured: false,
+    });
   const dealId = req?.nextUrl.searchParams.get("dealId");
   if (dealId && !uuid(dealId))
     return NextResponse.json({ error: "Invalid listing id." }, { status: 400 });
@@ -292,6 +296,7 @@ export async function GET(req?: NextRequest) {
   if (error) return internalError("outcomes-list", error);
   return NextResponse.json({
     outcomes: (data || []).map(publicOutcome),
+    ownerId: user.id,
     evidenceBasis: "owner_reported",
     limit: 200,
   });

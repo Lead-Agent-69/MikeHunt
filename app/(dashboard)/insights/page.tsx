@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ownerOutcomeFetcher as fetcher } from "@/lib/outcomes/fetcher";
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { useDealerId } from "@/hooks/useDealerId";
@@ -19,12 +20,7 @@ const money = (v: number | string | null | undefined) =>
         currency: "USD",
         maximumFractionDigits: 2,
       }).format(Number(v));
-const fetcher = async ([url]: [string, string]) => {
-  const response = await fetch(url);
-  if (!response.ok)
-    throw new Error("Your outcome history could not be loaded.");
-  return response.json();
-};
+
 export default function InsightsPage() {
   const { dealerId, loading } = useDealerId();
   const {

@@ -1,14 +1,11 @@
 "use client";
 import React from "react";
+import { ownerOutcomeFetcher as fetcher } from "@/lib/outcomes/fetcher";
 import Link from "next/link";
 import useSWR from "swr";
 import { useDealerId } from "@/hooks/useDealerId";
 import { completeOutcomeRows } from "@/lib/outcomes/ledger";
-async function fetcher([url]: [string, string]) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("History unavailable");
-  return r.json();
-}
+
 export function CalibrationNudge({ compact = false }: { compact?: boolean }) {
   const { dealerId, loading } = useDealerId();
   const { data: cal } = useSWR(
