@@ -111,6 +111,8 @@ export default function StatusPage() {
   });
   const f = data?.freshness;
   const q = data?.quality;
+  const exactQualityProof =
+    q?.detailCoverage?.mode === "customer_visible_rollup";
   const l = data?.learning;
   const sources: any[] = data?.sources ?? [];
   const healthSources: any[] = sourceHealth?.sources ?? data?.sources ?? [];
@@ -1420,7 +1422,9 @@ export default function StatusPage() {
           {/* Quality coverage */}
           <div className="glass-panel p-5 space-y-3">
             <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold">
-              Inventory quality sample
+              {exactQualityProof
+                ? "Inventory quality proof"
+                : "Inventory quality sample"}
             </p>
             <div className="grid gap-3 md:grid-cols-2">
               {detailBars.map(([label, pct]) => (
@@ -1430,9 +1434,21 @@ export default function StatusPage() {
               <Bar label="Has city" pct={q?.cityPct ?? 0} />
             </div>
             <p className="text-xs leading-relaxed text-[var(--t4)]">
-              These percentages use a separate sample of up to{" "}
-              {(q?.detailCoverage?.total ?? 0).toLocaleString()} active rows;
-              they are not calculated from the source-proof row count above.
+              {exactQualityProof ? (
+                <>
+                  These percentages cover all{" "}
+                  {(q?.detailCoverage?.total ?? 0).toLocaleString()} current,
+                  buyer-visible rows after the same freshness, photo, and
+                  auction-expiry rules used by inventory search.
+                </>
+              ) : (
+                <>
+                  These percentages use a separate sample of up to{" "}
+                  {(q?.detailCoverage?.total ?? 0).toLocaleString()} active
+                  rows; they are not calculated from the source-proof row count
+                  above.
+                </>
+              )}{" "}
               Thin bars are product work, not just scraper work. A deal with a
               photo and price can be browsed; a deal with VIN, title, mileage,
               seller contact, source link, and freshness can be trusted.
@@ -1486,7 +1502,7 @@ export default function StatusPage() {
               <p className="text-[10px] uppercase tracking-[0.18em] text-[var(--t4)] font-bold mb-3">
                 Price knowledge base
               </p>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 <Stat
                   label="Resale estimated"
                   value={`${(kb.resaleEstimateBacked ?? 0).toLocaleString()} · ${kb.resaleEstimatePct ?? 0}%`}
@@ -1515,8 +1531,20 @@ export default function StatusPage() {
                   }
                 />
                 <Stat
-                  label="Sold price points"
+                  label="Retail sold comps"
                   value={(kb.soldComps ?? 0).toLocaleString()}
+                  tone={
+                    (kb.soldComps ?? 0) > 0 ? "var(--green)" : "var(--amber)"
+                  }
+                />
+                <Stat
+                  label="Auction sale observations"
+                  value={(kb.attributedAuctionSales ?? 0).toLocaleString()}
+                  tone={
+                    (kb.attributedAuctionSales ?? 0) > 0
+                      ? "var(--green)"
+                      : "var(--t4)"
+                  }
                 />
                 <Stat
                   label="Learned value groups"
@@ -1526,10 +1554,12 @@ export default function StatusPage() {
               </div>
               <p className="mt-3 text-xs text-[var(--t4)]">
                 Resale estimates and deal math let the app rank inventory now.
-                Third-party values, completed-sale prices, and learned
-                make/model/year/state buckets are the next trust layer: they
-                turn estimated recommendations into verified market-backed
-                recommendations.
+                Retail sold comps can validate resale recommendations. Auction
+                sale observations are real acquisition evidence, but stay out of
+                retail resale medians so a government auction result cannot
+                overstate what a customer&apos;s vehicle will sell for. Learned
+                make/model/year/state buckets remain supporting evidence, not a
+                substitute for completed retail sales.
               </p>
             </div>
           )}
