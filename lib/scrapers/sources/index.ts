@@ -1356,7 +1356,7 @@ export async function scrapeCuratedSites(
         continue;
       }
       const n = urlHostMatches(site.url, ["aeofmiami.com"])
-        ? await scrapeAeOfMiami(scope)
+        ? await scrapeAeOfMiami(scope, execution?.abortSignal)
         : dealerCms
           ? await scrapeDealerCms(dealerCms, scope, execution)
           : cdgDealer
@@ -1476,7 +1476,128 @@ function titleParts(title: string) {
   };
 }
 
-async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
+const AE_DEFAULT_MAX_PAGES = 20;
+const AE_MAX_PAGE_CAP = 30;
+const AE_DEFAULT_PAGE_DELAY_MS = 1_000;
+const AE_DEFAULT_DETAIL_LIMIT = 48;
+const AE_MAX_DETAIL_LIMIT = 100;
+
+export function aeMaxPages(raw = process.env.AE_MAX_PAGES) {
+  const value = Number(raw || AE_DEFAULT_MAX_PAGES);
+  return Number.isSafeInteger(value) && value > 0
+    ? Math.min(value, AE_MAX_PAGE_CAP)
+    : AE_DEFAULT_MAX_PAGES;
+}
+
+export function aePageDelayMs(raw = process.env.AE_PAGE_DELAY_MS) {
+  const value = Number(raw || AE_DEFAULT_PAGE_DELAY_MS);
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(Math.max(value, 250), 5_000)
+    : AE_DEFAULT_PAGE_DELAY_MS;
+}
+
+export function aeDetailLimit(raw = process.env.AE_DETAIL_LIMIT) {
+  const value = Number(raw ?? AE_DEFAULT_DETAIL_LIMIT);
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(value, AE_MAX_DETAIL_LIMIT)
+    : AE_DEFAULT_DETAIL_LIMIT;
+}
+
+export function aeDetailWindow<T>(
+  rows: T[],
+  limit = aeDetailLimit(),
+  nowMs = Date.now(),
+) {
+  const size = Math.min(Math.max(0, limit), rows.length);
+  if (!size) return [];
+  const day = Math.floor(nowMs / 86_400_000);
+  const start = (day * size) % rows.length;
+  return Array.from(
+    { length: size },
+    (_, index) => rows[(start + index) % rows.length],
+  );
+}
+
+function aeApiFlag(value: unknown) {
+  if (value === true || value === 1) return true;
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase();
+  return normalized === "true" || normalized === "1" || normalized === "yes";
+}
+
+export function parseAeOfMiamiPage(
+  body: any,
+  checkedAt = new Date().toISOString(),
+) {
+  const rows = Array.isArray(body?.data) ? body.data : [];
+  const deals: Partial<Deal>[] = [];
+  for (const row of rows) {
+    if (aeApiFlag(row?.is_sold) || aeApiFlag(row?.is_on_hold)) continue;
+    const price = extractPrice(String(row?.price || ""));
+    const sourceId = row?.id || row?.stock_number || row?.slug;
+    if (!price || price < 100 || !sourceId) continue;
+    const location = row.location?.name || row.location?.slug || "";
+    const title = [row.name, row.body].filter(Boolean).join(" ");
+    const fallbackUrl = `https://aeofmiami.com/product/${row.slug || sourceId}`;
+    const sourceUrl =
+      row.url && urlHostMatches(String(row.url), ["aeofmiami.com"])
+        ? String(row.url)
+        : fallbackUrl;
+    deals.push({
+      source: "independent_dealer",
+      source_deal_id: `ae-of-miami-${sourceId}`,
+      source_url: sourceUrl,
+      title: title || [row.year, row.make, row.model].filter(Boolean).join(" "),
+      year: Number(row.year) || extractYear(row.name),
+      make: row.make || "",
+      model: row.model || "",
+      trim: row.trim || undefined,
+      ask_price: price,
+      mileage: mileageFromDealerText(row.mileage),
+      // The source API publishes this as the vehicle price. Preserve that
+      // provenance so it cannot be confused with a savings or payment amount.
+      options: {
+        sourceAdapterId: "ae-of-miami",
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: price,
+          listedAmount: price,
+          evidenceText: `Dealer API asking price: $${price.toLocaleString("en-US")}`,
+          checkedAt,
+        },
+      },
+      // A&E states title_status per vehicle; unstated remains unknown.
+      ...resolveListingCondition(
+        aeTitleStatusToCondition(row.title_status || row.condition),
+      ),
+      damage_type: row.damage_type || row.condition || undefined,
+      seller_type: "dealer",
+      seller: "A&E of Miami",
+      location_city: row.location?.city || undefined,
+      location_state: aeLocationToState(location),
+      images: [
+        row.main_image?.large,
+        row.main_image?.medium,
+        row.main_image?.small,
+      ].filter(Boolean),
+    });
+  }
+  const reportedLastPage = Number(body?.meta?.last_page || 1);
+  return {
+    deals,
+    rowCount: rows.length,
+    lastPage:
+      Number.isSafeInteger(reportedLastPage) && reportedLastPage > 0
+        ? reportedLastPage
+        : 1,
+  };
+}
+
+async function scrapeAeOfMiami(
+  scope = getScrapeRunScope(),
+  callerSignal?: AbortSignal,
+) {
   const category = String(scope?.q || scope?.vehicleType || "").toLowerCase();
   const params = new URLSearchParams();
   if (category.includes("suv")) params.append("category[]", "suv");
@@ -1488,67 +1609,53 @@ async function scrapeAeOfMiami(scope = getScrapeRunScope()) {
   if (scope?.maxPrice) params.set("price[max]", String(scope.maxPrice));
 
   const allDeals: Partial<Deal>[] = [];
-  for (let page = 1; page <= 5; page += 1) {
+  const seen = new Set<string>();
+  const maxPages = aeMaxPages();
+  for (let page = 1; page <= maxPages; page += 1) {
+    callerSignal?.throwIfAborted();
     params.set("page", String(page));
     const url = `https://aeofmiami.com/api/vehicle/listed?${params.toString()}`;
+    const timeout = AbortSignal.timeout(15_000);
     const res = await fetch(url, {
       headers: {
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "User-Agent": "MikeHuntPro/1.0 (+https://mikehunt-69.vercel.app)",
       },
+      signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout,
     });
     if (!res.ok) throw new Error(`AE of Miami API ${res.status}`);
     const body: any = await res.json();
-    const rows = Array.isArray(body.data) ? body.data : [];
-    for (const row of rows) {
-      const price = extractPrice(String(row.price || ""));
-      if (!price || price < 100) continue;
-      const location = row.location?.name || row.location?.slug || "";
-      const title = [row.name, row.body].filter(Boolean).join(" ");
-      allDeals.push({
-        source: "independent_dealer",
-        source_deal_id: `ae-of-miami-${row.id || row.stock_number || row.slug}`,
-        source_url: row.url || `https://aeofmiami.com/product/${row.slug}`,
-        title:
-          title || [row.year, row.make, row.model].filter(Boolean).join(" "),
-        year: Number(row.year) || extractYear(row.name),
-        make: row.make || "",
-        model: row.model || "",
-        trim: row.trim || undefined,
-        ask_price: price,
-        mileage: mileageFromDealerText(row.mileage),
-        // AE's API states title_status per car; nothing stated → unknown (no run_drive guess).
-        ...resolveListingCondition(
-          aeTitleStatusToCondition(row.title_status || row.condition),
-        ),
-        damage_type: row.condition || row.damage_type || undefined,
-        seller_type: "dealer",
-        location_city: row.location?.city || undefined,
-        location_state: aeLocationToState(location),
-        images: [
-          row.main_image?.large,
-          row.main_image?.medium,
-          row.main_image?.small,
-        ].filter(Boolean),
-      });
+    const parsed = parseAeOfMiamiPage(body);
+    for (const deal of parsed.deals) {
+      const id = String(deal.source_deal_id || "");
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      allDeals.push(deal);
     }
-    const lastPage = Number(body.meta?.last_page || 1);
-    if (!rows.length || page >= lastPage) break;
+    if (!parsed.rowCount || page >= parsed.lastPage) break;
+    await new Promise((resolve) => setTimeout(resolve, aePageDelayMs()));
   }
-  const targetedDealerRun = scope?.dealerSourceIds?.includes("ae-of-miami");
-  const enrichLimit = Number(
-    process.env.AE_DETAIL_LIMIT || (targetedDealerRun ? allDeals.length : 24),
-  );
-  const detailTargets = allDeals.slice(0, Math.max(0, enrichLimit));
+  const detailTargets = aeDetailWindow(allDeals);
   if (detailTargets.length) {
-    const limit = pLimit(Number(process.env.AE_DETAIL_CONCURRENCY || 4));
-    const enriched = await Promise.all(
-      detailTargets.map((deal) => limit(() => enrichAeOfMiamiDetail(deal))),
+    const configuredConcurrency = Number(
+      process.env.AE_DETAIL_CONCURRENCY || 4,
     );
-    for (let i = 0; i < enriched.length; i += 1) {
-      allDeals[i] = enriched[i];
+    const limit = pLimit(
+      Number.isSafeInteger(configuredConcurrency)
+        ? Math.min(Math.max(configuredConcurrency, 1), 4)
+        : 4,
+    );
+    const enriched = await Promise.all(
+      detailTargets.map((deal) =>
+        limit(() => enrichAeOfMiamiDetail(deal, callerSignal)),
+      ),
+    );
+    for (const deal of enriched) {
+      const index = allDeals.findIndex(
+        (candidate) => candidate.source_deal_id === deal.source_deal_id,
+      );
+      if (index >= 0) allDeals[index] = deal;
     }
   }
   const saved = allDeals.length ? await upsertDeals(allDeals) : 0;
@@ -1731,19 +1838,21 @@ export function imagesFromDetail($: any, baseUrl: string) {
   return Array.from(images).slice(0, 20);
 }
 
-async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
+async function enrichAeOfMiamiDetail(
+  deal: Partial<Deal>,
+  signal?: AbortSignal,
+) {
   const sourceUrl = deal.source_url;
-  if (!sourceUrl) return deal;
+  if (!sourceUrl || !isSameSiteHref(sourceUrl, "https://aeofmiami.com"))
+    return deal;
   try {
-    const res = await fetch(sourceUrl, {
-      headers: {
-        Accept: "text/html",
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-      },
+    const res = await politeFetch(sourceUrl, {
+      freshForMs: 24 * 3600_000,
+      timeoutMs: 15_000,
+      ...(signal ? { signal } : {}),
     });
     if (!res.ok) return deal;
-    const html = await res.text();
+    const html = res.body;
     const rawVin = extractAeOfMiamiVinFromHtml(html);
     let cheerio: typeof import("cheerio");
     try {
@@ -1778,7 +1887,8 @@ async function enrichAeOfMiamiDetail(deal: Partial<Deal>) {
       images: images.length ? images : deal.images,
       description: stripContactInfo(description) || deal.description,
     };
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error;
     return deal;
   }
 }
