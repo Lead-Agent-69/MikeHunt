@@ -7,6 +7,7 @@ import { getSweepPlan } from "./sweep-plan";
 import { getScrapeRunScope } from "./run-scope-context";
 import { writeCapacity } from "./write-capacity";
 import { maintainListingPhotos } from "./photo-maintenance";
+import { pendingDealerIntake } from "./pending-dealer-intake";
 import {
   mayTouchDeferredObservation,
   sameSourceObservation,
@@ -21,6 +22,8 @@ export interface CachedListing {
   /** Last time deals.last_seen_at was written for this row (insert, update, or touch). */
   dbSeenAt?: string;
   data?: Record<string, unknown>;
+  /** Recovery found this key already stored; only a fresh source run may update it. */
+  recoveryExisting?: boolean;
 }
 
 interface CacheFile {
@@ -467,10 +470,34 @@ export class LocalScraperCache {
     });
   }
 
+  /** Bounded insert-only recovery; callers must supply actual current buyer markets. */
+  async publishPendingDealers(
+    supabase: SupabaseClient,
+    states: readonly string[],
+  ) {
+    const capacity = writeCapacity(this.getQuota());
+    if (this.cacheOnly || capacity.insertsRemaining <= 0 || !states.length)
+      return 0;
+    const rows = pendingDealerIntake(
+      Object.values(this.state.entries),
+      states,
+      Math.min(25, capacity.insertsRemaining),
+    );
+    if (!rows.length) return 0;
+    const result = await this.persistRows(
+      rows,
+      supabase,
+      "source,source_deal_id",
+      { insertOnly: true },
+    );
+    return result.inserts;
+  }
+
   async persistRows(
     inputRows: Record<string, any>[],
     supabase: SupabaseClient,
     selectColumns: string,
+    options: { insertOnly?: boolean } = {},
   ): Promise<PersistResult> {
     return this.exclusive(async () => {
       this.rollDay();
@@ -494,6 +521,8 @@ export class LocalScraperCache {
         const key = `${row.source}|${row.source_deal_id}`;
         const entry = this.state.entries[key];
         const hash = listingHash(row);
+        // A concurrent fresh run may have synced this key since recovery planned it.
+        if (options.insertOnly && entry?.synced) return false;
         if (entry?.synced && entry.hash === hash) {
           entry.lastSeenAt = new Date().toISOString();
           if (touchIsDue(entry, this.touchIntervalMs)) toTouch.push(row);
@@ -619,6 +648,11 @@ export class LocalScraperCache {
         const prior = existing.get(key);
         const oldEntry = this.state.entries[key];
         const hash = listingHash(row);
+        // Buffered snapshots must never overwrite or renew an existing listing.
+        if (options.insertOnly && prior) {
+          this.state.entries[key].recoveryExisting = true;
+          continue;
+        }
         if (prior && matchesStoredRow(prior, row)) {
           const entry: CachedListing = {
             hash,
@@ -700,7 +734,8 @@ export class LocalScraperCache {
             batch.map(({ row }) => row),
             {
               onConflict: "source,source_deal_id",
-              ignoreDuplicates: false,
+              // Also protect against a concurrent insertion after classification.
+              ignoreDuplicates: options.insertOnly === true,
             },
           )
           .select(selectColumns);

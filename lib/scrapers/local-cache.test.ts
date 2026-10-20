@@ -154,6 +154,7 @@ function fakeSupabase(
   initial: Record<string, any>[] = [],
   hooks: {
     beforeTouch?: (rows: Map<string, Record<string, any>>) => void;
+    beforeUpsert?: (rows: Map<string, Record<string, any>>) => void;
     touchError?: string;
     count?: number | null;
   } = {},
@@ -165,12 +166,14 @@ function fakeSupabase(
   const touches: { source: string; ids: string[]; patch: any }[] = [];
   const reads: string[][] = [];
   const touchOptions: unknown[] = [];
+  const upsertOptions: unknown[] = [];
   return {
     rows,
     writes,
     touches,
     reads,
     touchOptions,
+    upsertOptions,
     client: {
       from: () => ({
         update: (patch: Record<string, any>, options?: { count?: string }) => {
@@ -239,21 +242,32 @@ function fakeSupabase(
             },
           };
         },
-        upsert: (batch: Record<string, any>[]) => ({
+        upsert: (
+          batch: Record<string, any>[],
+          options?: { ignoreDuplicates?: boolean },
+        ) => ({
           select: async () => {
             writes.push(batch);
-            const result = batch.map((row) => {
-              const persisted = {
-                ...rows.get(`${row.source}|${row.source_deal_id}`),
-                ...row,
-                id: row.id || `${row.source}-${row.source_deal_id}`,
-              };
-              rows.set(`${row.source}|${row.source_deal_id}`, persisted);
-              return {
-                ...persisted,
-                updated_at: row.updated_at || new Date().toISOString(),
-              };
-            });
+            upsertOptions.push(options);
+            hooks.beforeUpsert?.(rows);
+            const result = batch
+              .filter(
+                (row) =>
+                  !options?.ignoreDuplicates ||
+                  !rows.has(`${row.source}|${row.source_deal_id}`),
+              )
+              .map((row) => {
+                const persisted = {
+                  ...rows.get(`${row.source}|${row.source_deal_id}`),
+                  ...row,
+                  id: row.id || `${row.source}-${row.source_deal_id}`,
+                };
+                rows.set(`${row.source}|${row.source_deal_id}`, persisted);
+                return {
+                  ...persisted,
+                  updated_at: row.updated_at || new Date().toISOString(),
+                };
+              });
             return { data: result, error: null };
           },
         }),
@@ -275,6 +289,114 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  const pendingDealer = (id: string) => ({
+    ...row(id),
+    source: "independent_dealer",
+    source_url: `https://billsmithauto.com/vehicle/${id}`,
+    location_state: "IL",
+    images: ["https://billsmithauto.com/photos/car.jpg"],
+    last_seen_at: new Date(Date.now() - 3600_000).toISOString(),
+    updated_at: new Date(Date.now() - 3600_000).toISOString(),
+  });
+  it("recovers fresh cached dealers after restart without changing their observation time", async () => {
+    const { cache, dir } = await makeCache({ cacheOnly: true });
+    const db = fakeSupabase();
+    const snapshot = pendingDealer("recover");
+    await cache.persistRows([snapshot], db.client, "*");
+    const resumed = new LocalScraperCache({ path: dir });
+    await resumed.load();
+    expect(await resumed.publishPendingDealers(db.client, ["MO"])).toBe(0);
+    expect(await resumed.publishPendingDealers(db.client, ["IL"])).toBe(1);
+    expect(db.rows.get("independent_dealer|recover")?.last_seen_at).toBe(
+      snapshot.last_seen_at,
+    );
+    expect(db.upsertOptions).toContainEqual({
+      onConflict: "source,source_deal_id",
+      ignoreDuplicates: true,
+    });
+    expect(await resumed.publishPendingDealers(db.client, ["IL"])).toBe(0);
+  });
+  it("never overwrites, touches, or reactivates existing records during recovery", async () => {
+    const { cache } = await makeCache();
+    const old = pendingDealer("existing");
+    const current = {
+      ...old,
+      ask_price: 14000,
+      active: false,
+      updated_at: new Date().toISOString(),
+    };
+    const db = fakeSupabase([current]);
+    const result = await cache.persistRows([old], db.client, "*", {
+      insertOnly: true,
+    });
+    expect(result).toMatchObject({ inserts: 0, updates: 0, touches: 0 });
+    expect(db.writes).toHaveLength(0);
+    expect(db.rows.get("independent_dealer|existing")).toEqual(current);
+    expect(await cache.publishPendingDealers(db.client, ["IL"])).toBe(0);
+    expect(db.reads).toHaveLength(1);
+  });
+  it("does not renew a synced observation even when its touch interval has elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    const snapshot = pendingDealer("synced");
+    await cache.persistRows([snapshot], db.client, "*");
+    vi.setSystemTime(new Date("2026-10-20T13:00:00Z"));
+    const recovered = await cache.persistRows([snapshot], db.client, "*", {
+      insertOnly: true,
+    });
+    expect(recovered).toMatchObject({ saved: 0, touches: 0, updates: 0 });
+    expect(db.touches).toHaveLength(0);
+    expect(db.rows.get("independent_dealer|synced")?.last_seen_at).toBe(
+      snapshot.last_seen_at,
+    );
+  });
+
+  it("protects a newer row inserted between lookup and the recovery write", async () => {
+    const { cache } = await makeCache();
+    const old = pendingDealer("race");
+    const current = { ...old, ask_price: 15000, active: false };
+    const db = fakeSupabase([], {
+      beforeUpsert: (rows) => rows.set("independent_dealer|race", current),
+    });
+    const result = await cache.persistRows([old], db.client, "*", {
+      insertOnly: true,
+    });
+    expect(result.saved).toBe(0);
+    expect(cache.getQuota().inserts).toBe(0);
+    expect(db.rows.get("independent_dealer|race")).toEqual(current);
+  });
+  it("does no recovery database work at the intake limit or in cache-only mode", async () => {
+    const { cache } = await makeCache({ maxDailyInserts: 1 });
+    const db = fakeSupabase();
+    await cache.persistRows([pendingDealer("first")], db.client, "*");
+    await cache.persistRows([pendingDealer("queued")], db.client, "*");
+    const reads = db.reads.length;
+    expect(await cache.publishPendingDealers(db.client, ["IL"])).toBe(0);
+    expect(db.reads).toHaveLength(reads);
+    const { cache: offline } = await makeCache({ cacheOnly: true });
+    await offline.persistRows([pendingDealer("offline")], db.client, "*");
+    expect(await offline.publishPendingDealers(db.client, ["IL"])).toBe(0);
+    expect(db.reads).toHaveLength(reads);
+  });
+  it("keeps storage and paused-write protections during pending recovery", async () => {
+    for (const guards of [
+      { allowInsert: async () => false },
+      { beforeWrite: async () => false },
+    ]) {
+      const { cache, dir } = await makeCache({ cacheOnly: true });
+      const db = fakeSupabase();
+      await cache.persistRows([pendingDealer("guarded")], db.client, "*");
+      const resumed = new LocalScraperCache({ path: dir, ...guards });
+      await resumed.load();
+      expect(await resumed.publishPendingDealers(db.client, ["IL"])).toBe(0);
+      expect(db.writes).toHaveLength(0);
+      expect((await resumed.records("independent_dealer"))[0].cacheSynced).toBe(
+        false,
+      );
+    }
+  });
   const marketPlan = {
     states: ["MO", "IL"],
     demandStates: ["MO"],

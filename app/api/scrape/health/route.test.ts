@@ -520,6 +520,41 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.sources[0].enabled).toBe(false);
   });
 
+  it.each(["dealer-x2builders-com", "dealer-billsmithauto-com"])(
+    "preserves selected curated dealer %s instead of broadening its inventory proof",
+    async (id) => {
+      const { GET, scopedDealerUrlNeedles } = await import("./route");
+      const response = await GET(
+        req(
+          `/api/scrape/health?lane=private&sellerType=dealer&dealerSourceIds=${id}`,
+        ),
+      );
+      const body = await response.json();
+      expect(response.status).toBe(200);
+      expect(body.scope.dealerSourceIds).toEqual([id]);
+      expect(body.plan.scope.dealerSourceIds).toEqual([id]);
+      expect(scopedDealerUrlNeedles(body.scope)).toEqual(
+        DEALER_SOURCE_DOMAINS[id],
+      );
+      expect(
+        body.sources.some((source: any) =>
+          ["damage-com", "dg-auto", "ae-of-miami"].includes(source.id),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it("rejects an unknown explicit dealer rather than returning every dealer", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      req("/api/scrape/health?dealerSourceIds=not-a-real-dealer"),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: expect.stringContaining("Choose a dealer"),
+    });
+  });
+
   it("keeps every accepted dealer domain in all-dealers health queries", async () => {
     const { scopedDealerUrlNeedles } = await import("./route");
     const ids = Object.keys(DEALER_SOURCE_DOMAINS);
