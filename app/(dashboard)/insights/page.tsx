@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { ErrorState, LoadingState } from "@/components/shared/PageStates";
 import { ownerOutcomeFetcher as fetcher } from "@/lib/outcomes/fetcher";
 import useSWR, { mutate } from "swr";
 import Link from "next/link";
@@ -27,7 +28,7 @@ export default function InsightsPage() {
     data,
     error,
     isLoading,
-    mutate: reload,
+    mutate: mutateOut,
   } = useSWR(
     dealerId && !loading ? ["/api/outcomes", dealerId] : null,
     fetcher,
@@ -49,7 +50,8 @@ export default function InsightsPage() {
   const outcomes: LedgerRow[] = data?.outcomes ?? [];
   const complete = completeOutcomeRows(outcomes);
   const cal = calData?.calibration;
-  if (loading) return <p role="status">Checking your account...</p>;
+  if (loading)
+    return <LoadingState label="Checking your account..." variant="block" />;
   if (!dealerId)
     return (
       <Link
@@ -80,18 +82,15 @@ export default function InsightsPage() {
         </button>
       </header>
       {error ? (
-        <div role="alert" className="rounded-lg border border-[var(--b2)] p-4">
-          <p>{error.message}</p>
-          <button
-            type="button"
-            onClick={() => reload()}
-            className="mt-2 min-h-11 text-[var(--blue)] underline"
-          >
-            Retry your records
-          </button>
+        <div role="alert">
+          <ErrorState
+            title="Outcome history unavailable"
+            message={error.message}
+            onRetry={() => mutateOut()}
+          />
         </div>
       ) : isLoading ? (
-        <p role="status">Loading your outcome history...</p>
+        <LoadingState label="Loading your outcome history..." variant="block" />
       ) : (
         <>
           <section
@@ -159,7 +158,7 @@ export default function InsightsPage() {
               record={editing ?? undefined}
               onCancel={() => setEditing(undefined)}
               onReload={async () => {
-                const refreshed = await reload();
+                const refreshed = await mutateOut();
                 setEditing(
                   refreshed?.outcomes?.find(
                     (row: LedgerRow) => row.id === editing?.id,
@@ -173,7 +172,7 @@ export default function InsightsPage() {
                     ? "Sale saved with confirmed actual costs."
                     : "Record saved. Update the sale or remaining costs when ready.",
                 );
-                await reload();
+                await mutateOut();
                 mutate(["/api/calibration", dealerId]);
                 mutate(["/api/insights/source-roi", dealerId]);
               }}

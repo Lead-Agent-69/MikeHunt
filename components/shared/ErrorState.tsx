@@ -53,8 +53,9 @@ export function ErrorState({
 
       {onRetry && (
         <button
+          type="button"
           onClick={onRetry}
-          className="flex items-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
+          className="flex min-h-11 items-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
           style={{ background: "var(--grad)" }}
         >
           <Ico name="refresh" size={16} />
