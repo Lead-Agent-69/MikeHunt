@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { confirmOnboardingSave } from "@/lib/preferences/confirm-onboarding";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
+import { finishOnboardingNavigation } from "@/lib/auth/finish-onboarding-navigation";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
@@ -294,12 +295,11 @@ export default function OnboardingPage() {
       writeLocalBuyerIntent(intent);
       const requested = new URLSearchParams(window.location.search).get("next");
       const destination = safeNextPath(requested, previewHref);
-      router.push(
+      finishOnboardingNavigation(
         new URL(destination, window.location.origin).pathname === "/onboarding"
           ? previewHref
           : destination,
       );
-      router.refresh();
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Please try saving again.",

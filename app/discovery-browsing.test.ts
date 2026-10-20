@@ -21,8 +21,10 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).not.toContain("stateDraft");
     expect(page).toContain("Open Market Explorer");
     expect(page).toContain("Quick filters");
+    expect(page).toContain("Refine matches");
     expect(page).toContain("Search cars");
     expect(page).toContain("All market filters and results");
+    expect(page).toContain("All filters");
     expect(page).toContain('aria-label="Open Market Explorer"');
     expect(page).toContain("href={`/market${scopeQuery}`}");
     expect(page).toContain("selectedStates,");

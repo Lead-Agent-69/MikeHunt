@@ -6,12 +6,16 @@ const mocks = vi.hoisted(() => ({
   success: vi.fn(),
   error: vi.fn(),
   local: vi.fn(),
+  navigate: vi.fn(),
 }));
 vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 vi.mock("sonner", () => ({
   toast: { success: mocks.success, error: mocks.error },
 }));
 vi.mock("@/lib/supabase", () => ({ isSupabaseConfigured: () => true }));
+vi.mock("@/lib/auth/finish-onboarding-navigation", () => ({
+  finishOnboardingNavigation: mocks.navigate,
+}));
 vi.mock("@/hooks/useBuyerIntent", async (original) => ({
   ...(await original<object>()),
   writeLocalBuyerIntent: mocks.local,
@@ -100,7 +104,10 @@ describe("onboarding completion", () => {
       const scope = JSON.parse(preferenceWrite![1]!.body as string).buyerScope;
       expect(scope.legacyBuyerMode).toBe(buyerMode);
       expect(scope).not.toHaveProperty("role");
-      expect(mocks.router.push).toHaveBeenCalledOnce();
+      expect(mocks.navigate).toHaveBeenCalledOnce();
+      expect(mocks.router.replace).not.toHaveBeenCalled();
+      expect(mocks.router.push).not.toHaveBeenCalled();
+      expect(mocks.router.refresh).not.toHaveBeenCalled();
       expect(mocks.success).toHaveBeenCalledOnce();
     });
   }
@@ -111,7 +118,7 @@ describe("onboarding completion", () => {
     await click("See my matches");
     expect(writes).toEqual(["/api/preferences"]);
     expect(mocks.local).not.toHaveBeenCalled();
-    expect(mocks.router.push).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
     expect(mocks.error).toHaveBeenCalledWith(
       expect.stringContaining("session has expired"),
     );
@@ -122,10 +129,10 @@ describe("onboarding completion", () => {
     await review();
     await click("See my matches");
     expect(mocks.local).not.toHaveBeenCalled();
-    expect(mocks.router.push).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
     failProfile = false;
     await click("See my matches");
-    expect(mocks.router.push).toHaveBeenCalledOnce();
+    expect(mocks.navigate).toHaveBeenCalledOnce();
   });
   it("blocks failed hydration and lets users retry the read", async () => {
     failRead = true;

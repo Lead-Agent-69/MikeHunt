@@ -60,7 +60,7 @@ for (const desk of [
       await page.screenshot({
         path: info.outputPath(`${desk}-first-vehicle-price.png`),
       });
-      const quickFilters = page.getByRole("button", { name: /Quick filters/ });
+      const quickFilters = page.getByRole("button", { name: /Refine matches/ });
       if (await quickFilters.isVisible()) await quickFilters.click();
       await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
       await expect(
