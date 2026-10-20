@@ -1,5 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import {
+  completeOutcomeRows,
+  ledgerTotals,
+  OUTCOME_LEDGER_COLUMNS,
+} from "@/lib/outcomes/ledger";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
@@ -45,16 +50,20 @@ export async function GET(req: NextRequest) {
   try {
     const { data: outcomes } = await supabase
       .from("deal_outcomes")
-      .select("days_to_sell")
+      .select(OUTCOME_LEDGER_COLUMNS)
+      .eq("costs_complete", true)
       .eq("make", make)
       .ilike("model", `%${model.split(" ")[0]}%`)
       .not("days_to_sell", "is", null)
       .limit(200);
-    if (outcomes && outcomes.length >= 3) {
-      const days = outcomes
-        .map((o) => Number(o.days_to_sell))
-        .filter((n) => Number.isFinite(n));
-      avgDaysToSell = Math.round(days.reduce((s, x) => s + x, 0) / days.length);
+    if (outcomes) {
+      const days = completeOutcomeRows(outcomes).map(
+        (o) => ledgerTotals(o).daysToSell!,
+      );
+      if (days.length >= 3)
+        avgDaysToSell = Math.round(
+          days.reduce((s, x) => s + x, 0) / days.length,
+        );
     }
   } catch {
     // table may be empty — fine

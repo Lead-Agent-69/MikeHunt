@@ -1294,15 +1294,6 @@ export default function DealPage({
               year={serverDeal.year ?? store.year}
               make={serverDeal.make ?? store.make}
               model={serverDeal.model ?? store.model}
-              defaultPurchase={
-                serverDeal.recommendedMaxBid ??
-                serverDeal.askPrice ??
-                store.askPrice
-              }
-              predictedProfit={engineNetProfit}
-              predictedSell={serverDeal.sellEstimate}
-              predictedTransport={serverDeal.dealAnalysis?.costs?.transport}
-              predictedRecon={serverDeal.dealAnalysis?.costs?.repair}
             />
           )}
         </div>

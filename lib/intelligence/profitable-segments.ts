@@ -1,3 +1,7 @@
+import {
+  completeOutcomeRows,
+  OUTCOME_LEDGER_COLUMNS,
+} from "@/lib/outcomes/ledger";
 // Closes the learning loop: what the dealer ACTUALLY profits on (logged outcomes) feeds back into
 // what the autonomous pipeline prioritizes. Aggregates all outcomes into the set of makes that have
 // been profitable, so enrichment/scoring can favor those segments. Cached (30 min) — best-effort,
@@ -20,10 +24,12 @@ export async function loadProfitableMakes(): Promise<Set<string>> {
     const sb = createClient(url, key);
     const { data } = await sb
       .from("deal_outcomes")
-      .select("make, model, actual_profit")
+      .select(`${OUTCOME_LEDGER_COLUMNS},make,model`)
+      .eq("costs_complete", true)
       .not("actual_profit", "is", null)
+      .order("updated_at", { ascending: false })
       .limit(2000);
-    const patterns = extractWinPatterns(data || []);
+    const patterns = extractWinPatterns(completeOutcomeRows(data || []));
     const makes = new Set(
       patterns.filter((p) => p.avgProfit > 0).map((p) => p.make.toLowerCase()),
     );

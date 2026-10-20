@@ -6,6 +6,11 @@ import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 import { fetcher } from "@/lib/swr-config";
 import { useDealerId } from "@/hooks/useDealerId";
+import {
+  completeOutcomeRows,
+  ledgerTotals,
+  type LedgerRow,
+} from "@/lib/outcomes/ledger";
 import { InventoryItem } from "@/lib/data/inventory-service";
 
 const DAILY_FLOOR_RATE = 35;
@@ -19,43 +24,6 @@ interface StageMetrics {
   color: string;
 }
 
-function ProgressArc({
-  pct,
-  color,
-  size = 72,
-}: {
-  pct: number;
-  color: string;
-  size?: number;
-}) {
-  const r = (size - 10) / 2;
-  const circ = 2 * Math.PI * r;
-  const dash = circ * Math.min(1, pct);
-  return (
-    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke="var(--s3)"
-        strokeWidth={8}
-      />
-      <circle
-        cx={size / 2}
-        cy={size / 2}
-        r={r}
-        fill="none"
-        stroke={color}
-        strokeWidth={8}
-        strokeDasharray={`${dash} ${circ}`}
-        strokeLinecap="round"
-        style={{ transition: "stroke-dasharray 0.8s ease" }}
-      />
-    </svg>
-  );
-}
-
 export function CapitalVelocityTracker() {
   const { dealerId, loading: dealerLoading } = useDealerId();
 
@@ -67,13 +35,19 @@ export function CapitalVelocityTracker() {
     { refreshInterval: 60_000 },
   );
 
-  const { data: outData } = useSWR("/api/outcomes", fetcher, {
-    revalidateOnFocus: false,
-  });
+  const { data: outData, error: outError } = useSWR(
+    dealerId && !dealerLoading ? ["/api/outcomes", dealerId] : null,
+    ([url]: [string, string]) => fetcher(url),
+    {
+      revalidateOnFocus: false,
+    },
+  );
 
   const metrics = useMemo(() => {
     const inventory = (invData?.items || []) as InventoryItem[];
-    const outcomes: any[] = outData?.outcomes ?? [];
+    const outcomes = completeOutcomeRows(
+      (outData?.outcomes ?? []) as LedgerRow[],
+    );
     const now = Date.now();
 
     const active = inventory.filter(
@@ -91,37 +65,23 @@ export function CapitalVelocityTracker() {
         0,
         Math.floor((now - new Date(i.floorDate).getTime()) / 86_400_000),
       );
-      return s + days * (i.dailyFloorRate > 0 ? i.dailyFloorRate : DAILY_FLOOR_RATE);
+      return (
+        s + days * (i.dailyFloorRate > 0 ? i.dailyFloorRate : DAILY_FLOOR_RATE)
+      );
     }, 0);
 
-    const estProfit = active.reduce((s, i) => {
-      const mv = i.marketValue ?? i.listPrice ?? 0;
-      return mv > 0 ? s + mv - i.totalCost : s;
-    }, 0) - totalCarry;
-
-    const logsWithSell = outcomes.filter(
-      (o) => o.sell_price && o.purchase_price && o.days_to_sell,
-    );
-    const avgDaysToFlip =
-      logsWithSell.length > 0
-        ? Math.round(
-            logsWithSell.reduce((s, o) => s + o.days_to_sell, 0) /
-              logsWithSell.length,
-          )
-        : 28;
-
-    const avgNet =
-      logsWithSell.length > 0
-        ? logsWithSell.reduce((s, o) => s + (o.actual_profit ?? 0), 0) /
-          logsWithSell.length
-        : 0;
-
-    const flipsIn90 = avgDaysToFlip > 0 ? Math.floor(90 / avgDaysToFlip) : 3;
-    const startCapital = capitalDeployed > 0 ? capitalDeployed : 15000;
-    let compoundCapital = startCapital;
-    for (let i = 0; i < flipsIn90; i++) {
-      compoundCapital += Math.max(0, avgNet);
-    }
+    const avgDaysToFlip = outcomes.length
+      ? Math.round(
+          outcomes.reduce(
+            (sum, row) => sum + ledgerTotals(row).daysToSell!,
+            0,
+          ) / outcomes.length,
+        )
+      : null;
+    const avgNet = outcomes.length
+      ? outcomes.reduce((sum, row) => sum + ledgerTotals(row).profit!, 0) /
+        outcomes.length
+      : null;
 
     const STAGE_COLORS: Record<string, string> = {
       acquired: "var(--blue)",
@@ -174,26 +134,22 @@ export function CapitalVelocityTracker() {
     const winRate =
       outcomes.length > 0
         ? Math.round(
-            (outcomes.filter((o) => (o.actual_profit ?? 0) > 0).length /
+            (outcomes.filter((o) => ledgerTotals(o).profit! > 0).length /
               outcomes.length) *
               100,
           )
-        : 0;
+        : null;
 
     return {
       capitalDeployed,
       dailyBurn,
       totalCarry,
-      estProfit,
       avgDaysToFlip,
       avgNet,
-      flipsIn90,
-      compoundCapital,
-      startCapital,
       stageMetrics,
       staleCount: staleUnits.length,
       activeCount: active.length,
-      soldCount: inventory.filter((i) => i.stage === "sold").length,
+      completedCount: outcomes.length,
       winRate,
     };
   }, [invData, outData]);
@@ -213,7 +169,7 @@ export function CapitalVelocityTracker() {
 
   const burnPct =
     metrics.capitalDeployed > 0
-      ? Math.min(1, metrics.totalCarry / (metrics.capitalDeployed * 0.15))
+      ? Math.min(1, metrics.totalCarry / metrics.capitalDeployed)
       : 0;
 
   return (
@@ -231,11 +187,11 @@ export function CapitalVelocityTracker() {
       <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold">
-            Capital Velocity Engine
+            Capital and recorded results
           </p>
           <p className="text-xs text-[var(--t4)] mt-0.5">
             {metrics.activeCount} active units · $
-            {metrics.dailyBurn.toLocaleString()}/day burn
+            {metrics.dailyBurn.toLocaleString()}/day modeled carry
           </p>
         </div>
         <div className="flex items-center gap-1.5">
@@ -265,34 +221,42 @@ export function CapitalVelocityTracker() {
             color: "var(--blue)",
           },
           {
-            label: "Daily Burn Rate",
+            label: "Modeled Daily Carry",
             value: `$${metrics.dailyBurn.toLocaleString()}`,
-            sub: "floor + carry/day",
+            sub: "recorded rate or $35/day default",
             color: "var(--red)",
           },
           {
-            label: "Est. Net Position",
-            value: `${metrics.estProfit >= 0 ? "+" : ""}$${Math.abs(Math.round(metrics.estProfit / 1000)).toFixed(0)}k`,
-            sub: "if listed at MMR",
-            color: metrics.estProfit >= 0 ? "var(--green)" : "var(--red)",
+            label: "Modeled Carry to Date",
+            value: `$${Math.round(metrics.totalCarry).toLocaleString()}`,
+            sub: "estimate; review actual expenses",
+            color: "var(--amber)",
           },
           {
             label: "Avg Flip Time",
-            value: `${metrics.avgDaysToFlip}d`,
-            sub: "from your logged wins",
+            value:
+              metrics.avgDaysToFlip == null
+                ? "Unavailable"
+                : `${metrics.avgDaysToFlip}d`,
+            sub: "complete recorded sales",
             color: "var(--amber)",
           },
           {
             label: "Win Rate",
-            value: `${metrics.winRate}%`,
-            sub: `${metrics.soldCount} units logged`,
-            color: metrics.winRate >= 70 ? "var(--green)" : "var(--amber)",
+            value:
+              metrics.winRate == null ? "Unavailable" : `${metrics.winRate}%`,
+            sub: `${metrics.completedCount} complete records`,
+            color:
+              (metrics.winRate ?? 0) >= 70 ? "var(--green)" : "var(--amber)",
           },
           {
             label: "Avg Net / Deal",
-            value: `${metrics.avgNet >= 0 ? "+" : ""}$${Math.round(metrics.avgNet).toLocaleString()}`,
-            sub: "actual outcomes",
-            color: metrics.avgNet >= 0 ? "var(--green)" : "var(--red)",
+            value:
+              metrics.avgNet == null
+                ? "Unavailable"
+                : `${metrics.avgNet >= 0 ? "+" : "-"}$${Math.round(Math.abs(metrics.avgNet)).toLocaleString()}`,
+            sub: "owner-reported; before income tax",
+            color: (metrics.avgNet ?? 0) >= 0 ? "var(--green)" : "var(--red)",
           },
         ].map((kpi) => (
           <div
@@ -306,7 +270,10 @@ export function CapitalVelocityTracker() {
             >
               {kpi.label}
             </p>
-            <Mono className="text-xl font-black" style={{ color: kpi.color }}>
+            <Mono
+              className="text-lg font-black break-words"
+              style={{ color: kpi.color }}
+            >
               {kpi.value}
             </Mono>
             <p className="text-[10px]" style={{ color: "var(--t5)" }}>
@@ -320,7 +287,7 @@ export function CapitalVelocityTracker() {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-[10px]">
           <span className="font-bold text-[var(--t4)]">
-            Carry Cost Pressure
+            Modeled Carry / Capital
           </span>
           <span
             className="font-mono font-bold"
@@ -363,8 +330,11 @@ export function CapitalVelocityTracker() {
               key={s.stage}
               className="flex-1 min-w-[72px] rounded-xl p-2.5 text-center"
               style={{
-                background: s.count > 0 ? `${s.color}14` : "var(--s1)",
-                border: `1px solid ${s.count > 0 ? `${s.color}30` : "var(--b1)"}`,
+                background:
+                  s.count > 0
+                    ? `color-mix(in srgb, ${s.color} 8%, transparent)`
+                    : "var(--s1)",
+                border: `1px solid ${s.count > 0 ? `color-mix(in srgb, ${s.color} 20%, transparent)` : "var(--b1)"}`,
               }}
             >
               <Mono
@@ -389,52 +359,12 @@ export function CapitalVelocityTracker() {
         </div>
       </div>
 
-      {/* 90-Day Compounding Projection */}
-      {metrics.avgNet > 0 && (
-        <div
-          className="rounded-xl p-4 flex items-center justify-between gap-4"
-          style={{
-            background: "rgba(5,150,105,0.06)",
-            border: "1px solid rgba(5,150,105,0.2)",
-          }}
-        >
-          <div className="relative shrink-0">
-            <ProgressArc
-              pct={
-                metrics.startCapital > 0
-                  ? (metrics.compoundCapital - metrics.startCapital) /
-                    metrics.startCapital
-                  : 0
-              }
-              color="var(--green)"
-              size={72}
-            />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-[10px] font-black text-[var(--green)]">
-                {metrics.flipsIn90}x
-              </span>
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--t4)] font-bold mb-1">
-              90-Day Compound Projection
-            </p>
-            <div className="flex items-baseline gap-2">
-              <Mono className="text-2xl font-black text-[var(--green)]">
-                ${(metrics.compoundCapital / 1000).toFixed(0)}k
-              </Mono>
-              <span className="text-xs text-[var(--t4)]">
-                from ${(metrics.startCapital / 1000).toFixed(0)}k at{" "}
-                {metrics.flipsIn90} flips
-              </span>
-            </div>
-            <p className="text-[10px] text-[var(--t5)] mt-1">
-              Based on {metrics.avgDaysToFlip}d avg flip · $
-              {Math.round(metrics.avgNet).toLocaleString()} avg net
-            </p>
-          </div>
-        </div>
-      )}
+      <p className="text-xs text-[var(--t4)]">
+        {outError
+          ? "Outcome history could not be loaded. Review your records in Outcomes and learning. "
+          : "Historical results include reviewed costs and losses. Incomplete records do not count. "}
+        These owner-reported results do not forecast future returns.
+      </p>
     </motion.div>
   );
 }

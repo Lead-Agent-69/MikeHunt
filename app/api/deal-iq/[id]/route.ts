@@ -1,3 +1,7 @@
+import {
+  completeOutcomeRows,
+  OUTCOME_LEDGER_COLUMNS,
+} from "@/lib/outcomes/ledger";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -108,12 +112,18 @@ export async function GET(
     if (user?.id) {
       const { data: outcomes } = await supabase
         .from("deal_outcomes")
-        .select("make, model, actual_profit")
+        .select(`${OUTCOME_LEDGER_COLUMNS},make,model`)
         .eq("user_id", user.id)
+        .eq("costs_complete", true)
         .not("actual_profit", "is", null)
+        .order("updated_at", { ascending: false })
         .limit(200);
       if (outcomes && outcomes.length > 0) {
-        winMatch = matchWin(d.make, d.model, extractWinPatterns(outcomes));
+        winMatch = matchWin(
+          d.make,
+          d.model,
+          extractWinPatterns(completeOutcomeRows(outcomes)),
+        );
       }
       const cal = await getDealerCalibration(supabase, user.id);
       calibrationProfitBiasPct = cal?.profitBiasPct ?? null;

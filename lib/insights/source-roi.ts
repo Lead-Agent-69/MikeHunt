@@ -2,14 +2,12 @@
 // Given a dealer's logged outcomes (+ a deal_id→source map), bucket profit by acquisition source
 // and by exit channel. No AI, no I/O.
 
-export interface OutcomeRow {
-  deal_id?: string | null;
-  actual_profit?: number | string | null;
-  sell_price?: number | string | null;
-  purchase_price?: number | string | null;
-  days_to_sell?: number | string | null;
-  sold_where?: string | null;
-}
+import {
+  completeOutcomeRows,
+  ledgerTotals,
+  type LedgerRow,
+} from "@/lib/outcomes/ledger";
+export type OutcomeRow = LedgerRow;
 
 export interface RoiRow {
   key: string;
@@ -46,22 +44,9 @@ function summarize(map: Map<string, Bucket>): RoiRow[] {
     .sort((a, b) => b.avgProfit - a.avgProfit);
 }
 
-/** Profit for an outcome: logged actual_profit, else sell - purchase, else null (excluded). */
-export function outcomeProfit(r: OutcomeRow): number | null {
-  if (r.actual_profit != null && r.actual_profit !== "") {
-    const p = Number(r.actual_profit);
-    return Number.isFinite(p) ? p : null;
-  }
-  if (
-    r.sell_price != null &&
-    r.sell_price !== "" &&
-    r.purchase_price != null &&
-    r.purchase_price !== ""
-  ) {
-    const p = Number(r.sell_price) - Number(r.purchase_price);
-    return Number.isFinite(p) ? p : null;
-  }
-  return null;
+/** Never confuse a gross sale/purchase spread or unreviewed legacy number with net profit. */
+export function outcomeProfit(row: OutcomeRow): number | null {
+  return ledgerTotals(row).profit;
 }
 
 export function aggregateOutcomes(
@@ -71,7 +56,7 @@ export function aggregateOutcomes(
   const bySource = new Map<string, Bucket>();
   const byChannel = new Map<string, Bucket>();
 
-  for (const r of rows) {
+  for (const r of completeOutcomeRows(rows)) {
     const profit = outcomeProfit(r);
     if (profit == null) continue;
 
@@ -87,8 +72,9 @@ export function aggregateOutcomes(
       b.deals++;
       b.totalProfit += profit;
       if (profit > 0) b.wins++;
-      if (r.days_to_sell != null && r.days_to_sell !== "") {
-        b.daysSum += Number(r.days_to_sell);
+      const days = ledgerTotals(r).daysToSell;
+      if (days != null) {
+        b.daysSum += days;
         b.daysN++;
       }
     }

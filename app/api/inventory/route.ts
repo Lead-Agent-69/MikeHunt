@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
+import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
 import { internalError } from "@/lib/api/http-error";
 import { InventoryService } from "@/lib/data/inventory-service";
 import {
@@ -169,10 +170,7 @@ export async function POST(request: NextRequest) {
         make: make || null,
         model: model || null,
         location_state: purchasedState || null,
-        predicted_profit: predictedProfit ?? null,
-        predicted_sell: predictedSell ?? marketValue ?? null,
-        predicted_transport: predictedTransport ?? transportCost ?? null,
-        predicted_recon: predictedRecon ?? reconCost ?? null,
+        ...(await outcomePredictionSnapshot(supabase, dealId)),
         purchase_price: purchasePrice,
       });
     } catch (e) {
@@ -347,67 +345,42 @@ export async function PATCH(request: NextRequest) {
         { status: 409 },
       );
 
-    // On sale, complete (or create) the deal_outcomes row with the REAL costs the inventory tracked,
-    // so calibration learns from prediction-vs-actual. Best-effort; never blocks the stage change.
+    // Stage changes report a sale but never certify default inventory costs as actuals.
+    // Preserve reviewed records and protect concurrent edits with the outcome revision.
     if (isSale && soldPrice != null) {
       try {
-        const sell = Number(soldPrice);
-        const actualTransport = Number(row.transport_cost) || 0;
-        const actualRecon =
-          (Number(row.recon_cost) || 0) + (Number(row.repair_cost) || 0);
-        const actualFees =
-          (Number(row.auction_fee) || 0) +
-          (Number(row.title_fee) || 0) +
-          (Number(row.holding_cost) || 0) +
-          (Number(row.other_costs) || 0);
-        const purchase = Number(row.purchase_price) || 0;
-        const actualProfit = Math.round(
-          sell - purchase - actualTransport - actualRecon - actualFees,
-        );
-        const daysToSell = row.floor_date
-          ? Math.max(
-              0,
-              Math.round(
-                (Date.now() - new Date(row.floor_date).getTime()) / 86400000,
-              ),
-            )
-          : null;
-
         const completion = {
-          sell_price: sell,
-          actual_transport: actualTransport,
-          actual_recon: actualRecon,
-          actual_fees: actualFees,
-          actual_profit: actualProfit,
-          days_to_sell: daysToSell,
+          costs_complete: false,
+          sell_price: Number(soldPrice),
           sold_where: soldWhere ?? null,
           sold_at: new Date().toISOString(),
         };
-
-        // Complete the seeded outcome if it exists; otherwise create one (older inventory).
         const { data: existing } = await supabase
           .from("deal_outcomes")
-          .select("id")
+          .select("id,revision,sell_price")
           .eq("inventory_id", id)
           .eq("user_id", dealerId)
           .maybeSingle();
-
-        if (existing) {
+        if (existing && existing.sell_price == null) {
           await supabase
             .from("deal_outcomes")
             .update(completion)
-            .eq("id", existing.id);
-        } else {
+            .eq("id", existing.id)
+            .eq("user_id", dealerId)
+            .eq("revision", existing.revision)
+            .is("sell_price", null);
+        } else if (!existing) {
           await supabase.from("deal_outcomes").insert({
             user_id: dealerId,
             inventory_id: id,
+            deal_id: row.deal_id ?? null,
             vin: row.vin || null,
             year: row.year || null,
             make: row.make || null,
             model: row.model || null,
             location_state: row.purchased_state || null,
-            predicted_sell: row.market_value ?? null,
-            purchase_price: purchase,
+            purchase_price: Number(row.purchase_price) || null,
+            purchased_at: row.floor_date ?? null,
             ...completion,
           });
         }

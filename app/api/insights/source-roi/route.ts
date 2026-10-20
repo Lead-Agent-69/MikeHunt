@@ -1,4 +1,5 @@
-﻿export const dynamic = "force-dynamic";
+import { OUTCOME_LEDGER_COLUMNS } from "@/lib/outcomes/ledger";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
@@ -20,10 +21,11 @@ export async function GET() {
   const supabase = createServerComponentClient();
   const { data: outcomes } = await supabase
     .from("deal_outcomes")
-    .select(
-      "deal_id, actual_profit, sell_price, purchase_price, days_to_sell, sold_where",
-    )
-    .eq("user_id", user.id);
+    .select(`${OUTCOME_LEDGER_COLUMNS},sold_where`)
+    .eq("user_id", user.id)
+    .eq("costs_complete", true)
+    .order("updated_at", { ascending: false })
+    .limit(2000);
 
   const rows = outcomes ?? [];
   if (rows.length === 0)

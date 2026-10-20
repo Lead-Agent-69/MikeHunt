@@ -1,5 +1,10 @@
 export const dynamic = "force-dynamic";
 
+import {
+  completeOutcomeRows,
+  ledgerTotals,
+  OUTCOME_LEDGER_COLUMNS,
+} from "@/lib/outcomes/ledger";
 import { NextResponse } from "next/server";
 import {
   createServerComponentClient,
@@ -36,7 +41,8 @@ export async function GET() {
       .eq("active", true),
     supabase
       .from("deal_outcomes")
-      .select("days_to_sell")
+      .select(OUTCOME_LEDGER_COLUMNS)
+      .eq("costs_complete", true)
       .not("days_to_sell", "is", null)
       .limit(500),
     supabase
@@ -49,9 +55,9 @@ export async function GET() {
 
   // Avg days to sell (market-wide, anonymized; needs a few data points).
   let avgDaysToSell: number | null = null;
-  const days = (outcomes.data || [])
-    .map((o: any) => Number(o.days_to_sell))
-    .filter((n) => Number.isFinite(n));
+  const days = completeOutcomeRows(outcomes.data || []).map(
+    (o) => ledgerTotals(o).daysToSell!,
+  );
   if (days.length >= 3)
     avgDaysToSell = Math.round(days.reduce((s, x) => s + x, 0) / days.length);
 
