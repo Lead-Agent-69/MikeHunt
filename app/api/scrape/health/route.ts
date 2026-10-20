@@ -152,7 +152,9 @@ function normalizeDealerHosts(value: string | null) {
 }
 
 function normalizeDealerSourceIds(value: string | null) {
-  const known = new Set(INDEPENDENT_DEALERS.map((source) => source.id));
+  // The picker includes curated dealers beyond the older featured proof registry.
+  // Dropping those valid IDs silently broadens a one-dealer query to every dealer.
+  const known = new Set(Object.keys(DEALER_SOURCE_DOMAINS));
   return (value || "")
     .toLowerCase()
     .split(",")
@@ -1290,6 +1292,18 @@ export async function GET(request: NextRequest) {
         .filter(Boolean)
         .join(","),
     );
+    if (
+      searchParams.get("dealerSourceIds")?.trim() &&
+      !selectedSourceIds.length
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "That dealer selection is unavailable. Choose a dealer from the list and try again.",
+        },
+        { status: 400 },
+      );
+    }
     const scope: HealthScope = {
       lane,
       state: searchParams.get("state")?.toUpperCase() || undefined,
