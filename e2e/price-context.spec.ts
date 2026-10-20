@@ -146,7 +146,7 @@ test.describe("price panels in both themes", () => {
         .getByRole("spinbutton", { name: "Maximum amount ($)", exact: true })
         .boundingBox())!;
       const mileageBox = (await page
-        .getByRole("spinbutton", { name: "Maximum mileage", exact: true })
+        .getByRole("spinbutton", { name: "Mileage up to", exact: true })
         .boundingBox())!;
       expect(Math.abs(amountBox.y - mileageBox.y)).toBeLessThanOrEqual(1);
       expect(Math.round(amountBox.height * 100) / 100).toBeGreaterThanOrEqual(
@@ -172,12 +172,13 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
     test("chart selection works with touch, keyboard and real comparison links", async ({
       page,
     }, info) => {
+      const isPhone = ["mobile-320", "mobile-390"].includes(info.project.name);
       const fixture = await open(page, "advertised");
       const chart = page.getByRole("group", {
         name: "Advertised amounts by mileage",
       });
       const dots = chart.getByRole("button", { name: /^Inspect / });
-      if (info.project.name === "mobile-390") await dots.nth(2).tap();
+      if (isPhone) await dots.nth(2).tap();
       else await dots.nth(2).click();
       await expect(
         page.getByRole("combobox", { name: "Selected vehicle" }),
@@ -226,53 +227,40 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
       await expect(
         page.getByRole("heading", { name: "Compare Vehicles", exact: true }),
       ).toBeVisible();
-      await expect(page.getByRole("table").first()).toBeVisible();
       await expect(
         page.getByRole("link", { name: "Back to vehicle", exact: true }),
       ).toHaveAttribute("href", `/deal/${fixture.dealId}`);
       await expect(
         page.getByRole("link", { name: "Back to Saved", exact: true }),
       ).toHaveCount(0);
-      if (info.project.name === "mobile-390") {
+      if (isPhone) {
         const region = page.getByRole("region", {
           name: "Selected vehicle comparison",
           exact: true,
         });
-        const selector = page.getByRole("combobox", {
-          name: "Comparison vehicle",
-          exact: true,
-        });
-        await expect(selector).toBeVisible();
-        const feature = region.locator('tbody th[scope="row"]').first();
-        const featureX = (await feature.boundingBox())!.x;
-        const next = page.getByRole("button", {
-          name: "Next vehicle",
-          exact: true,
-        });
-        // Browser transforms can report 43.99997px for a 44px CSS target.
-        expect(
-          Math.round((await next.boundingBox())!.height * 100) / 100,
-        ).toBeGreaterThanOrEqual(44);
-        await next.tap();
-        await expect(selector).toHaveValue(fixture.comparisonIds[0]);
-        await expect
-          .poll(() => region.evaluate((element) => element.scrollLeft))
-          .toBeGreaterThan(0);
-        expect(
-          Math.abs((await feature.boundingBox())!.x - featureX),
-        ).toBeLessThanOrEqual(2);
-        const second = (await region
-          .locator('thead th[scope="col"]')
-          .nth(1)
-          .boundingBox())!;
+        await expect(region).toBeVisible();
+        const columns = region.locator('[data-comparison-column="mobile"]');
+        await expect(columns).toHaveCount(2);
+        await expect(columns.nth(0)).toBeVisible();
+        await expect(columns.nth(1)).toBeVisible();
+        const second = (await columns.nth(1).boundingBox())!;
         const bounds = (await region.boundingBox())!;
         expect(second.x + second.width).toBeLessThanOrEqual(
           bounds.x + bounds.width + 2,
         );
-        await page
-          .getByRole("button", { name: "Previous vehicle", exact: true })
-          .tap();
-        await expect(selector).toHaveValue(fixture.dealId);
+        expect(
+          await region.evaluate(
+            (element) => element.scrollWidth <= element.clientWidth + 1,
+          ),
+        ).toBe(true);
+        await expect(
+          page.getByRole("combobox", {
+            name: "Comparison vehicle",
+            exact: true,
+          }),
+        ).toHaveCount(0);
+      } else {
+        await expect(page.getByRole("table").first()).toBeVisible();
       }
       expect(
         await page.evaluate(
@@ -291,7 +279,7 @@ for (const desk of ["personal", "reseller", "dealer", "parts"] as Desk[]) {
     }) => {
       const fixture = await open(page, "cash");
       const miles = page.getByRole("spinbutton", {
-        name: "Maximum mileage",
+        name: "Mileage up to",
         exact: true,
       });
       const amount = page.getByRole("spinbutton", {

@@ -33,17 +33,32 @@ test.describe("recorded user walkthrough acceptance", () => {
     await expect(
       views.getByRole("link", { name: "Map", exact: true }),
     ).toBeVisible();
+    const quickFilters = page.getByRole("button", { name: /Quick filters/ });
+    if (await quickFilters.isVisible()) await quickFilters.click();
     await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Price up to", { exact: true })).toBeVisible();
     await page.goto(
       "/scan?scope=explicit&state=all&zip=63101&radius=50&q=WalkthroughRadius",
     );
-    await expect(page.getByLabel("ZIP", { exact: true })).toHaveValue("63101");
-    await expect(page.getByLabel("Radius", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Max Miles", { exact: true })).toBeVisible();
-    await expect(page.getByLabel("Model", { exact: true })).toBeVisible();
     await expect(
-      page.locator("summary").filter({ hasText: /^Source:/ }),
+      page.getByRole("button", {
+        name: "Search area: Within 50 mi of 63101",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(page.getByLabel("Quick make", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Quick model", { exact: true })).toBeVisible();
+    await expect(
+      page.getByLabel("Quick price up to ($)", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Quick mileage up to", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByLabel("Quick source or dealer", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "All filters", exact: true }),
     ).toBeVisible();
     await expectHealthy(page, health);
     await page.screenshot({
@@ -142,7 +157,7 @@ test.describe("recorded user walkthrough acceptance", () => {
       await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(
         0,
       );
-      await page.getByLabel("Maximum price ($)", { exact: true }).fill("20000");
+      await page.getByLabel("Budget up to ($)", { exact: true }).fill("20000");
       await page
         .getByRole("button", { name: "Save buying preferences", exact: true })
         .click();
@@ -153,7 +168,7 @@ test.describe("recorded user walkthrough acceptance", () => {
       ).toBeVisible();
       await page.reload();
       await expect(
-        page.getByLabel("Maximum price ($)", { exact: true }),
+        page.getByLabel("Budget up to ($)", { exact: true }),
       ).toHaveValue("20000");
       const prefs = await (await page.request.get("/api/preferences")).json();
       expect(prefs.prefs.buyerScope.buyerMode).toBe("reseller");

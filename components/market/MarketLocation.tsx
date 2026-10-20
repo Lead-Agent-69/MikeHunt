@@ -128,7 +128,7 @@ export function MarketLocation({
   return (
     <section
       aria-label="Vehicle search and area"
-      className={`grid min-w-0 gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-2 lg:p-3 ${search ? "lg:grid-cols-[minmax(0,1fr)_minmax(14rem,24rem)]" : ""}`}
+      className={`grid min-w-0 gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-2 lg:p-3 ${search ? "md:grid-cols-[minmax(0,1fr)_minmax(14rem,24rem)]" : ""}`}
     >
       {search && (
         <div className="relative min-w-0">

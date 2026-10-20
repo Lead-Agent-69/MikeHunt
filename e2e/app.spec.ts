@@ -177,7 +177,6 @@ test.describe("signed-in app, personal desk (local only)", () => {
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await expect(page.getByText("Home location").first()).toBeVisible();
     await expect(page.getByLabel("Buyer mode", { exact: true })).toHaveCount(0);
-    await page.getByRole("tab", { name: "Buying", exact: true }).click();
     await expect(
       page.getByRole("button", {
         name: "Save buying preferences",
@@ -221,8 +220,8 @@ test.describe("signed-in app, reseller desk (local only)", () => {
     await page.getByLabel("Model", { exact: true }).fill("Civic");
     await page.getByLabel("Year from").fill("2016");
     await page.getByLabel("Year to").fill("2022");
-    await page.getByLabel("Max price").fill("30000");
-    await page.getByLabel("ZIP").fill("60601");
+    await page.getByLabel("Price up to", { exact: true }).fill("30000");
+    await page.getByLabel("Search ZIP code", { exact: true }).fill("60601");
     const links = page.getByTestId("also-search-on-links").locator("a");
     await expect(links.first()).toBeVisible();
     const n = await links.count();

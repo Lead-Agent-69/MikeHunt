@@ -57,7 +57,7 @@ test.describe("Market search preview and radius", () => {
       "Year from 2018",
       "Year to 2022",
       "Full price up to $25,000",
-      "75 mi radius",
+      "Within 75 mi",
     ])
       await expect(chips.getByText(text, { exact: true })).toBeVisible();
     expect(

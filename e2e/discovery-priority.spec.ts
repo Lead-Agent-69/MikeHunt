@@ -63,7 +63,9 @@ for (const desk of [
       const quickFilters = page.getByRole("button", { name: /Quick filters/ });
       if (await quickFilters.isVisible()) await quickFilters.click();
       await expect(page.getByLabel("Make", { exact: true })).toBeVisible();
-      await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
+      await expect(
+        page.getByLabel("Price up to", { exact: true }),
+      ).toBeVisible();
       await expect(page.getByLabel("Lane", { exact: true })).toBeVisible();
       await expect(
         page.getByRole("button", { name: "Search cars", exact: true }),

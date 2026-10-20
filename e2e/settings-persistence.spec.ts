@@ -14,37 +14,32 @@ for (const desk of [
     localOnly();
     test.use({ storageState: storagePath(desk), serviceWorkers: "block" });
 
-    test("secondary marketplaces open on demand without replacing inventory", async ({
+    test("source and dealer filters open on demand without replacing inventory", async ({
       page,
     }, info) => {
       const health = watchHealth(page);
-      await page.goto("/scan");
-      await expect(
-        page.getByRole("button", {
-          name: "Search inventory",
-          exact: true,
-        }),
-      ).toBeEnabled();
-      const disclosure = page.locator("#wider-market-search > details");
-      await expect(disclosure).toHaveJSProperty("open", false);
+      await page.goto("/market");
       const vehicle = page.locator('main a[href^="/deal/"]').first();
       await expect(vehicle).toBeVisible();
       const href = await vehicle.getAttribute("href");
       await page.screenshot({
         path: info.outputPath(`${desk}-inventory-priority.png`),
       });
-      await page
-        .getByRole("link", { name: "More marketplaces", exact: true })
-        .click();
-      await expect(disclosure).toHaveJSProperty("open", true);
+      await page.getByRole("button", { name: "All filters" }).click();
+      const panel = page.locator("#market-filter-panel");
+      await expect(panel).toBeVisible();
+      const exactFilters = panel.getByTestId("exact-market-filters");
+      await exactFilters.locator(":scope > summary").click();
+      await panel.getByText(/^Sources & dealers \(/).click();
       await expect(
-        disclosure
-          .getByRole("link", { name: /^Search .*opens in a new tab/ })
-          .first(),
+        panel.getByPlaceholder("Dealer name or website"),
       ).toBeVisible();
+      await page
+        .getByRole("button", { name: /^Show .* listings$/ })
+        .last()
+        .click();
+      await expect(panel).toBeHidden();
       await expect(vehicle).toHaveAttribute("href", href!);
-      await disclosure.locator(":scope > summary").click();
-      await expect(disclosure).toHaveJSProperty("open", false);
       await expectHealthy(page, health);
     });
 
