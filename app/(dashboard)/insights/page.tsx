@@ -43,6 +43,8 @@ export default function InsightsPage() {
     undefined,
   );
   const [message, setMessage] = React.useState("");
+  const currentOwner = React.useRef(dealerId);
+  currentOwner.current = dealerId;
   React.useEffect(() => {
     setEditing(undefined);
     setMessage("");
@@ -81,6 +83,40 @@ export default function InsightsPage() {
           Record a purchase or sale
         </button>
       </header>
+      {editing !== undefined && (
+        <OutcomeEditor
+          key={`${dealerId}:${editing?.id ?? "new"}:${editing?.revision ?? 0}`}
+          ownerId={dealerId}
+          record={editing ?? undefined}
+          onCancel={() => setEditing(undefined)}
+          onReload={async (recordId) => {
+            const refreshed = await mutateOut();
+            if (currentOwner.current !== dealerId) return;
+            const saved = refreshed?.outcomes?.find(
+              (row: LedgerRow) => row.id === recordId,
+            );
+            if (!saved) throw new Error("Saved record unavailable");
+            setEditing(saved);
+          }}
+          onSaved={async (saved) => {
+            if (currentOwner.current !== dealerId) return;
+            setEditing(undefined);
+            setMessage(
+              ledgerTotals(saved).complete
+                ? "Sale saved with confirmed actual costs."
+                : "Record saved. Update the sale or remaining costs when ready.",
+            );
+            await mutateOut().catch(() => undefined);
+            mutate(["/api/calibration", dealerId]);
+            mutate(["/api/insights/source-roi", dealerId]);
+          }}
+        />
+      )}
+      {message && (
+        <p role="status" className="text-sm text-[var(--t3)]">
+          {message}
+        </p>
+      )}
       {error ? (
         <div role="alert">
           <ErrorState
@@ -151,38 +187,6 @@ export default function InsightsPage() {
               </p>
             )}
           </section>
-          {editing !== undefined && (
-            <OutcomeEditor
-              key={`${dealerId}:${editing?.id ?? "new"}:${editing?.revision ?? 0}`}
-              ownerId={dealerId}
-              record={editing ?? undefined}
-              onCancel={() => setEditing(undefined)}
-              onReload={async () => {
-                const refreshed = await mutateOut();
-                setEditing(
-                  refreshed?.outcomes?.find(
-                    (row: LedgerRow) => row.id === editing?.id,
-                  ),
-                );
-              }}
-              onSaved={async (saved) => {
-                setEditing(undefined);
-                setMessage(
-                  ledgerTotals(saved).complete
-                    ? "Sale saved with confirmed actual costs."
-                    : "Record saved. Update the sale or remaining costs when ready.",
-                );
-                await mutateOut();
-                mutate(["/api/calibration", dealerId]);
-                mutate(["/api/insights/source-roi", dealerId]);
-              }}
-            />
-          )}
-          {message && (
-            <p role="status" className="text-sm text-[var(--t3)]">
-              {message}
-            </p>
-          )}
           <SourceROI />
           <section aria-label="Your outcome records" className="space-y-3">
             <h2 className="font-bold">Latest records</h2>

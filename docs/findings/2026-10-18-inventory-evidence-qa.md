@@ -54,7 +54,7 @@ This patch is not a bulk historical photo audit. Non-Market SQL photo filters re
 on recorded audit metadata for previously unknown placeholders. Production checks
 must remain read-only unless separately authorized.
 
-#445 remains blocked on an authorized primary Postgres backup credential and
-independent recovery-key custody. No production backup or restore has been proven;
-retention cleanup must remain paused. #453 tracks the unpatched development-only
+Status update, 2026-10-20: #445 now has a verified production export, encrypted
+off-device upload and isolated restore proof. Independent recovery-key custody
+remains open; retention cleanup must remain paused. See `docs/production-recovery.md`. #453 tracks the unpatched development-only
 dependency advisory separately; no broad dependency upgrade is bundled here.

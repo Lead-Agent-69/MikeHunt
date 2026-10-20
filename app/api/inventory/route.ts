@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
+import { actualAmount } from "@/lib/outcomes/ledger";
 import { internalError } from "@/lib/api/http-error";
 import { InventoryService } from "@/lib/data/inventory-service";
 import {
@@ -23,7 +24,6 @@ export async function GET(request: NextRequest) {
 
   try {
     // Derive dealerId from authenticated session (server-side source of truth)
-    const supabase = createServerComponentClient();
     const {
       data: { user },
       error: authError,
@@ -107,12 +107,8 @@ export async function POST(request: NextRequest) {
       notes,
       photos = [],
       listedPlatforms = [],
-      // Loop-closing inputs: the source deal + the engine's prediction at purchase time.
+      // The source listing identifies a server-captured prediction snapshot.
       dealId,
-      predictedProfit,
-      predictedSell,
-      predictedTransport,
-      predictedRecon,
     } = body || {};
 
     const payload = {
@@ -172,6 +168,7 @@ export async function POST(request: NextRequest) {
         location_state: purchasedState || null,
         ...(await outcomePredictionSnapshot(supabase, dealId)),
         purchase_price: purchasePrice,
+        purchased_at: data.floor_date ?? null,
       });
     } catch (e) {
       console.warn("[inventory] outcome seed failed (non-fatal):", e);
@@ -237,9 +234,7 @@ export async function PATCH(request: NextRequest) {
       );
     if (
       stage === "sold" &&
-      (typeof soldPrice !== "number" ||
-        !Number.isFinite(soldPrice) ||
-        soldPrice < 0)
+      (typeof soldPrice !== "number" || actualAmount(soldPrice) == null)
     )
       return NextResponse.json(
         { error: "Actual non-negative sale price required" },
@@ -345,6 +340,7 @@ export async function PATCH(request: NextRequest) {
         { status: 409 },
       );
 
+    let outcomeSynced = false;
     // Stage changes report a sale but never certify default inventory costs as actuals.
     // Preserve reviewed records and protect concurrent edits with the outcome revision.
     if (isSale && soldPrice != null) {
@@ -355,34 +351,47 @@ export async function PATCH(request: NextRequest) {
           sold_where: soldWhere ?? null,
           sold_at: new Date().toISOString(),
         };
-        const { data: existing } = await supabase
+        const { data: existing, error: readError } = await supabase
           .from("deal_outcomes")
           .select("id,revision,sell_price")
           .eq("inventory_id", id)
           .eq("user_id", dealerId)
           .maybeSingle();
+        if (readError) throw readError;
         if (existing && existing.sell_price == null) {
-          await supabase
+          const result = await supabase
             .from("deal_outcomes")
             .update(completion)
             .eq("id", existing.id)
             .eq("user_id", dealerId)
             .eq("revision", existing.revision)
-            .is("sell_price", null);
+            .is("sell_price", null)
+            .select("id")
+            .maybeSingle();
+          if (result.error || !result.data)
+            throw new Error("Outcome update unconfirmed");
+          outcomeSynced = true;
         } else if (!existing) {
-          await supabase.from("deal_outcomes").insert({
-            user_id: dealerId,
-            inventory_id: id,
-            deal_id: row.deal_id ?? null,
-            vin: row.vin || null,
-            year: row.year || null,
-            make: row.make || null,
-            model: row.model || null,
-            location_state: row.purchased_state || null,
-            purchase_price: Number(row.purchase_price) || null,
-            purchased_at: row.floor_date ?? null,
-            ...completion,
-          });
+          const result = await supabase
+            .from("deal_outcomes")
+            .insert({
+              user_id: dealerId,
+              inventory_id: id,
+              deal_id: row.deal_id ?? null,
+              vin: row.vin || null,
+              year: row.year || null,
+              make: row.make || null,
+              model: row.model || null,
+              location_state: row.purchased_state || null,
+              purchase_price: Number(row.purchase_price) || null,
+              purchased_at: row.floor_date ?? null,
+              ...completion,
+            })
+            .select("id")
+            .single();
+          if (result.error || !result.data)
+            throw new Error("Outcome creation unconfirmed");
+          outcomeSynced = true;
         }
       } catch (e) {
         console.warn("[inventory] outcome completion failed (non-fatal):", e);
@@ -394,7 +403,19 @@ export async function PATCH(request: NextRequest) {
       ? inventoryService["mapDbToItem"](data)
       : data;
 
-    return NextResponse.json({ item });
+    return NextResponse.json({
+      item,
+      ...(isSale
+        ? {
+            outcomeReview: {
+              synced: outcomeSynced,
+              message: outcomeSynced
+                ? "Sale saved. Review the purchase date and all actual costs in Outcomes and learning."
+                : "Sale saved in Pipeline. Its outcome record needs review because the sale could not be copied or a previous sale is already recorded. Open Outcomes and learning before relying on net results.",
+            },
+          }
+        : {}),
+    });
   } catch (error) {
     console.error("Error updating inventory:", error);
     return NextResponse.json(

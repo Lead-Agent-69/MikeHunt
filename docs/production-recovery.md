@@ -2,17 +2,11 @@
 
 ## Current Status
 
-As of 2026-10-18, the protected retention migration is installed and its cleanup job
-is inactive. The synthetic local PostgreSQL archive/restore test passes. **A production
-backup has not been exported or restored.** Do not describe a local rehearsal, an empty
-backup folder, a listing cache or a Git checkout as a production recovery proof.
+As of 2026-10-20, the 2026-10-19 production database export, encrypted off-device upload and isolated restore proof are complete. The private operator receipt confirms ciphertext reassembly, recovered-key decryption, archive-hash agreement and restored-database verification. Remote files are size-matched and stream-retrievable; the connector does not expose provider checksums.
 
-An owner-only Google Drive backup folder has been verified and the owner approved
-uploading encrypted production database records there. Destination metadata and approval
-belong in private operator receipts, not this repository. The remaining export prerequisite
-is the existing primary database credential, supplied through a protected local secret
-location. Do not reset credentials, paste them into chat or substitute another project's
-connection. A Supabase service-role API key is not a PostgreSQL password.
+**Device-loss recovery is still incomplete:** the recovery identity currently exists in Windows Credential Manager and needs independent, owner-controlled off-device secret custody. Keep retention cleanup inactive until that gate is satisfied. Do not commit the identity, dump, account metadata or private backup destination to this repository. Issue #445 tracks this remaining gate.
+
+The procedures below remain the runbook for future exports. Use the verified primary project and an authorized protected credential; do not reset credentials or substitute a different project. A Supabase service-role API key is not a PostgreSQL password.
 
 ## Export And Preserve
 

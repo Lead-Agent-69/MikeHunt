@@ -9,37 +9,13 @@ import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
 import {
-  LEDGER_MONEY_FIELDS,
+  sameOutcomeActuals,
   publicOutcome,
   uuid,
   validateOutcome,
   type LedgerRow,
 } from "@/lib/outcomes/ledger";
 
-function sameActuals(saved: LedgerRow, input: LedgerRow) {
-  return [
-    ...LEDGER_MONEY_FIELDS,
-    "purchased_at",
-    "sold_at",
-    "costs_complete",
-    "sold_where",
-    "notes",
-    "make",
-    "model",
-    "year",
-  ].every((key) => {
-    const a = saved[key as keyof LedgerRow],
-      b = input[key as keyof LedgerRow];
-    if (key === "purchased_at" || key === "sold_at")
-      return (
-        (!a && !b) ||
-        (typeof a === "string" &&
-          typeof b === "string" &&
-          Date.parse(a) === Date.parse(b))
-      );
-    return (a == null && b == null) || String(a) === String(b);
-  });
-}
 async function write(req: NextRequest, updating: boolean) {
   const {
     data: { user },
@@ -92,6 +68,9 @@ async function write(req: NextRequest, updating: boolean) {
   for (const key of ["deal_id", "inventory_id"] as const)
     if (body[key] != null && !uuid(body[key]))
       return NextResponse.json({ error: `Invalid ${key}.` }, { status: 400 });
+  body.id = (body.id as string).toLowerCase();
+  for (const key of ["deal_id", "inventory_id"] as const)
+    if (typeof body[key] === "string") body[key] = body[key].toLowerCase();
   const validated = validateOutcome(body);
   if (!validated.valid)
     return NextResponse.json(
@@ -130,7 +109,7 @@ async function write(req: NextRequest, updating: boolean) {
     if (existing!.revision !== body.revision) {
       if (
         existing!.revision === Number(body.revision) + 1 &&
-        sameActuals(existing!, payload)
+        sameOutcomeActuals(existing!, payload)
       )
         return NextResponse.json({
           success: true,
@@ -227,7 +206,7 @@ async function write(req: NextRequest, updating: boolean) {
         prior.data &&
         prior.data.deal_id === (body.deal_id ?? null) &&
         prior.data.inventory_id === (body.inventory_id ?? null) &&
-        sameActuals(prior.data, { ...payload, ...snapshot })
+        sameOutcomeActuals(prior.data, { ...payload, ...snapshot })
       )
         return NextResponse.json({
           success: true,

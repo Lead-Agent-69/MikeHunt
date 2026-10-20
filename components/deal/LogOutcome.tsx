@@ -26,6 +26,8 @@ export function LogOutcome(props: Props) {
   });
   const [open, setOpen] = React.useState(false);
   const [message, setMessage] = React.useState("");
+  const currentOwner = React.useRef(dealerId);
+  currentOwner.current = dealerId;
   React.useEffect(() => {
     setOpen(false);
     setMessage("");
@@ -42,7 +44,7 @@ export function LogOutcome(props: Props) {
         Complete cost records can support personal learning when enough matched
         predictions exist.
       </p>
-      {error ? (
+      {error && !open ? (
         <div role="alert" className="mt-3 text-sm">
           <p>{error.message}</p>
           <button
@@ -53,7 +55,7 @@ export function LogOutcome(props: Props) {
             Retry outcome records
           </button>
         </div>
-      ) : isLoading || accountLoading ? (
+      ) : (isLoading && !open) || accountLoading ? (
         <p role="status" className="mt-3 text-sm">
           Loading your records...
         </p>
@@ -72,15 +74,25 @@ export function LogOutcome(props: Props) {
             ownerId={dealerId!}
             record={record}
             onCancel={() => setOpen(false)}
-            onReload={() => reload()}
+            onReload={async (recordId) => {
+              const refreshed = await reload();
+              if (currentOwner.current !== dealerId) return;
+              if (
+                !refreshed?.outcomes?.some(
+                  (row: LedgerRow) => row.id === recordId,
+                )
+              )
+                throw new Error("Saved record unavailable");
+            }}
             onSaved={async (saved) => {
+              if (currentOwner.current !== dealerId) return;
               setOpen(false);
               setMessage(
                 ledgerTotals(saved).complete
                   ? "Sale saved with confirmed actual costs."
                   : "Record saved. Complete the sale and cost review when ready.",
               );
-              await reload();
+              await reload().catch(() => undefined);
               mutate(["/api/outcomes", dealerId]);
               mutate(["/api/calibration", dealerId]);
               mutate(["/api/insights/source-roi", dealerId]);

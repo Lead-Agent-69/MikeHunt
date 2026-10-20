@@ -10,6 +10,15 @@ const state = vi.hoisted(() => ({
   } as Record<string, unknown>,
   updated: { id: "unit", stage: "recon" } as Record<string, unknown> | null,
   payload: {} as Record<string, unknown>,
+  outcomePayload: {} as Record<string, unknown>,
+  outcomeRead: { data: null, error: null } as {
+    data: Record<string, unknown> | null;
+    error: unknown;
+  },
+  outcomeWrite: { data: { id: "outcome" }, error: null } as {
+    data: Record<string, unknown> | null;
+    error: unknown;
+  },
   filters: [] as unknown[][],
 }));
 vi.mock("@/lib/server-supabase", () => ({
@@ -39,15 +48,25 @@ vi.mock("@/lib/supabase", () => ({
         },
         update: (payload: Record<string, unknown>) => {
           writing = true;
-          state.payload = payload;
+          if (table === "inventory") state.payload = payload;
+          else state.outcomePayload = payload;
           return query;
         },
-        single: async () => ({ data: state.row, error: null }),
-        maybeSingle: async () => ({
-          data: writing ? state.updated : null,
-          error: null,
-        }),
-        insert: async () => ({ error: null }),
+        single: async () =>
+          table === "inventory"
+            ? { data: state.row, error: null }
+            : state.outcomeWrite,
+        maybeSingle: async () =>
+          table === "inventory"
+            ? { data: writing ? state.updated : null, error: null }
+            : writing
+              ? state.outcomeWrite
+              : state.outcomeRead,
+        insert: (payload: Record<string, unknown>) => {
+          writing = true;
+          state.outcomePayload = payload;
+          return query;
+        },
       };
       return query;
     },
@@ -64,6 +83,9 @@ beforeEach(() => {
   };
   state.updated = { id: "unit", stage: "recon" };
   state.payload = {};
+  state.outcomePayload = {};
+  state.outcomeRead = { data: null, error: null };
+  state.outcomeWrite = { data: { id: "outcome" }, error: null };
   state.filters = [];
 });
 async function patch(body: Record<string, unknown>) {
@@ -75,7 +97,7 @@ async function patch(body: Record<string, unknown>) {
   );
 }
 describe("confirmed inventory records", () => {
-  it.each([undefined, -1, "1200", null])(
+  it.each([undefined, -1, "1200", null, 1.234, 100000001])(
     "rejects an invalid actual sale price %s",
     async (soldPrice) => {
       expect((await patch({ stage: "sold", soldPrice })).status).toBe(400);
@@ -128,5 +150,42 @@ describe("confirmed inventory records", () => {
     state.row.stage = "sold";
     expect((await patch({ stage: "sold", soldPrice: 1200 })).status).toBe(409);
     expect(state.payload).toEqual({});
+  });
+  it("reports a confirmed Pipeline sale separately from a failed outcome copy", async () => {
+    state.outcomeWrite = { data: null, error: { code: "unavailable" } };
+    const response = await patch({ stage: "sold", soldPrice: 1200 });
+    expect(response.status).toBe(200);
+    expect((await response.json()).outcomeReview).toMatchObject({
+      synced: false,
+    });
+    expect(state.payload).toMatchObject({ sold_price: 1200 });
+  });
+  it("copies an unreviewed sale using revision checks and never certifies costs", async () => {
+    state.outcomeRead = {
+      data: { id: "outcome", revision: 3, sell_price: null },
+      error: null,
+    };
+    const body = await (await patch({ stage: "sold", soldPrice: 0 })).json();
+    expect(body.outcomeReview.synced).toBe(true);
+    expect(state.outcomePayload).toMatchObject({
+      sell_price: 0,
+      costs_complete: false,
+    });
+    expect(state.filters).toContainEqual(["deal_outcomes", "revision", 3]);
+    expect(state.filters).toContainEqual(["deal_outcomes", "user_id", "owner"]);
+    state.outcomeWrite = { data: null, error: null };
+    expect(
+      (await (await patch({ stage: "sold", soldPrice: 0 })).json())
+        .outcomeReview.synced,
+    ).toBe(false);
+  });
+  it("preserves an existing sale and surfaces its separate review requirement", async () => {
+    state.outcomeRead = {
+      data: { id: "outcome", revision: 3, sell_price: 2000 },
+      error: null,
+    };
+    const body = await (await patch({ stage: "sold", soldPrice: 1200 })).json();
+    expect(body.outcomeReview.synced).toBe(false);
+    expect(state.outcomePayload).toEqual({});
   });
 });

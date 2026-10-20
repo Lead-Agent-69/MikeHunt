@@ -131,7 +131,44 @@ export function publicOutcome<T extends LedgerRow>(row: T) {
   };
 }
 export const OUTCOME_LEDGER_COLUMNS =
-  "id,deal_id,inventory_id,purchase_price,sell_price,actual_buyer_fees,actual_tax_title,actual_recon,actual_transport,actual_holding,actual_selling,actual_other,costs_complete,purchased_at,sold_at,actual_profit,days_to_sell";
+  "id,deal_id,inventory_id,purchase_price,sell_price,actual_buyer_fees,actual_tax_title,actual_recon,actual_transport,actual_holding,actual_selling,actual_other,costs_complete,purchased_at,sold_at,actual_profit,days_to_sell,updated_at";
+
+/** Compare normalized actuals for acknowledgements and idempotent retries. */
+export function sameOutcomeActuals(
+  saved: LedgerRow,
+  input: LedgerRow,
+  vehicleIdentity = true,
+) {
+  const keys = [
+    ...LEDGER_MONEY_FIELDS,
+    "purchased_at",
+    "sold_at",
+    "costs_complete",
+    "sold_where",
+    "notes",
+    ...(vehicleIdentity ? ["make", "model", "year"] : []),
+  ];
+  return keys.every((key) => {
+    const a = saved[key as keyof LedgerRow],
+      b = input[key as keyof LedgerRow];
+    if (a == null && b == null) return true;
+    if (LEDGER_MONEY_FIELDS.includes(key as LedgerMoneyField))
+      return (
+        a != null &&
+        b != null &&
+        actualAmount(a) != null &&
+        actualAmount(a) === actualAmount(b)
+      );
+    if (key === "purchased_at" || key === "sold_at")
+      return (
+        typeof a === "string" &&
+        typeof b === "string" &&
+        Number.isFinite(Date.parse(a)) &&
+        Date.parse(a) === Date.parse(b)
+      );
+    return String(a) === String(b);
+  });
+}
 
 export function validateOutcome(
   input: Record<string, unknown>,
@@ -204,15 +241,21 @@ export function validateOutcome(
 /** Collapse duplicate logs of one inventory purchase; preserve distinct dated purchase cycles. */
 export function completeOutcomeRows<T extends LedgerRow>(rows: T[]): T[] {
   const seen = new Set<string>();
-  return rows.filter((row) => {
-    if (!ledgerTotals(row).complete) return false;
-    const key =
-      row.inventory_id ||
-      (row.deal_id
-        ? `${row.deal_id}:${row.purchased_at?.slice(0, 10)}`
-        : row.id);
-    if (key && seen.has(key)) return false;
-    if (key) seen.add(key);
-    return true;
-  });
+  return [...rows]
+    .sort(
+      (a, b) =>
+        (Date.parse(b.updated_at ?? "") || 0) -
+        (Date.parse(a.updated_at ?? "") || 0),
+    )
+    .filter((row) => {
+      if (!ledgerTotals(row).complete) return false;
+      const key =
+        row.inventory_id ||
+        (row.deal_id
+          ? `${row.deal_id}:${row.purchased_at?.slice(0, 10)}`
+          : row.id);
+      if (key && seen.has(key)) return false;
+      if (key) seen.add(key);
+      return true;
+    });
 }

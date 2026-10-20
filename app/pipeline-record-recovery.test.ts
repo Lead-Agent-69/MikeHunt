@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock("swr", () => ({
+  mutate: vi.fn(),
   default: () => ({
     data: {
       items: [
@@ -144,5 +145,30 @@ describe("Pipeline sale and expense handoffs", () => {
     });
     expect(mocks.mutate).toHaveBeenCalledOnce();
     expect(host.querySelector("dialog")).toBeNull();
+  });
+  it("shows the saved-sale review handoff without treating an outcome-copy warning as a failed sale", async () => {
+    await click("Mark Sold");
+    await fill("1500");
+    expect(host.textContent).toContain("Spread over inventory costs");
+    expect(host.textContent).not.toContain("Recorded margin");
+    request.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        item: { id: "unit", stage: "sold" },
+        outcomeReview: {
+          synced: false,
+          message: "Sale saved in Pipeline. Its outcome record needs review.",
+        },
+      }),
+    });
+    await click("Confirm Sale");
+    expect(mocks.mutate).toHaveBeenCalledOnce();
+    expect(host.querySelector("dialog")).toBeNull();
+    expect(host.querySelector('[role="status"]')?.textContent).toContain(
+      "Its outcome record needs review",
+    );
+    expect(
+      host.querySelector<HTMLAnchorElement>('a[href="/insights"]'),
+    ).not.toBeNull();
   });
 });

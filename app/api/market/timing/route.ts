@@ -13,9 +13,10 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 // Buy-now / wait signal from the live ask-price trend (market_timing_signals view), plus a real
 // average days-to-sell derived from logged outcomes once enough exist. Both degrade to null quietly.
 const REASONING: Record<string, string> = {
-  BUY_NOW: "Prices are rising — buying now beats waiting.",
-  WAIT: "Prices are softening — waiting may land a better basis.",
-  NEUTRAL: "Prices are stable — timing isn’t a major factor.",
+  BUY_NOW:
+    "Observed asking prices are rising. This trend does not establish a purchase recommendation.",
+  WAIT: "Observed asking prices are softening. Future prices and sale proceeds remain unknown.",
+  NEUTRAL: "Observed asking prices are stable within this sample.",
 };
 
 export async function GET(req: NextRequest) {
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest) {
       .eq("make", make)
       .ilike("model", `%${model.split(" ")[0]}%`)
       .not("days_to_sell", "is", null)
+      .order("updated_at", { ascending: false })
       .limit(200);
     if (outcomes) {
       const days = completeOutcomeRows(outcomes).map(

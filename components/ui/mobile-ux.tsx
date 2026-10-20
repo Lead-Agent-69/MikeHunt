@@ -36,9 +36,14 @@ export const NetworkProvider = ({
 
   useEffect(() => {
     let cancelled = false;
+    let probe: AbortController | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     const verifyOnline = async () => {
+      clearTimeout(retryTimer);
+      probe?.abort();
       const controller = new AbortController();
+      probe = controller;
       const timeout = window.setTimeout(() => controller.abort(), 3000);
       try {
         await fetch("/favicon.ico", {
@@ -46,28 +51,39 @@ export const NetworkProvider = ({
           cache: "no-store",
           signal: controller.signal,
         });
-        if (!cancelled) setStatus({ isOnline: true, isOffline: false });
+        if (!cancelled && probe === controller)
+          setStatus({ isOnline: true, isOffline: false });
       } catch {
-        if (!cancelled) setStatus({ isOnline: false, isOffline: true });
+        if (!cancelled && probe === controller) {
+          setStatus({ isOnline: false, isOffline: true });
+          // A transient failure while the device stays online produces no browser online event.
+          retryTimer = setTimeout(() => void verifyOnline(), 10000);
+        }
       } finally {
         window.clearTimeout(timeout);
       }
     };
 
-    const handleOnline = () => {
-      setStatus({ isOnline: true, isOffline: false });
-      void verifyOnline();
-    };
+    const handleOnline = () => void verifyOnline();
     const handleOffline = () => void verifyOnline();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void verifyOnline();
+    };
 
     void verifyOnline();
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
+    window.addEventListener("focus", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       cancelled = true;
+      probe?.abort();
+      clearTimeout(retryTimer);
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("focus", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 

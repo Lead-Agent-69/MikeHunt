@@ -4,7 +4,7 @@ import React from "react";
 import useSWR from "swr";
 import { Mono } from "@/components/shared/Mono";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { fetcher } from "@/lib/swr-config";
 
 /** At-a-glance market intelligence strip for the top of Discover. Hides until there's data. */
 export function MarketSummary() {
@@ -21,9 +21,9 @@ export function MarketSummary() {
     color?: string;
   }[] = [
     {
-      label: "New BUY today",
+      label: "New flagged today",
       value: data.newGoToday ?? 0,
-      sub: `${data.activeGo ?? 0} active`,
+      sub: `${data.activeGo ?? 0} active flags`,
     },
   ];
   if (data.avgDaysToSell != null)
@@ -32,13 +32,13 @@ export function MarketSummary() {
       value: `${data.avgDaysToSell}d`,
       sub: "logged outcomes",
     });
-  if (data.topMover) {
+  if (data.topMover && Number.isFinite(Number(data.topMover.pctChange))) {
     const m = data.topMover;
     const up = m.pctChange > 0;
     stats.push({
-      label: "Biggest mover",
+      label: "Asking price trend",
       value: `${m.make} ${m.model}`,
-      sub: `${up ? "+" : ""}${m.pctChange}% · ${m.signal === "BUY_NOW" ? "buy now" : m.signal === "WAIT" ? "wait" : "flat"}`,
+      sub: `${up ? "+" : ""}${m.pctChange}% · observed listings`,
       color:
         m.signal === "BUY_NOW"
           ? "var(--green)"
@@ -58,14 +58,12 @@ export function MarketSummary() {
             {s.label}
           </p>
           <Mono
-            className="text-lg font-black"
+            className="text-lg font-black break-words"
             style={{ fontFamily: "var(--fm)", color: s.color || "var(--t1)" }}
           >
             {s.value}
           </Mono>
-          {s.sub && (
-            <p className="text-[11px] text-[var(--t4)] truncate">{s.sub}</p>
-          )}
+          {s.sub && <p className="text-[11px] text-[var(--t4)]">{s.sub}</p>}
         </div>
       ))}
     </div>
