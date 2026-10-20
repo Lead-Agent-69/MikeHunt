@@ -65,13 +65,9 @@ const GUEST = [
   {
     path: "/tools",
     act: async (p) => {
-      await p.mouse.wheel(0, 800);
-      await p
-        .locator("button:not([type=submit])")
-        .filter({ visible: true })
-        .first()
-        .click()
-        .catch(() => {});
+      const search = p.getByRole("textbox", { name: "Find a tool" });
+      await search.fill("map", { timeout: 3000 }).catch(() => {});
+      await search.fill("", { timeout: 3000 }).catch(() => {});
     },
   },
   {
