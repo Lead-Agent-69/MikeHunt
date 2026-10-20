@@ -10,6 +10,8 @@ import { SWEEP_STATE_CODES, metroZipsForState } from "@/lib/geo/metro-zips";
  */
 export interface SweepPlan {
   states: string[];
+  /** User-demand anchors, distinct from states retained for national baseline coverage. */
+  demandStates?: string[];
   /** Search-center ZIPs per planned state, rotated across sweeps. */
   zipsByState: Record<string, string[]>;
 }

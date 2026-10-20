@@ -486,7 +486,11 @@ async function runSweepTick(
       demand,
       gaps,
     });
-    step.state.plan = { states: plan.states, zipsByState: plan.zipsByState };
+    step.state.plan = {
+      states: plan.states,
+      zipsByState: plan.zipsByState,
+      demandStates: plan.demandStates,
+    };
     await saveRotation(recordSweepPlan(rotation, plan));
     await saveSourceHealth(startSweep(health));
     currentStatus.sweep = {

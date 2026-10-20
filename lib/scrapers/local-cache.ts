@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { US_STATES } from "@/lib/geo/us-states";
+import { getSweepPlan } from "./sweep-plan";
+import { getScrapeRunScope } from "./run-scope-context";
 import { writeCapacity } from "./write-capacity";
 import { maintainListingPhotos } from "./photo-maintenance";
 import {
@@ -603,6 +606,14 @@ export class LocalScraperCache {
       const prioritized = [...candidates].sort(
         (a, b) => modelOnly(a) - modelOnly(b),
       );
+      const plan = getSweepPlan();
+      const prioritizeLocatedInserts =
+        !getScrapeRunScope() &&
+        plan?.demandStates?.some(
+          (state) =>
+            plan.states.includes(state) &&
+            Object.prototype.hasOwnProperty.call(US_STATES, state),
+        );
       for (const row of prioritized) {
         const key = `${row.source}|${row.source_deal_id}`;
         const prior = existing.get(key);
@@ -620,6 +631,20 @@ export class LocalScraperCache {
           continue;
         }
         const kind = prior ? "update" : "insert";
+        // Market sweeps retain unlocated observations locally, without spending
+        // their limited intake on cars that cannot yet match a buyer's location.
+        // Never infer a vehicle's state from the search center or demand plan.
+        if (
+          kind === "insert" &&
+          prioritizeLocatedInserts &&
+          !Object.prototype.hasOwnProperty.call(
+            US_STATES,
+            String(row.location_state || "")
+              .trim()
+              .toUpperCase(),
+          )
+        )
+          continue;
         if (
           kind === "insert" &&
           this.allowInsert &&

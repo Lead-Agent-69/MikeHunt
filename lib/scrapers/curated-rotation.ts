@@ -6,10 +6,30 @@ import { orderCuratedSitesForPlan, type CuratedSite } from "./curated-sites";
 export interface CuratedRotation {
   version: 1;
   lastAttempted: Record<string, number>;
+  /** Started attempt slots since the last wider-market slot; retained across restarts. */
+  preferredStreak?: number;
 }
 
 export function curatedSiteKey(site: Pick<CuratedSite, "url">) {
   return new URL(site.url).hostname.toLowerCase().replace(/^www\./, "");
+}
+
+/** Prefer actual buyer anchors, not the sweep's additional national-coverage slots. */
+export function curatedPriorityStates(plan?: {
+  states?: unknown;
+  demandStates?: unknown;
+}) {
+  const planned = (Array.isArray(plan?.states) ? plan.states : []).filter(
+    (state): state is string =>
+      typeof state === "string" && /^[A-Z]{2}$/.test(state),
+  );
+  const demand = (
+    Array.isArray(plan?.demandStates) ? plan.demandStates : []
+  ).filter(
+    (state): state is string =>
+      typeof state === "string" && planned.includes(state),
+  );
+  return demand.length ? Array.from(new Set(demand)) : planned;
 }
 
 export function planCuratedRotation<
@@ -19,8 +39,7 @@ export function planCuratedRotation<
   rotation: CuratedRotation,
   states: readonly string[] = [],
 ): T[] {
-  // Demand wins ties, but cannot indefinitely starve older or never-attempted dealers.
-  return orderCuratedSitesForPlan(sites, states)
+  const ordered = orderCuratedSitesForPlan(sites, states)
     .map((site, rank) => ({ site, rank }))
     .sort(
       (a, b) =>
@@ -29,6 +48,52 @@ export function planCuratedRotation<
         a.rank - b.rank,
     )
     .map(({ site }) => site);
+  const preferredStates = new Set(states.map((state) => state.toUpperCase()));
+  if (!preferredStates.size) return ordered;
+  const preferred = ordered.filter((site) =>
+    preferredStates.has(site.state || ""),
+  );
+  const wider = ordered.filter(
+    (site) => !preferredStates.has(site.state || ""),
+  );
+  const result: T[] = [];
+  let streak = validStreak(rotation.preferredStreak);
+  let p = 0;
+  let w = 0;
+  // The head can be the only dealer attempted before the deadline. Persist its
+  // slot, so short runs cannot repeatedly restart at the preferred-market head.
+  while (p < preferred.length || w < wider.length) {
+    if (p < preferred.length && (streak < 2 || w >= wider.length)) {
+      result.push(preferred[p++]);
+      streak = Math.min(2, streak + 1);
+    } else {
+      result.push(wider[w++]);
+      streak = 0;
+    }
+  }
+  return result;
+}
+
+function validStreak(value: unknown): number {
+  return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= 2
+    ? Number(value)
+    : 0;
+}
+
+/** Charge attempted slots (including failures), never merely planned/deferred dealers. */
+export function recordCuratedAttempt(
+  rotation: CuratedRotation,
+  site: Pick<CuratedSite, "url" | "state">,
+  states: readonly string[],
+  now = Date.now(),
+) {
+  rotation.lastAttempted[curatedSiteKey(site)] = now;
+  if (states.length)
+    rotation.preferredStreak = states.some(
+      (state) => state.toUpperCase() === site.state,
+    )
+      ? Math.min(2, validStreak(rotation.preferredStreak) + 1)
+      : 0;
 }
 
 export function curatedRotationPath() {
@@ -56,7 +121,13 @@ export async function loadCuratedRotation(
           typeof value === "number" && Number.isFinite(value) && value > 0,
       ),
     );
-    return { version: 1, lastAttempted } as CuratedRotation;
+    return {
+      version: 1,
+      lastAttempted,
+      ...(parsed.preferredStreak !== undefined
+        ? { preferredStreak: validStreak(parsed.preferredStreak) }
+        : {}),
+    } as CuratedRotation;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT")
       console.warn(
@@ -148,8 +219,8 @@ export function selectCuratedSitesForDemand<
         tier(a.site) - tier(b.site) ||
         (rotation.lastAttempted[curatedSiteKey(a.site)] || 0) -
           (rotation.lastAttempted[curatedSiteKey(b.site)] || 0) ||
-        (rank.get(String(a.site.state).toUpperCase())! -
-          rank.get(String(b.site.state).toUpperCase())!) ||
+        rank.get(String(a.site.state).toUpperCase())! -
+          rank.get(String(b.site.state).toUpperCase())! ||
         a.i - b.i,
     )
     .map(({ site }) => site);
