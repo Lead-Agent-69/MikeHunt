@@ -30,7 +30,15 @@ import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
 import useSWR from "swr";
 import { CoverageNotice } from "@/components/discovery/CoverageNotice";
 import { ForYouRail } from "@/components/reco/ForYouRail";
-import { Sparkles, ChevronLeft, ChevronRight, ScanSearch } from "lucide-react";
+import {
+  BarChart3,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ScanSearch,
+  SlidersHorizontal,
+  Sparkles,
+} from "lucide-react";
 import { useReducedMotion } from "framer-motion";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { US_STATES as STATE_NAMES } from "@/lib/geo/us-states";
@@ -398,6 +406,10 @@ export default function DiscoverPage() {
   const laneValueDraft = laneOptions.some(([value]) => value === laneDraft)
     ? laneDraft
     : "all";
+  const quickFilterCount =
+    Number(Boolean(makeDraft.trim())) +
+    Number(Boolean(budgetDraft)) +
+    Number(laneValueDraft !== "all");
 
   return (
     <div className="min-w-0 space-y-1.5 pb-4 md:space-y-2">
@@ -457,9 +469,22 @@ export default function DiscoverPage() {
                   aria-expanded={quickFiltersOpen}
                   aria-controls="discovery-quick-filters"
                   onClick={() => setQuickFiltersOpen((open) => !open)}
-                  className="min-h-11 text-sm font-semibold text-[var(--blue)] lg:hidden"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-sm font-bold text-[var(--t1)] lg:hidden"
                 >
-                  Quick filters {quickFiltersOpen ? "−" : "+"}
+                  <SlidersHorizontal
+                    className="h-4 w-4 text-[var(--blue)]"
+                    aria-hidden="true"
+                  />
+                  Refine matches
+                  {quickFilterCount > 0 && (
+                    <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--on-accent)]">
+                      {quickFilterCount}
+                    </span>
+                  )}
+                  <ChevronDown
+                    className={`h-4 w-4 text-[var(--t3)] transition-transform ${quickFiltersOpen ? "rotate-180" : ""}`}
+                    aria-hidden="true"
+                  />
                 </button>
               </h2>
               <button
@@ -468,14 +493,15 @@ export default function DiscoverPage() {
                 aria-expanded={showInsights}
                 aria-controls="discovery-market-insights"
                 onClick={() => setShowInsights(!showInsights)}
-                className="min-h-11 text-sm font-semibold text-[var(--blue)]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s1)]"
               >
+                <BarChart3 className="h-4 w-4" aria-hidden="true" />
                 Insights
               </button>
             </div>
             <form
               id="discovery-quick-filters"
-              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-2 lg:flex`}
+              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-3 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-3 lg:flex lg:gap-2 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0`}
               aria-label="Buying for"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -550,7 +576,7 @@ export default function DiscoverPage() {
                 <button
                   type="submit"
                   disabled={!discoverReady}
-                  className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[var(--accent)] px-3 py-2.5 text-sm font-bold text-[var(--on-accent)]"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg bg-[var(--accent)] px-3 py-2.5 text-sm font-bold text-[var(--on-accent)] sm:flex-none"
                 >
                   Search cars
                 </button>
@@ -559,9 +585,10 @@ export default function DiscoverPage() {
                     href={`/market${scopeQuery}`}
                     prefetch={false}
                     aria-label="All market filters and results"
-                    className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold text-[var(--blue)] sm:flex-none sm:border-0"
                   >
-                    Market Explorer
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                    All filters
                   </Link>
                 )}
               </div>
