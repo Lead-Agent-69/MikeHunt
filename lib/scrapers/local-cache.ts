@@ -521,6 +521,8 @@ export class LocalScraperCache {
         const key = `${row.source}|${row.source_deal_id}`;
         const entry = this.state.entries[key];
         const hash = listingHash(row);
+        // A concurrent fresh run may have synced this key since recovery planned it.
+        if (options.insertOnly && entry?.synced) return false;
         if (entry?.synced && entry.hash === hash) {
           entry.lastSeenAt = new Date().toISOString();
           if (touchIsDue(entry, this.touchIntervalMs)) toTouch.push(row);

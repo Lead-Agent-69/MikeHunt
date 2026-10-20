@@ -335,6 +335,24 @@ describe("LocalScraperCache", () => {
     expect(await cache.publishPendingDealers(db.client, ["IL"])).toBe(0);
     expect(db.reads).toHaveLength(1);
   });
+  it("does not renew a synced observation even when its touch interval has elapsed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    const snapshot = pendingDealer("synced");
+    await cache.persistRows([snapshot], db.client, "*");
+    vi.setSystemTime(new Date("2026-10-20T13:00:00Z"));
+    const recovered = await cache.persistRows([snapshot], db.client, "*", {
+      insertOnly: true,
+    });
+    expect(recovered).toMatchObject({ saved: 0, touches: 0, updates: 0 });
+    expect(db.touches).toHaveLength(0);
+    expect(db.rows.get("independent_dealer|synced")?.last_seen_at).toBe(
+      snapshot.last_seen_at,
+    );
+  });
+
   it("protects a newer row inserted between lookup and the recovery write", async () => {
     const { cache } = await makeCache();
     const old = pendingDealer("race");
