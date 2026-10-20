@@ -189,12 +189,18 @@ export function OutcomeEditor({
           and sale prices before fees. Leave the sale blank until sold.
         </p>
       </div>
-      {!dealId && !record?.deal_id && (
+      {!dealId && !record?.deal_id && !record?.inventory_id ? (
         <div className="grid gap-3 sm:grid-cols-3">
           {field("year", "Year")}
           {field("make", "Make")}
           {field("model", "Model")}
         </div>
+      ) : (
+        <p className="break-words text-sm font-semibold text-[var(--t1)]">
+          {[record?.year ?? year, record?.make ?? make, record?.model ?? model]
+            .filter(Boolean)
+            .join(" ") || "Linked vehicle"}
+        </p>
       )}
       <fieldset>
         <legend className="mb-3 text-sm font-bold">Purchase and sale</legend>
