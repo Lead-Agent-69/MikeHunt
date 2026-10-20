@@ -3,6 +3,8 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createStorageBudgetChecker } from "./storage-budget";
+import { withSweepPlan } from "./sweep-plan";
+import { withScrapeRunScope } from "./run-scope-context";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
   LocalScraperCache,
@@ -273,6 +275,112 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  const marketPlan = {
+    states: ["MO", "IL"],
+    demandStates: ["MO"],
+    zipsByState: { MO: ["63101"] },
+  };
+  it("reserves market-sweep intake for located inventory while retaining unlocated payloads", async () => {
+    const { cache } = await makeCache({ maxDailyInserts: 1 });
+    const db = fakeSupabase();
+    const result = await withSweepPlan(marketPlan, () =>
+      cache.persistRows(
+        [
+          row("unknown"),
+          { ...row("invalid"), location_state: "XX" },
+          { ...row("local"), location_state: "MO" },
+        ],
+        db.client,
+        "*",
+      ),
+    );
+    expect(result).toMatchObject({ inserts: 1, updates: 0 });
+    expect(db.writes.flat().map((item) => item.source_deal_id)).toEqual([
+      "local",
+    ]);
+    expect(cache.getQuota().inserts).toBe(1);
+    expect(await cache.records("test")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source_deal_id: "unknown",
+          cacheSynced: false,
+        }),
+        expect.objectContaining({
+          source_deal_id: "invalid",
+          location_state: "XX",
+          cacheSynced: false,
+        }),
+      ]),
+    );
+  });
+  it("keeps existing unlocated listings updatable and accepts real border locations", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase([row("existing")]);
+    const result = await withSweepPlan(marketPlan, () =>
+      cache.persistRows(
+        [row("existing", 9000), { ...row("border"), location_state: "IL" }],
+        db.client,
+        "*",
+      ),
+    );
+    expect(result).toMatchObject({ inserts: 1, updates: 1 });
+    expect(db.rows.get("test|existing")?.ask_price).toBe(9000);
+    expect(db.rows.get("test|border")?.location_state).toBe("IL");
+  });
+  it("does not change explicit buyer searches, even inside a sweep context", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    const result = await withSweepPlan(marketPlan, () =>
+      withScrapeRunScope({ state: "MO" }, () =>
+        cache.persistRows([row("explicit")], db.client, "*"),
+      ),
+    );
+    expect(result.inserts).toBe(1);
+  });
+  it("leaves non-demand and direct collection unchanged without leaking context", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    await withSweepPlan(marketPlan, () =>
+      cache.persistRows([row("deferred")], db.client, "*"),
+    );
+    expect(
+      (await cache.persistRows([row("direct")], db.client, "*")).inserts,
+    ).toBe(1);
+    for (const plan of [
+      { ...marketPlan, demandStates: undefined },
+      { ...marketPlan, demandStates: [] },
+      { ...marketPlan, demandStates: ["TX"] },
+      { ...marketPlan, states: ["XX"], demandStates: ["XX"] },
+    ]) {
+      const result = await withSweepPlan(plan, () =>
+        cache.persistRows(
+          [row(`baseline-${JSON.stringify(plan)}`)],
+          db.client,
+          "*",
+        ),
+      );
+      expect(result.inserts).toBe(1);
+    }
+    expect(db.rows.has("test|deferred")).toBe(false);
+  });
+  it("publishes a deferred observation only after the source supplies a real location", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    await withSweepPlan(marketPlan, () =>
+      cache.persistRows([row("later")], db.client, "*"),
+    );
+    expect(cache.getQuota().inserts).toBe(0);
+    expect((await cache.records("test"))[0].location_state).toBeUndefined();
+    const result = await withSweepPlan(marketPlan, () =>
+      cache.persistRows(
+        [{ ...row("later"), location_state: "MO" }],
+        db.client,
+        "*",
+      ),
+    );
+    expect(result.inserts).toBe(1);
+    expect(db.rows.get("test|later")?.location_state).toBe("MO");
+  });
   const observed = (id: string) => ({
     ...row(id),
     source_url: `https://dealer.example/${id}`,

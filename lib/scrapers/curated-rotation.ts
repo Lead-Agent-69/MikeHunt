@@ -6,7 +6,7 @@ import { orderCuratedSitesForPlan, type CuratedSite } from "./curated-sites";
 export interface CuratedRotation {
   version: 1;
   lastAttempted: Record<string, number>;
-  /** Completed attempt slots since the last wider-market slot; retained across restarts. */
+  /** Started attempt slots since the last wider-market slot; retained across restarts. */
   preferredStreak?: number;
 }
 
