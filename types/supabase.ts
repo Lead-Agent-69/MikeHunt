@@ -1968,6 +1968,8 @@ export type Database = {
       }
       sold_listings: {
         Row: {
+          attribution: string | null
+          basis: string
           country_code: string
           created_at: string | null
           currency_code: string
@@ -1976,6 +1978,7 @@ export type Database = {
           make: string | null
           mileage: number | null
           model: string | null
+          sale_channel: string | null
           sold_at: string | null
           sold_price: number | null
           source: string | null
@@ -1987,6 +1990,8 @@ export type Database = {
           year: number | null
         }
         Insert: {
+          attribution?: string | null
+          basis?: string
           country_code?: string
           created_at?: string | null
           currency_code?: string
@@ -1995,6 +2000,7 @@ export type Database = {
           make?: string | null
           mileage?: number | null
           model?: string | null
+          sale_channel?: string | null
           sold_at?: string | null
           sold_price?: number | null
           source?: string | null
@@ -2006,6 +2012,8 @@ export type Database = {
           year?: number | null
         }
         Update: {
+          attribution?: string | null
+          basis?: string
           country_code?: string
           created_at?: string | null
           currency_code?: string
@@ -2014,6 +2022,7 @@ export type Database = {
           make?: string | null
           mileage?: number | null
           model?: string | null
+          sale_channel?: string | null
           sold_at?: string | null
           sold_price?: number | null
           source?: string | null

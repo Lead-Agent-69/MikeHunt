@@ -31,6 +31,7 @@ import { scrapeMunicibid } from "./sources/municibid";
 import { scrapeGsaAuctions } from "./sources/gsa-auctions";
 import { scrapeAutotempest } from "./sources/autotempest";
 import { scrapeEbaySold } from "./sources/ebay-sold";
+import { scrapeNorfolkSold } from "@/lib/sources/open-gov/norfolk-sold";
 import { ScraperRegistry } from "./tools/registry";
 import { getSkipSources } from "./health";
 import type { BuyerScope } from "./buyer-scope";
@@ -336,6 +337,19 @@ export function createScraperRegistry(
     fn: () => scrapeEbaySold(),
     enabled: true,
     estimatedDealsPerRun: 800,
+  });
+
+  registry.register({
+    id: "gov_norfolk_towing",
+    name: "Norfolk official sold auctions",
+    type: "auction",
+    priority: "medium",
+    frequencyMinutes: 1440,
+    requiresAuth: false,
+    stealthRequired: false,
+    fn: (args) => scrapeNorfolkSold({ signal: args?.abortSignal }),
+    enabled: true,
+    estimatedDealsPerRun: 40,
   });
 
   // Autotempest — meta-search aggregator (open API). One pass pulls Cars.com/CarGurus/Carvana/eBay/

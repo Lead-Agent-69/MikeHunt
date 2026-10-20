@@ -10,6 +10,25 @@ import {
   soldWindowCutoffIso,
   summarizeCleanSold,
 } from "@/lib/scoring/market-value";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
+
+const GOV_SALE_CHANNELS = [
+  "gov_impound_auction",
+  "gov_fleet_auction",
+  "gov_surplus_auction",
+] as const;
+
+function safeHttpUrl(value: unknown) {
+  if (typeof value !== "string") return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.toString()
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 // GET /api/sold?make=Ford&model=F-150&year=2018 — completed-sale prices.
 // A clean median is published only at n >= 3 clean titles. Salvage titles are
@@ -35,25 +54,29 @@ export async function GET(req: NextRequest) {
     });
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("sold_listings")
-    .select(
-      "year, make, model, trim, mileage, sold_price, sold_at, title, source, source_url, currency_code, country_code",
-    )
-    .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
-    .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
-    .eq("currency_code", "USD")
-    .eq("country_code", "US")
-    .gt("sold_price", 0)
-    .gte("sold_at", soldWindowCutoffIso())
-    .lte("sold_at", new Date().toISOString())
-    .order("sold_at", { ascending: false })
-    .limit(40);
-  if (year > 0) q = q.gte("year", year - 2).lte("year", year + 2);
-
   let result;
   try {
-    result = await q;
+    result = await withRetailSold(async (scope) => {
+      let query = applyRetailSoldScope(
+        supabase
+          .from("sold_listings")
+          .select(
+            "year, make, model, trim, mileage, sold_price, sold_at, title, source, source_url, currency_code, country_code",
+          ),
+        scope,
+      )
+        .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
+        .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
+        .eq("currency_code", "USD")
+        .eq("country_code", "US")
+        .gt("sold_price", 0)
+        .gte("sold_at", soldWindowCutoffIso())
+        .lte("sold_at", new Date().toISOString())
+        .order("sold_at", { ascending: false })
+        .limit(40);
+      if (year > 0) query = query.gte("year", year - 2).lte("year", year + 2);
+      return query;
+    });
   } catch {
     result = { data: null, error: true };
   }
@@ -81,6 +104,45 @@ export async function GET(req: NextRequest) {
   );
   const summary = summarizeCleanSold(recentRows);
 
+  let govLane: any[] = [];
+  try {
+    let govQuery = supabase
+      .from("sold_listings")
+      .select(
+        "year,make,model,sold_price,sold_at,source,source_url,basis,sale_channel,attribution",
+      )
+      .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
+      .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
+      .eq("currency_code", "USD")
+      .eq("country_code", "US")
+      .in("sale_channel", [...GOV_SALE_CHANNELS])
+      .in("basis", ["sold", "last_bid"])
+      .gt("sold_price", 0)
+      .gte("sold_at", soldWindowCutoffIso())
+      .lte("sold_at", new Date().toISOString())
+      .order("sold_at", { ascending: false })
+      .limit(12);
+    if (year > 0)
+      govQuery = govQuery.gte("year", year - 2).lte("year", year + 2);
+    const govResult = await govQuery;
+    if (!govResult.error) {
+      govLane = (govResult.data || [])
+        .filter((row: any) => row.attribution)
+        .map((row: any) => ({
+          year: row.year,
+          title: `${[row.year, row.make, row.model].filter(Boolean).join(" ")} (${row.sale_channel === "gov_impound_auction" ? "government impound auction" : "government auction"})`,
+          price: Math.round(Number(row.sold_price)),
+          soldAt: row.sold_at,
+          basis: row.basis,
+          source: row.source,
+          sourceUrl: safeHttpUrl(row.source_url),
+          attribution: String(row.attribution).slice(0, 300),
+        }));
+    }
+  } catch {
+    govLane = [];
+  }
+
   return NextResponse.json({
     median: summary.median,
     count: summary.count,
@@ -95,6 +157,7 @@ export async function GET(req: NextRequest) {
     checkedAt: new Date().toISOString(),
     evidenceLabel:
       "Source-reported sale records; title claims are not independently verified",
+    govLane,
     sales: recentRows.slice(0, 6).map((d: any) => {
       const lane = soldTitleLane(d.title);
       const stored =

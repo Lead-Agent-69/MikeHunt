@@ -14,6 +14,7 @@ import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
 import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { qualityFlags } from "@/lib/data-quality/sanity";
+import { applyRetailSoldScope, withRetailSold } from "./sold-scope";
 
 const RETAIL_SOURCES = new Set([
   "cars_com",
@@ -757,15 +758,23 @@ async function loadSoldIndex(supabase: SupabaseClient): Promise<void> {
     const rows: SoldObservation[] = [];
     const PAGE = 1000;
     for (let from = 0; from < 40000; from += PAGE) {
-      const { data, error } = await supabase
-        .from("sold_listings")
-        .select("make, model, year, sold_price, location_state, title, sold_at")
-        .eq("currency_code", "USD")
-        .eq("country_code", "US")
-        .gt("sold_price", 0)
-        .gte("sold_at", soldWindowCutoffIso())
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
+      const { data, error } = await withRetailSold((scope) => {
+        const query = applyRetailSoldScope(
+          supabase
+            .from("sold_listings")
+            .select(
+              "make, model, year, sold_price, location_state, title, sold_at",
+            ),
+          scope,
+        )
+          .eq("currency_code", "USD")
+          .eq("country_code", "US")
+          .gt("sold_price", 0)
+          .gte("sold_at", soldWindowCutoffIso())
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        return query;
+      });
       if (error || !data)
         throw new Error("Sold evidence could not be loaded completely");
       if (data.length === 0) break;

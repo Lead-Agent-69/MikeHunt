@@ -223,6 +223,7 @@ describe("automation allow-list for public preview routes", () => {
     expect(resolveSweepSources("")).toEqual([
       "curated_dealers",
       "independent_dealer",
+      "gov_norfolk_towing",
       "gsa_auctions",
     ]);
   });

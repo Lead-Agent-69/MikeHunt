@@ -29,6 +29,7 @@ import {
   type ArbitrageOpportunity,
   type Spread,
 } from "@/lib/arbitrage";
+import { applyRetailSoldScope, withRetailSold } from "@/lib/scoring/sold-scope";
 
 // Resale-profit finder (arbitrage v2) — for THIS buyer's sell market, every live listing is valued by
 // the lib/arbitrage engine:
@@ -338,19 +339,23 @@ async function loadComps(
     let soldRows = 0;
     for (let from = 0; soldRows < MAX_COMP_ROWS; from += PAGE) {
       queries += 1;
-      const { data, error } = await sb
-        .from("sold_listings")
-        .select(COMP_SOLD_COLUMNS)
-        .eq("currency_code", "USD")
-        .eq("country_code", "US")
-        .in("make", makes)
-        .or(soldOr)
-        .gte("year", minYear)
-        .lte("year", maxYear)
-        .gt("sold_price", 0)
-        .gte("sold_at", soldCutoff)
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
+      const { data, error } = await withRetailSold((scope) => {
+        const query = applyRetailSoldScope(
+          sb.from("sold_listings").select(COMP_SOLD_COLUMNS),
+          scope,
+        )
+          .eq("currency_code", "USD")
+          .eq("country_code", "US")
+          .in("make", makes)
+          .or(soldOr)
+          .gte("year", minYear)
+          .lte("year", maxYear)
+          .gt("sold_price", 0)
+          .gte("sold_at", soldCutoff)
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+        return query;
+      });
       // Sold evidence is optional: without it the engine falls back to ask tiers (and says so).
       if (error) break;
       const rows = (data || []) as SoldRow[];

@@ -22,6 +22,7 @@
     "worker:test": "vitest run lib/scrapers",
     "scrape:ci": "tsx scripts/scrape-ci.ts",
     "scrape:local": "tsx scripts/scrape-local.ts",
+    "sold:norfolk": "tsx scripts/sync-norfolk-sold.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
