@@ -660,13 +660,13 @@ export default function MarketPage() {
   ];
 
   return (
-    <div className="flex min-w-0 flex-col gap-1 sm:gap-4">
+    <div className="flex min-w-0 flex-col gap-1 sm:gap-2 lg:gap-4">
       <header className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[var(--b1)] pb-1.5 sm:gap-2 sm:pb-3">
         <div className="min-w-0">
           <h1 className="text-lg font-extrabold text-[var(--t1)] sm:text-xl md:text-3xl">
             Market Explorer
           </h1>
-          <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] md:block">
+          <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] lg:block">
             Search the market, refine the evidence, then inspect the listing.
           </p>
         </div>
@@ -707,7 +707,7 @@ export default function MarketPage() {
       <section
         aria-label="Everyday search filters"
         aria-busy={!ready}
-        className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-3 lg:grid-cols-6"
+        className="flex snap-x gap-2 overflow-x-auto border-b border-[var(--b1)] py-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:py-3 md:grid-cols-3 lg:grid-cols-6"
       >
         {(
           [
@@ -719,7 +719,7 @@ export default function MarketPage() {
         ).map(([key, label, value, placeholder]) => (
           <label
             key={key}
-            className="min-w-0 text-xs font-semibold text-[var(--t2)]"
+            className="w-36 shrink-0 snap-start text-xs font-semibold text-[var(--t2)] sm:w-auto sm:min-w-0"
           >
             {label}
             <input
@@ -743,7 +743,7 @@ export default function MarketPage() {
             />
           </label>
         ))}
-        <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+        <label className="w-40 shrink-0 snap-start text-xs font-semibold text-[var(--t2)] sm:w-auto sm:min-w-0">
           Source or dealer
           <select
             aria-label="Quick source or dealer"
@@ -790,7 +790,7 @@ export default function MarketPage() {
             setShowInsights(false);
           }}
           disabled={!ready}
-          className="min-h-11 self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
+          className="min-h-11 w-32 shrink-0 snap-start self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold sm:w-auto"
         >
           All filters
         </button>
@@ -861,7 +861,7 @@ export default function MarketPage() {
       </nav>
       {activeCount > 0 && (
         <div
-          className="hidden flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 sm:flex"
+          className="hidden flex-wrap items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 xl:flex"
           aria-label="Applied market filters"
         >
           <span className="px-1 text-[10px] font-bold uppercase tracking-wide text-[var(--t4)]">
@@ -1431,7 +1431,7 @@ export default function MarketPage() {
           aria-label="Market results"
           className="min-w-0 scroll-mt-20"
         >
-          <div className="mb-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:mb-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
             <div className="col-span-2 sm:col-span-1">
               <p className="text-xs text-[var(--t4)]">
                 {error ? (
@@ -1452,7 +1452,7 @@ export default function MarketPage() {
             </div>
             <div
               aria-label="Result view"
-              className="col-span-2 row-start-3 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
+              className="col-start-2 row-start-2 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
             >
               <button
                 type="button"
@@ -1489,7 +1489,7 @@ export default function MarketPage() {
                 const [sort, sortDir] = e.target.value.split(":");
                 set({ sort, sortDir: sortDir as "asc" | "desc" });
               }}
-              className="field col-span-2 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
+              className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
             >
               <option value="lastSeenAt:desc">Recently seen</option>
               <option value="priceGap:desc">Below estimate ↓</option>
@@ -1508,12 +1508,16 @@ export default function MarketPage() {
           </div>
 
           {!busy && !error && (facets.sources?.length || 0) > 0 && (
-            <SourceResultStrip
-              entries={facets.sources}
-              selected={f.sources}
-              onSelect={(source) => set({ sources: toggle(f.sources, source) })}
-              onClear={() => set({ sources: [] })}
-            />
+            <div className="hidden xl:block">
+              <SourceResultStrip
+                entries={facets.sources}
+                selected={f.sources}
+                onSelect={(source) =>
+                  set({ sources: toggle(f.sources, source) })
+                }
+                onClear={() => set({ sources: [] })}
+              />
+            </div>
           )}
 
           {!busy && !error && showMap && rows.length > 0 && (

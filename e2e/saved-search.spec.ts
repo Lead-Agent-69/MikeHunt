@@ -18,7 +18,7 @@ test.describe("saved searches (local only)", () => {
     const name = `E2E Civics ${Date.now()}`;
     await page.goto("/searches");
     await page.getByRole("button", { name: "New search" }).click();
-    await page.getByPlaceholder("e.g. F-150s under $25k").fill(name);
+    await page.getByLabel("Search name", { exact: true }).fill(name);
     await page.getByPlaceholder("e.g. Ford").fill("Honda");
     await page.getByLabel("Model", { exact: true }).fill("Civic");
     await page.getByRole("button", { name: "Save search" }).click();
@@ -34,13 +34,19 @@ test.describe("saved searches (local only)", () => {
     await page.goto(
       "/scan?make=Honda&model=Civic&state=MO&maxPrice=20000&maxMileage=85000&fuelType=Hybrid&sort=price-desc&reset=1",
     );
-    const save = page.getByRole("button", { name: "Save search", exact: true });
+    await expect(page).toHaveURL(/\/market\?/);
+    const save = page.getByRole("button", {
+      name: "Save search on this device",
+      exact: true,
+    });
     await expect(save).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Save alert", exact: true }),
     ).toHaveCount(0);
     await save.click();
-    await expect(page.getByText(/Saved search on this device:/)).toBeVisible();
+    await expect(page.getByRole("status")).toContainText(
+      /Saved .* on this device/,
+    );
     await page.goto("/searches");
     const row = page
       .locator(".glass-panel")
@@ -51,17 +57,18 @@ test.describe("saved searches (local only)", () => {
       0,
     );
     const href = await row
-      .getByRole("link", { name: "Open Scan" })
+      .getByRole("link", { name: "Open Market" })
       .getAttribute("href");
     const scope = new URL(href!, "http://localhost").searchParams;
     for (const [key, value] of Object.entries({
-      make: "Honda",
+      makes: "Honda",
       model: "Civic",
-      state: "MO",
-      maxPrice: "20000",
-      maxMileage: "85000",
+      states: "MO",
+      priceMax: "20000",
+      mileageMax: "85000",
       fuelType: "Hybrid",
-      sort: "price-desc",
+      sort: "askPrice",
+      sortDir: "desc",
     }))
       expect(scope.get(key)).toBe(value);
     await page.reload();

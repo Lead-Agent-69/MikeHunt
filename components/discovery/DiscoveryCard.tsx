@@ -24,7 +24,7 @@ import {
   discoveryEvidence,
   discoveryReason,
 } from "./card-evidence";
-import { Bookmark, Clock3, Flame, Zap } from "lucide-react";
+import { Bookmark } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { TitleBadge } from "@/components/shared/TitleBadge";
@@ -131,7 +131,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         {/* Image */}
         <div
           data-testid="discovery-card-photo"
-          className="relative w-full aspect-[16/9] overflow-hidden sm:aspect-[4/3]"
+          className="relative aspect-[16/9] w-full overflow-hidden xl:aspect-[4/3]"
           style={{ background: "var(--s2)" }}
         >
           <Link
@@ -188,16 +188,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         </div>
 
         {/* Body */}
-        <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex flex-1 flex-col gap-3 p-3 xl:p-4">
           <div
             data-testid="discovery-card-price"
-            className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] pb-3"
+            className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] pb-2 xl:pb-3"
           >
             <div>
               <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
                 {priceLabel}
               </p>
-              <span className="font-mono text-xl font-black text-[var(--t1)]">
+              <span className="font-mono text-lg font-black text-[var(--t1)] xl:text-xl">
                 {displayPrice}
               </span>
             </div>
@@ -206,7 +206,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
                   Purchase ceiling
                 </p>
-                <span className="font-mono text-[17px] font-black text-[var(--green)]">
+                <span className="font-mono text-base font-black text-[var(--green)] xl:text-[17px]">
                   ${Math.round(deal.recommendedMaxBid).toLocaleString()}
                 </span>
               </div>
@@ -218,7 +218,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 <p className="mb-1 text-[10px] font-bold uppercase text-[var(--t4)]">
                   {deal.soldAnchored ? "Resale estimate" : "Listing estimate"}
                 </p>
-                <span className="font-mono text-[17px] font-black text-[var(--t3)]">
+                <span className="font-mono text-base font-black text-[var(--t3)] xl:text-[17px]">
                   {Number.isFinite(deal.sellEstimate) &&
                   (deal.sellEstimate || 0) > 0
                     ? `$${Math.round(deal.sellEstimate!).toLocaleString()}`

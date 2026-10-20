@@ -178,7 +178,10 @@ test.describe("Market Explorer home", () => {
       .first()
       .click();
     await expect(page.locator("article").first()).toBeVisible();
-    await expect(page.getByLabel("Browse results by source")).toBeVisible();
+    await expect(page.getByLabel("Quick source or dealer")).toBeVisible();
+    if (page.viewportSize()!.width >= 1280)
+      await expect(page.getByLabel("Browse results by source")).toBeVisible();
+    else await expect(page.getByLabel("Browse results by source")).toBeHidden();
     const nav = page
       .getByRole("navigation", {
         name: /^Primary (mobile|desktop) navigation$/,
@@ -387,13 +390,14 @@ test.describe("Market Explorer home", () => {
       .first()
       .click();
     await expect(page.getByLabel("Model", { exact: true })).toBeEnabled();
-    await page.getByText(/^All indexed sources \(/).click();
-    await search.fill("dgautollc.com");
-    await page.getByRole("checkbox", { name: "D&G Auto", exact: true }).check();
-    await search.fill("aeofmiami");
     await page
-      .getByRole("checkbox", { name: "AE of Miami", exact: true })
-      .check();
+      .getByTestId("exact-market-filters")
+      .getByText(/^Sources & dealers \(/)
+      .click();
+    await search.fill("dgautollc.com");
+    await page.getByRole("checkbox", { name: /^D&G Auto\b/ }).check();
+    await search.fill("aeofmiami");
+    await page.getByRole("checkbox", { name: /^AE of Miami\b/ }).check();
     await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
     await expect(page).toHaveURL(/near=63101/);
     await expect(page).toHaveURL(/radius=250/);
@@ -596,8 +600,8 @@ test.describe("Market Explorer home", () => {
         exact: true,
       });
       await expect(save).toBeEnabled();
-      await page.getByLabel("Minimum price ($)", { exact: true }).fill("1000");
-      await page.getByLabel("Maximum price ($)", { exact: true }).fill("17500");
+      await page.getByLabel("Budget from ($)", { exact: true }).fill("1000");
+      await page.getByLabel("Budget up to ($)", { exact: true }).fill("17500");
       await save.click();
       await expect(
         page.getByText("Buying preferences saved to your account.", {
@@ -607,10 +611,10 @@ test.describe("Market Explorer home", () => {
       await page.reload();
       await expect(save).toBeEnabled();
       await expect(
-        page.getByLabel("Minimum price ($)", { exact: true }),
+        page.getByLabel("Budget from ($)", { exact: true }),
       ).toHaveValue("1000");
       await expect(
-        page.getByLabel("Maximum price ($)", { exact: true }),
+        page.getByLabel("Budget up to ($)", { exact: true }),
       ).toHaveValue("17500");
       const persisted = await page.request.get("/api/preferences");
       expect(persisted.ok()).toBe(true);
