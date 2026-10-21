@@ -3,14 +3,26 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { readFileSync } from "node:fs";
+const account = vi.hoisted(() => ({
+  owner: "owner" as string | null,
+  loading: false,
+}));
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({ dealerId: account.owner, loading: account.loading }),
+}));
 let host: HTMLDivElement;
 let root: Root;
 let request: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  account.owner = "owner";
+  account.loading = false;
   request = vi.fn().mockResolvedValue({
     ok: true,
-    json: async () => ({ item: { id: "inventory-one" } }),
+    json: async () => ({
+      ownerId: "owner",
+      item: { id: "inventory-one", dealerId: "owner", stage: "acquired" },
+    }),
   });
   vi.stubGlobal("fetch", request);
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
@@ -143,5 +155,50 @@ describe("purchase recording confirmation", () => {
       "Purchase recorded. Saved-list status did not update",
     );
     expect(host.querySelector("button")).toBeNull();
+  });
+  it("resets a purchase draft and ignores its late callback after an account switch", async () => {
+    const recorded = vi.fn(async () => true);
+    let confirm!: (value: unknown) => void;
+    request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    await open(recorded);
+    await fill("1000");
+    await submit();
+    expect(request.mock.calls[0][1].headers["x-inventory-owner"]).toBe("owner");
+    account.owner = "new-owner";
+    await open(recorded);
+    expect(host.querySelector<HTMLInputElement>("input")?.value).toBe("");
+    await act(async () =>
+      confirm({
+        ok: true,
+        json: async () => ({
+          ownerId: "owner",
+          item: { id: "unit", dealerId: "owner", stage: "acquired" },
+        }),
+      }),
+    );
+    expect(recorded).not.toHaveBeenCalled();
+    expect(host.textContent).not.toContain("Purchase recorded");
+  });
+  it("offers sign-in instead of a writable purchase form after sign-out", async () => {
+    await open();
+    await fill("1000");
+    account.owner = null;
+    await act(async () =>
+      root.render(
+        React.createElement(AcquireToPipelineButton, {
+          deal: { id: "deal-one" },
+        }),
+      ),
+    );
+    expect(host.querySelector("dialog")).toBeNull();
+    expect(host.querySelector('a[href="/login"]')?.textContent).toContain(
+      "Sign in",
+    );
+    expect(request).not.toHaveBeenCalled();
   });
 });

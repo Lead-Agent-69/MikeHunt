@@ -74,6 +74,7 @@ test.describe("Pipeline financial evidence", () => {
     );
     await page.route("**/api/inventory**", async (route) => {
       if (route.request().method() === "PATCH") {
+        expect(route.request().headers()["x-inventory-owner"]).toBe(ownerId);
         expect(route.request().postDataJSON()).toMatchObject({
           id: "offer-fixture",
           stage: "sold",
@@ -91,6 +92,7 @@ test.describe("Pipeline financial evidence", () => {
         );
         return route.fulfill({
           json: {
+            ownerId,
             item: items[1],
             outcomeReview: {
               synced: false,
@@ -100,7 +102,9 @@ test.describe("Pipeline financial evidence", () => {
           },
         });
       }
-      return route.fulfill({ json: { items, total: items.length } });
+      return route.fulfill({
+        json: { ownerId, items, total: items.length, hasMore: false },
+      });
     });
     await page.goto("/fleet");
     const metrics = page.getByRole("region", { name: "Pipeline metrics" });

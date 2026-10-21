@@ -3,7 +3,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import useSWR, { mutate as mutateCache } from "swr";
 import Link from "next/link";
-import { fetcher } from "@/lib/swr-config";
+import {
+  ownerInventoryFetcher,
+  writeInventory,
+  invalidateInventoryViews,
+} from "@/lib/inventory/account-client";
+import { useRecordOwner } from "@/hooks/useRecordOwner";
 import { Panel } from "@/components/shared/Panel";
 import { Tag } from "@/components/shared/Tag";
 import { Mono } from "@/components/shared/Mono";
@@ -345,6 +350,7 @@ function ExpenseModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const recordDialog = useRecordDialog(onClose, saving, returnFocus);
+  const isCurrentOwner = useRecordOwner(item.dealerId);
 
   const handleSave = async () => {
     if (saving) return;
@@ -365,25 +371,13 @@ function ExpenseModal({
       };
       const field = fieldMap[cat];
       const existing = (item as any)[field] ?? 0;
-      const res = await fetch("/api/inventory", {
-        signal: AbortSignal.timeout(20000),
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: item.id,
-          expense: { category: cat, amount: val, expectedTotal: existing },
-        }),
+      const data = await writeInventory(item.dealerId, "PATCH", {
+        id: item.id,
+        expense: { category: cat, amount: val, expectedTotal: existing },
       });
-      const data = await res.json();
-      if (res.ok && data.item?.id === item.id) onSaved(data.item);
-      else
-        setErr(
-          userFacingErrorMessage(
-            data.error,
-            "Expense was not confirmed. Reload Pipeline before retrying to avoid counting it twice.",
-          ),
-        );
+      if (isCurrentOwner()) onSaved(data.item);
     } catch (e) {
+      if (!isCurrentOwner()) return;
       setErr(
         userFacingErrorMessage(
           e,
@@ -391,7 +385,7 @@ function ExpenseModal({
         ),
       );
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
@@ -532,6 +526,7 @@ function MarkSoldModal({
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const recordDialog = useRecordDialog(onClose, saving, returnFocus);
+  const isCurrentOwner = useRecordOwner(item.dealerId);
 
   const handleSold = async () => {
     if (saving) return;
@@ -543,27 +538,19 @@ function MarkSoldModal({
     setSaving(true);
     setErr(null);
     try {
-      const res = await fetch("/api/inventory", {
-        signal: AbortSignal.timeout(20000),
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, stage: "sold", soldPrice: val }),
+      const data = await writeInventory(item.dealerId, "PATCH", {
+        id: item.id,
+        stage: "sold",
+        soldPrice: val,
       });
-      const data = await res.json();
-      if (res.ok && data.item?.id === item.id && data.item.stage === "sold")
+      if (isCurrentOwner())
         onSold(
           data.item,
           data.outcomeReview?.message ||
             "Sale saved. Review all actual costs in Outcomes and learning.",
         );
-      else
-        setErr(
-          userFacingErrorMessage(
-            data.error,
-            "We couldn't update this vehicle. Please try again.",
-          ),
-        );
     } catch (e) {
+      if (!isCurrentOwner()) return;
       setErr(
         userFacingErrorMessage(
           e,
@@ -571,7 +558,7 @@ function MarkSoldModal({
         ),
       );
     } finally {
-      setSaving(false);
+      if (isCurrentOwner()) setSaving(false);
     }
   };
 
@@ -724,6 +711,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
   const [advanceError, setAdvanceError] = useState<string | null>(null);
   const [saleMessage, setSaleMessage] = useState("");
   const recordOpener = useRef<HTMLElement | null>(null);
+  const isCurrentOwner = useRecordOwner(item.dealerId);
 
   const rate = item.dailyFloorRate > 0 ? item.dailyFloorRate : DAILY_FLOOR_RATE;
   const days = Math.max(
@@ -753,24 +741,27 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
     setAdvancing(true);
     setAdvanceError(null);
     try {
-      const res = await fetch("/api/inventory", {
-        signal: AbortSignal.timeout(20000),
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, stage: next }),
+      const data = await writeInventory(item.dealerId, "PATCH", {
+        id: item.id,
+        stage: next,
       });
-      const data = await res.json();
-      if (!res.ok || data.item?.id !== item.id || data.item.stage !== next)
-        throw new Error("Unconfirmed stage update");
-      onUpdated(data.item);
+      if (isCurrentOwner()) onUpdated(data.item);
     } catch {
+      if (!isCurrentOwner()) return;
       setAdvanceError(
         "Stage change was not confirmed. Reload Pipeline before retrying.",
       );
     } finally {
-      setAdvancing(false);
+      if (isCurrentOwner()) setAdvancing(false);
     }
-  }, [item.id, item.stage, advancing, onUpdated]);
+  }, [
+    item.id,
+    item.dealerId,
+    item.stage,
+    advancing,
+    onUpdated,
+    isCurrentOwner,
+  ]);
 
   const costRows = [
     { label: "Purchase", val: item.purchasePrice, hide: false, warn: false },
@@ -1143,11 +1134,28 @@ function FleetPageHeader({ count }: { count: number }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function FleetPage() {
+  const { dealerId, loading } = useDealerId();
+  return (
+    <FleetWorkspace
+      key={dealerId || "signed-out"}
+      dealerId={dealerId}
+      dealerLoading={loading}
+    />
+  );
+}
+
+function FleetWorkspace({
+  dealerId,
+  dealerLoading,
+}: {
+  dealerId: string | null;
+  dealerLoading: boolean;
+}) {
   const [now, setNow] = useState(Date.now());
   const [filter, setFilter] = useState<"all" | Stage>("all");
   const configured = isSupabaseConfigured();
 
-  const { dealerId, loading: dealerLoading } = useDealerId();
+  const isCurrentOwner = useRecordOwner(dealerId);
 
   const {
     data,
@@ -1156,20 +1164,21 @@ export default function FleetPage() {
     mutate,
   } = useSWR(
     configured && dealerId && !dealerLoading
-      ? `/api/inventory?dealerId=${dealerId}&limit=100`
+      ? ([`/api/inventory?limit=100`, dealerId] as [string, string])
       : null,
-    fetcher,
+    ownerInventoryFetcher,
+    { keepPreviousData: false },
   );
 
   const fleet = useMemo(
-    () => (data?.items || []) as InventoryItem[],
-    [data?.items],
+    () => (data?.ownerId === dealerId ? data.items : []) as InventoryItem[],
+    [data, dealerId],
   );
   const needsSignIn = configured && !dealerLoading && !dealerId;
   const error = !configured
     ? null
     : dealerId
-      ? fetchError?.message || data?.error || null
+      ? fetchError?.message || null
       : null;
   const loading = configured && (dealerLoading || isLoading);
 
@@ -1180,20 +1189,27 @@ export default function FleetPage() {
 
   const handleUpdated = useCallback(
     (updated: InventoryItem) => {
-      mutate(
-        {
-          ...data,
-          items: fleet.map((f) => (f.id === updated.id ? updated : f)),
-        },
-        false,
+      if (!isCurrentOwner() || updated.dealerId !== dealerId) return;
+      void mutate(
+        (current) =>
+          current?.ownerId === dealerId
+            ? {
+                ...current,
+                items: current.items.map((f) =>
+                  f.id === updated.id ? updated : f,
+                ),
+              }
+            : current,
+        { revalidate: false },
       );
       if (dealerId) {
+        invalidateInventoryViews(dealerId, "/api/inventory?limit=100");
         void mutateCache(["/api/outcomes", dealerId]);
         void mutateCache(["/api/calibration", dealerId]);
         void mutateCache(["/api/insights/source-roi", dealerId]);
       }
     },
-    [fleet, data, mutate, dealerId],
+    [mutate, dealerId, isCurrentOwner],
   );
 
   const stats = useMemo(() => {

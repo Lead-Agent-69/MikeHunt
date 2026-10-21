@@ -1,14 +1,16 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ mutate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ mutate: vi.fn(), owner: "owner" }));
 vi.mock("swr", () => ({
-  mutate: vi.fn(),
+  mutate: vi.fn(async () => []),
   default: () => ({
     data: {
+      ownerId: mocks.owner,
       items: [
         {
           id: "unit",
+          dealerId: mocks.owner,
           stage: "offer",
           year: 2020,
           make: "Honda",
@@ -29,7 +31,7 @@ vi.mock("swr", () => ({
 }));
 vi.mock("@/lib/supabase", () => ({ isSupabaseConfigured: () => true }));
 vi.mock("@/hooks/useDealerId", () => ({
-  useDealerId: () => ({ dealerId: "owner", loading: false }),
+  useDealerId: () => ({ dealerId: mocks.owner, loading: false }),
 }));
 vi.mock("@/components/fleet/FleetKPIs", () => ({ FleetKPIs: () => null }));
 vi.mock("@/components/fleet/CapitalVelocityTracker", () => ({
@@ -44,6 +46,7 @@ beforeEach(async () => {
   request = vi.fn();
   vi.stubGlobal("fetch", request);
   mocks.mutate.mockClear();
+  mocks.owner = "owner";
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
     value: function (this: HTMLDialogElement) {
@@ -111,7 +114,10 @@ describe("Pipeline sale and expense handoffs", () => {
     await fill("1500");
     request.mockResolvedValue({
       ok: false,
-      json: async () => ({ item: { id: "unit", stage: "sold" } }),
+      json: async () => ({
+        ownerId: "owner",
+        item: { dealerId: "owner", id: "unit", stage: "sold" },
+      }),
     });
     await click("Confirm Sale");
     expect(host.querySelector('[role="alert"]')).not.toBeNull();
@@ -125,7 +131,10 @@ describe("Pipeline sale and expense handoffs", () => {
     await fill("0");
     request.mockResolvedValue({
       ok: true,
-      json: async () => ({ item: { id: "other", stage: "sold" } }),
+      json: async () => ({
+        ownerId: "owner",
+        item: { dealerId: "owner", id: "other", stage: "sold" },
+      }),
     });
     await click("Confirm Sale");
     expect(JSON.parse(request.mock.calls[0][1].body).soldPrice).toBe(0);
@@ -136,7 +145,10 @@ describe("Pipeline sale and expense handoffs", () => {
     await fill("25.55");
     request.mockResolvedValue({
       ok: true,
-      json: async () => ({ item: { id: "unit", stage: "offer" } }),
+      json: async () => ({
+        ownerId: "owner",
+        item: { dealerId: "owner", id: "unit", stage: "offer" },
+      }),
     });
     await click("Save Expense");
     expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({
@@ -154,7 +166,8 @@ describe("Pipeline sale and expense handoffs", () => {
     request.mockResolvedValue({
       ok: true,
       json: async () => ({
-        item: { id: "unit", stage: "sold" },
+        ownerId: "owner",
+        item: { id: "unit", dealerId: "owner", stage: "sold" },
         outcomeReview: {
           synced: false,
           message: "Sale saved in Pipeline. Its outcome record needs review.",
@@ -170,5 +183,53 @@ describe("Pipeline sale and expense handoffs", () => {
     expect(
       host.querySelector<HTMLAnchorElement>('a[href="/insights"]'),
     ).not.toBeNull();
+  });
+  it("discards an open sale draft on account change and ignores its delayed confirmation", async () => {
+    let confirm!: (value: unknown) => void;
+    request.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    await click("Mark Sold");
+    await fill("1500");
+    await click("Confirm Sale");
+    expect(request.mock.calls[0][1].headers["x-inventory-owner"]).toBe("owner");
+    mocks.owner = "new-owner";
+    await act(async () => root.render(React.createElement(FleetPage)));
+    expect(host.querySelector("dialog")).toBeNull();
+    await act(async () =>
+      confirm({
+        ok: true,
+        json: async () => ({
+          ownerId: "owner",
+          item: { id: "unit", dealerId: "owner", stage: "sold" },
+        }),
+      }),
+    );
+    expect(mocks.mutate).not.toHaveBeenCalled();
+    expect(host.textContent).not.toContain("Sale saved");
+  });
+  it("merges a confirmed expense into the latest list without overwriting another completed update", async () => {
+    await click("Log Expense");
+    await fill("25.55");
+    request.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        ownerId: "owner",
+        item: { id: "unit", dealerId: "owner", repairCost: 125.55 },
+      }),
+    });
+    await click("Save Expense");
+    const update = mocks.mutate.mock.calls[0][0];
+    const unrelated = { id: "second", dealerId: "owner", stage: "listed" };
+    const current = { ownerId: "owner", items: [{ id: "unit" }, unrelated] };
+    expect(update(current).items).toEqual([
+      { id: "unit", dealerId: "owner", repairCost: 125.55 },
+      unrelated,
+    ]);
+    const otherAccount = { ownerId: "new-owner", items: [] };
+    expect(update(otherAccount)).toBe(otherAccount);
   });
 });

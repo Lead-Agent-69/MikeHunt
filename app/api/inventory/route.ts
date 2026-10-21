@@ -11,6 +11,22 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 
+function ownerMismatch(request: NextRequest, ownerId: string) {
+  const expected = [
+    request.headers.get("x-inventory-owner"),
+    new URL(request.url).searchParams.get("dealerId"),
+  ];
+  return expected.some((id) => id !== null && id !== ownerId)
+    ? NextResponse.json(
+        {
+          error:
+            "Your account changed. Reload your vehicles before continuing.",
+        },
+        { status: 409 },
+      )
+    : null;
+}
+
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json({
@@ -32,6 +48,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const dealerId = user.id;
+    const mismatch = ownerMismatch(request, dealerId);
+    if (mismatch) return mismatch;
 
     const { searchParams } = new URL(request.url);
     const stage = searchParams.get("stage")?.split(",").filter(Boolean) as any;
@@ -49,7 +67,10 @@ export async function GET(request: NextRequest) {
       offset,
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(
+      { ...result, ownerId: dealerId },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
   } catch (error) {
     console.error("Error in inventory API:", error);
     return NextResponse.json(
@@ -71,7 +92,6 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = createServerComponentClient();
     const {
       data: { user },
       error: authError,
@@ -80,6 +100,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const dealerId = user.id;
+    const mismatch = ownerMismatch(request, dealerId);
+    if (mismatch) return mismatch;
+    const supabase = createServerComponentClient();
 
     const body = await request.json();
     // Minimal required fields for acquisition from a deal
@@ -174,7 +197,8 @@ export async function POST(request: NextRequest) {
       console.warn("[inventory] outcome seed failed (non-fatal):", e);
     }
 
-    return NextResponse.json({ item: data });
+    const item = new InventoryService().mapDbToItem(data);
+    return NextResponse.json({ ownerId: dealerId, item });
   } catch (error) {
     console.error("Error creating inventory:", error);
     return NextResponse.json(
@@ -196,7 +220,6 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    const supabase = createServerComponentClient();
     const {
       data: { user },
       error: authError,
@@ -205,6 +228,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     const dealerId = user.id;
+    const mismatch = ownerMismatch(request, dealerId);
+    if (mismatch) return mismatch;
+    const supabase = createServerComponentClient();
 
     const body = await request.json();
     const { id, stage, listed_platforms, soldPrice, soldWhere, expense } = body;
@@ -404,6 +430,7 @@ export async function PATCH(request: NextRequest) {
       : data;
 
     return NextResponse.json({
+      ownerId: dealerId,
       item,
       ...(isSale
         ? {
