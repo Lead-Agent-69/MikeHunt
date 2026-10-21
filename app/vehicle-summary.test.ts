@@ -137,7 +137,7 @@ describe("first-screen listing facts", () => {
         },
       }),
     );
-    expect(html).toContain("Current bid");
+    expect(html).toContain("Last observed bid");
     expect(html).toContain("Reported no");
     expect(html).toContain("Reported yes");
     expect(html).toContain("0 mi");
