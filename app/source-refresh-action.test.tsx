@@ -81,6 +81,9 @@ it.each([
 
 it("queues exactly the selected criteria without using the admin runner or inflating inventory", async () => {
   await render();
+  expect(host.querySelector("button")!.classList.contains("btn-primary")).toBe(
+    true,
+  );
   await click();
   expect(fetchMock).toHaveBeenCalledTimes(1);
   const [url, init] = fetchMock.mock.calls[0];

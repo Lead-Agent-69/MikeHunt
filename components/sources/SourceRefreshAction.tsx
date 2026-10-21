@@ -119,7 +119,7 @@ export function SourceRefreshAction({
         type="button"
         onClick={refresh}
         disabled={!validLocation || busy}
-        className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--blue)] px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+        className="btn btn-primary inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RefreshCw size={16} aria-hidden="true" />
         {busy ? "Checking selected sources" : "Check for new matches"}
