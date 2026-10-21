@@ -7,6 +7,7 @@ This change repairs specific gaps in ingestion and display:
 - Shared source conversion no longer copies a current bid into `buy_now_price`. Explicit buy-now fields remain separate.
 - The shared importer retains adapter price evidence, original observation dates, metadata and title provenance instead of discarding them.
 - Cars.com amounts with decimal cents are parsed as one number; ranges, payment strings and malformed separators are not concatenated into a larger price.
+- The shared cash-term classifier rejects numeric prefixes of price ranges, malformed grouping, incomplete cents, phone numbers and shorthand such as `18k`. This also rechecks stored evidence text instead of accepting an old asking-price classification blindly.
 - Cars.com reads explicit price terms only within the matching card's visible text, excluding scripts and templates. It uses the shared price classifier, rejects conflicting cash prices and requires an actual response observation date before establishing asking-price evidence. An unlabelled numeric field remains unverified.
 - `smartFetch` retains the polite crawler's original body observation time, so cached HTML cannot acquire a new price-check date merely by being parsed again.
 - CarGurus `expectedPrice` is a reference estimate when no reported price is present. It cannot support acquisition economics. Uninspected reported amounts remain unverified.
