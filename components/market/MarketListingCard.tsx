@@ -22,6 +22,10 @@ import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
 import { bidStatusNote } from "@/lib/deals/price-observation";
+import {
+  titleBadgeModel,
+  TITLE_DAMAGE_LABELS,
+} from "@/lib/deals/title-badge-model";
 
 export function MarketListingCard(props: {
   row: MarketListing;
@@ -69,6 +73,11 @@ function ListingCard({
     { enabled: photos.length > 1 },
   );
   const vendor = vendorIdentity(row.source, row.sourceUrl);
+  const titleRead = titleBadgeModel({
+    condition: row.condition,
+    titleSource: row.titleSource,
+    damageType: row.damageType,
+  });
   const saved = useDiscoverySave({
     ...row,
     priceEvidence: {
@@ -295,8 +304,12 @@ function ListingCard({
           </div>
           <div>
             <dt className="text-[var(--t3)]">Title / condition</dt>
-            <dd className="font-semibold capitalize">
-              {row.condition?.replace(/_/g, " ") || "Not reported"}
+            <dd className="font-semibold" title={titleRead.hint}>
+              {titleRead.label}
+              {titleRead.partsOnly ? " · Parts only" : ""}
+              {titleRead.damage && !row.damageType
+                ? ` · ${TITLE_DAMAGE_LABELS[titleRead.damage]}`
+                : ""}
             </dd>
           </div>
           {row.damageType && (

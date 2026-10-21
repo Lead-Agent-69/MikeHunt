@@ -30,7 +30,7 @@ export type TitleBadgeModel = {
   tone: TitleBadgeTone;
   /** Source-default title: weaker claim, muted style. */
   weak: boolean;
-  /** Clean claim downgraded by repair evidence. */
+  /** Clean claim lacks listing provenance or conflicts with repair evidence. */
   unconfirmed: boolean;
   partsOnly: boolean;
   damage: TitleDamageChip | null;
@@ -119,13 +119,16 @@ export function titleBadgeModel(input: {
   const detail = titleCategoryDetail({ condition: input.condition });
   const damage = damageFrom(detail.damage, input.damageType);
   const source = normalizeTitleSource(input.titleSource);
-  const unconfirmed =
+  const conflicts =
     detail.category === "clean" &&
     cleanTitleConflicts("clean_title", {
       condition: input.condition,
       damageType: input.damageType,
       repairableEvidence: input.repairableEvidence,
     });
+  const missingTitleEvidence =
+    detail.category === "clean" && source !== "listing";
+  const unconfirmed = conflicts || missingTitleEvidence;
   const weak = source === "source_default" && detail.category !== "unknown";
   const base = unconfirmed
     ? TITLE_UNCONFIRMED_LABEL
@@ -136,13 +139,15 @@ export function titleBadgeModel(input: {
     : weak
       ? "muted"
       : TONES[detail.category];
-  const hint = unconfirmed
+  const hint = conflicts
     ? "The listing claims a clean title, but its condition or damage says repairable. Verify the title before buying."
-    : weak
-      ? "This source labels every listing this way by default; the listing itself doesn't state the title. Verify before buying."
-      : detail.category === "unknown"
-        ? "The listing doesn't state a title status. Verify before buying."
-        : "Listing-reported title status. Verify the actual title before buying.";
+    : missingTitleEvidence
+      ? "No listing-level evidence establishes this clean-title label. Verify the actual title before buying."
+      : weak
+        ? "This source labels every listing this way by default; the listing itself doesn't state the title. Verify before buying."
+        : detail.category === "unknown"
+          ? "The listing doesn't state a title status. Verify before buying."
+          : "Listing-reported title status. Verify the actual title before buying.";
   return {
     category: detail.category,
     label,

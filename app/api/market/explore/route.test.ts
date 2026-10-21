@@ -88,6 +88,39 @@ const request = (search: string) =>
   GET(new NextRequest(`https://example.test/api/market/explore?${search}`));
 
 describe("Market inventory filtering and pagination", () => {
+  it("projects only valid title provenance and keeps raw source options private", async () => {
+    state.rows = ["listing", "source_default", "invalid"].map(
+      (title_source, index) => ({
+        id: `title-${index}`,
+        source: "cargurus",
+        year: 2020,
+        make: "Honda",
+        model: "Accord",
+        condition: "clean_title",
+        ask_price: 18000,
+        title_source,
+        options: { privateNotes: "private-note-must-not-leak" },
+      }),
+    );
+    const body = await (await request("mode=all")).json();
+    expect(body.rows.find((row: any) => row.id === "title-0").titleSource).toBe(
+      "listing",
+    );
+    expect(body.rows.find((row: any) => row.id === "title-1").titleSource).toBe(
+      "source_default",
+    );
+    expect(
+      body.rows.find((row: any) => row.id === "title-2").titleSource,
+    ).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain("private-note-must-not-leak");
+    expect(
+      state.calls.some(
+        (call) =>
+          call[0] === "select" &&
+          String(call[1]).includes("title_source:options->>titleSource"),
+      ),
+    ).toBe(true);
+  });
   it("keeps unknown-title and no-repair constraints instead of broadening a shared search", async () => {
     const response = await request("titleType=unknown&includeRepairable=0");
     expect(response.status).toBe(200);

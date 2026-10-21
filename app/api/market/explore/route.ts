@@ -46,6 +46,7 @@ import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import {
   parseTitleTypes,
   titleCategoryOrFilter,
+  titleSourceOf,
 } from "@/lib/deals/title-category";
 import {
   applyVehicleDetails,
@@ -278,7 +279,7 @@ export async function GET(req: NextRequest) {
           let q = supabase
             .from("deals")
             .select(
-              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
+              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
             )
             .eq("active", true);
           q = applyLiveAuctionWindow(
@@ -455,6 +456,7 @@ export async function GET(req: NextRequest) {
             recommendedMaxBid: economicsNumber(d.recommended_max_bid),
             locationState: d.location_state || undefined,
             condition: d.condition || undefined,
+            titleSource: titleSourceOf(d) || undefined,
             damageType: d.damage_type || undefined,
             sellerType: sellerTypeEvidence(d),
             roi: economicsNumber(d.deal_analysis?.roi),

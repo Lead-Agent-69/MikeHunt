@@ -15,6 +15,7 @@ This change repairs specific gaps in ingestion and display:
 - Missing or invalid mileage stays unknown across Cars.com, CarGurus, AutoTrader, TrueCar, OfferUp and Carvana; explicitly reported zero survives the shared normalization step. OfferUp no longer collapses rebuilt and parts-only descriptions into salvage titles.
 - IAA collection counts reflect rows actually accepted by persistence, including when buyer scope or quality checks reject a candidate.
 - Market cards describe ended auctions as last observed bids and distinguish unknown auction timing. They no longer claim that bidding is open without timing evidence.
+- The shared title badge marks clean-title claims without listing-level provenance as unconfirmed. Market Explorer now uses that same display and receives only the safe projected title-provenance value. Historical claims become qualified immediately without a bulk data rewrite; the stored title bucket is retained. Explicit listing provenance and damage conflicts remain visible across the app.
 
 ## Verification and limits
 
