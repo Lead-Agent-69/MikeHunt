@@ -114,6 +114,36 @@ describe("customer inventory eligibility", () => {
     ).toEqual(["https://dealer.test/car.jpg"]);
     expect(listingPhotos(null)).toEqual([]);
   });
+  it("excludes known and audited placeholders but retains unverified real-photo URLs", () => {
+    const now = Date.parse("2026-10-21T12:00:00Z");
+    const row = {
+      last_seen_at: new Date(now).toISOString(),
+      images: ["https://dealer.test/no-photo.jpg"],
+    };
+    expect(isCustomerInventory(row, now)).toBe(false);
+    expect(
+      isCustomerInventory(
+        {
+          ...row,
+          images: ["https://dealer.test/car.jpg"],
+          options: { photoAudit: { state: "unknown" } },
+        },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isCustomerInventory(
+        {
+          ...row,
+          images: ["https://dealer.test/car.jpg"],
+          options: {
+            photoAudit: { placeholderUrls: ["https://dealer.test/car.jpg"] },
+          },
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
   it("lets whole-market research include photo-less records without relaxing freshness", () => {
     const query: any = {};
     for (const method of ["not", "neq", "gte", "lte", "or"])

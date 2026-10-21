@@ -5,7 +5,11 @@ import { useRef, type MouseEvent, type PointerEvent } from "react";
 /** Photo taps must never turn a scroll, swipe, pinch, or nested control into a second move. */
 export function usePhotoNavigation(
   move: (direction: -1 | 1) => void,
-  { enabled, swipe = false }: { enabled: boolean; swipe?: boolean },
+  {
+    enabled,
+    swipe = false,
+    tap = true,
+  }: { enabled: boolean; swipe?: boolean; tap?: boolean },
 ) {
   const gesture = useRef<{
     id: number;
@@ -86,6 +90,7 @@ export function usePhotoNavigation(
       // Keyboard/assistive activation keeps the element's normal action; visible arrows are buttons.
       if (
         !enabled ||
+        !tap ||
         event.detail === 0 ||
         event.button !== 0 ||
         event.ctrlKey ||

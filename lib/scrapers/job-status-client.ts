@@ -1,8 +1,11 @@
+import { publicCapacityWait, type CapacityWait } from "./job-wait";
+
 export interface CustomerScrapeJob {
   id: string;
   status: "pending" | "running" | "completed" | "failed";
   heartbeat_at?: string | null;
   started_at?: string | null;
+  waiting?: CapacityWait | null;
   result?: Record<string, any> | null;
 }
 
@@ -20,8 +23,16 @@ export function sourceSearchStatusMessage(
   job: CustomerScrapeJob,
   now = Date.now(),
 ) {
-  if (job.status === "pending")
+  if (job.status === "pending") {
+    const waiting = publicCapacityWait(
+      job.status,
+      { waiting: job.waiting },
+      now,
+    );
+    if (waiting)
+      return `At the last check, new matches were waiting for the next daily collection allowance. Capacity will be checked again after ${new Date(waiting.nextCheckAt).toLocaleString()}. This is not a finish time. Existing matches remain available.`;
     return "Your source search is waiting to begin. Existing matches remain available.";
+  }
   const lastUpdate = Date.parse(job.heartbeat_at || job.started_at || "");
   if (
     job.status === "running" &&

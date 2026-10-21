@@ -54,6 +54,20 @@ describe("source publication proof", () => {
     expect(proof.defaultInventoryCandidates).toBe(1);
     expect(proof.deferredObservations).toBe(7);
     expect(proof.recentDeferredCandidates).toBe(0);
+    expect(proof.exclusions).toEqual({
+      inactive: 1,
+      stale: 1,
+      future_observation: 1,
+      unobserved: 1,
+      missing_photos: 1,
+      photos_unavailable: 1,
+      outside_vehicle_scope: 1,
+    });
+    expect(
+      Object.values(proof.exclusions).reduce((sum, value) => sum + value, 0) +
+        proof.defaultInventoryCandidates,
+    ).toBe(proof.storedRowsInSample);
+    expect(proof.photoReachabilityVerified).toBe(false);
   });
 
   it("matches domain boundaries and does not expose cached payloads or contacts", () => {

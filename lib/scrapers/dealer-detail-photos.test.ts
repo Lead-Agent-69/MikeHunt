@@ -36,4 +36,16 @@ describe("dealer detail gallery", () => {
       ),
     ).toEqual([]);
   });
+  it("rejects branding and placeholder images even inside a structured listing gallery", () => {
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "Car",
+      name: "2024 Buick Allure",
+      url: "/cars/123",
+      image: ["/images/logo.png", "/photos/vehicle.jpg"],
+    })}</script><div class="vehicle-gallery"><img src="/no-photo.jpg"><img src="/photos/rear.jpg"></div>`;
+    expect(dealerDetailPhotos(html, "https://dealer.test/cars/123")).toEqual([
+      "https://dealer.test/photos/vehicle.jpg",
+      "https://dealer.test/photos/rear.jpg",
+    ]);
+  });
 });

@@ -70,7 +70,7 @@ function ListingCard({
   const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),
-    { enabled: photos.length > 1 },
+    { enabled: photos.length > 1, swipe: true, tap: false },
   );
   const vendor = vendorIdentity(row.source, row.sourceUrl);
   const titleRead = titleBadgeModel({
@@ -147,12 +147,7 @@ function ListingCard({
               photoNavigation.onClick(event);
               rememberNavigationClick(event);
             }}
-            title={
-              photos.length > 1
-                ? "Tap left / right to browse photos"
-                : undefined
-            }
-            className="block h-full w-full focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="block h-full w-full touch-pan-y focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

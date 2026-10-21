@@ -56,24 +56,37 @@ export function listingPhotos(
   return photoEvidence(reportedListingPhotos(value, limit), audit).images;
 }
 
-/** Reported placeholders may remain researchable; this is not photo verification. */
-export function isCustomerInventory(
-  row: {
-    images?: unknown;
-    last_seen_at?: unknown;
-    active?: boolean;
-    options?: { photoAudit?: { state?: string } } | null;
-  },
+type InventoryObservation = {
+  images?: unknown;
+  last_seen_at?: unknown;
+  active?: boolean;
+  options?: {
+    photoAudit?: { state?: string; placeholderUrls?: string[] };
+  } | null;
+};
+
+/** One primary exclusion per row; unknown photo reachability is not unavailability. */
+export function customerInventoryExclusion(
+  row: InventoryObservation,
   now = Date.now(),
-): boolean {
+) {
+  if (row.active === false) return "inactive";
+  if (row.options?.photoAudit?.state === "unavailable")
+    return "photos_unavailable";
+  if (!reportedListingPhotos(row.images).length) return "missing_photos";
+  if (!listingPhotos(row.images, row.options?.photoAudit).length)
+    return "placeholder_photos";
   const seen =
     typeof row.last_seen_at === "string" ? Date.parse(row.last_seen_at) : NaN;
-  return (
-    row.active !== false &&
-    row.options?.photoAudit?.state !== "unavailable" &&
-    reportedListingPhotos(row.images).length > 0 &&
-    Number.isFinite(seen) &&
-    seen <= now &&
-    now - seen <= STALE_AFTER_HOURS * 3_600_000
-  );
+  if (!Number.isFinite(seen)) return "unobserved";
+  if (seen > now) return "future_observation";
+  if (now - seen > STALE_AFTER_HOURS * 3_600_000) return "stale";
+  return null;
+}
+
+export function isCustomerInventory(
+  row: InventoryObservation,
+  now = Date.now(),
+): boolean {
+  return customerInventoryExclusion(row, now) === null;
 }

@@ -63,7 +63,7 @@ describe("known placeholder evidence", () => {
         last_seen_at: new Date().toISOString(),
         options: { photoAudit: { state: "placeholder" } },
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
   it("does not count a placeholder cover or image fallback as completeness", () => {
     const quality = gradeDataQuality({
@@ -79,6 +79,27 @@ describe("known placeholder evidence", () => {
     ).toBe(25);
     expect(gradeDataQuality({ images: [vehicle] }).present).toContain("photo");
     expect(listingPhotos([placeholder, vehicle])).toEqual([vehicle]);
+  });
+  it("removes obvious branding artwork without matching arbitrary vehicle filenames", () => {
+    const logo = "https://www.billsmithauto.com/images/logo.png";
+    expect(listingPhotos([logo, vehicle])).toEqual([vehicle]);
+    expect(
+      isPlaceholderPhotoUrl(`/api/image/proxy?url=${encodeURIComponent(logo)}`),
+    ).toBe(true);
+    expect(
+      isPlaceholderPhotoUrl(
+        "https://dealer.test/photos/ford-logo-on-grille.jpg",
+      ),
+    ).toBe(false);
+    expect(isPlaceholderPhotoUrl("https://dealer.test/photos/12345.jpg")).toBe(
+      false,
+    );
+    expect(isPlaceholderPhotoUrl("https://dealer.test/logo-dark.svg")).toBe(
+      true,
+    );
+    expect(isPlaceholderPhotoUrl("https://dealer.test/no-image1.jpg")).toBe(
+      true,
+    );
   });
   it("honors exact audited placeholder URLs without hiding newer photos", () => {
     expect(listingPhotos([vehicle], { placeholderUrls: [vehicle] })).toEqual(
