@@ -1,22 +1,19 @@
 # Retention: Vercel Free + Supabase Free + Zeus disk
 
-## October 18 Integration Candidate
+## October 21 Production Status
 
-This candidate incorporates main #443, including pinned worker release metadata,
-queued-job local write budgets, bounded dealer-detail work, acquisition-price
-evidence and confirmed telemetry-cleanup receipts. It does not activate listing
-retention. Review found that installation previously created an active deletion
-schedule. The replacement job now installs paused, with a SQL regression requiring
-`active=false`. This changes the migration from the earlier reviewed candidate;
-review and test the new exact head before merge or hosted apply.
+Main includes #443 and the independently reviewed #360 retention protections. The
+targeted #360 migration is installed on the primary project: protected-reference
+guards, service-only functions and the storage meter were verified, while the sole
+replacement listing-cleanup job remains paused. No listing cleanup has been run.
 
-The live local worker is the separately released #443 image, not this storage-guard
-candidate. The storage-meter RPC must be installed through an approved targeted
-migration before this candidate's worker rollout; absent measurements intentionally
-buffer new inventory. Preserve current mounts, overlays, profiles and quota state.
-Earlier measurements and deployment notes below are historical, not current
-provider headroom. Archive/restore proof and permanent-deletion approval remain
-activation gates; a local SQL rehearsal does not satisfy either.
+The local worker is running image `mikehunt-scraper:refresh-complete-6f277b7f` with
+its cache, profiles, logs, source permissions and quota state preserved. An encrypted
+production export now exists in approved private off-device storage and passed an
+isolated restore. Device-loss recovery is not complete until the owner keeps an
+independently controlled copy of the recovery identity. Keep cleanup paused until
+that custody gate and explicit permanent-deletion approval are both satisfied. See
+[the production recovery runbook](production-recovery.md).
 
 Supabase holds searchable listing metadata, valuations, embeddings, account data and saved snapshots.
 Photos normally remain source URLs, not stored image bytes. Zeus holds scraper fingerprints,
@@ -35,27 +32,19 @@ Redis uses 1.22 MB at inspection but has no live maximum. The local compose upda
 256 MB with `noeviction` and a 512 MB container limit: no silent eviction of queued jobs; at the
 limit producers receive errors/backpressure. This does not archive or expire completed Redis jobs.
 
-## Hosted Rollout Gate (October 13)
+## Hosted Protection Gate (October 21)
 
-The following tables describe intended retention behavior, not a certified
-hosted rollout. The hosted protected inventory function is still absent and
-#360 needs independent database review before apply. Both legacy deletion
-jobs (`cleanup-expired-deals`, `cleanup-dead-deals`) were paused after inspection
-found incomplete owner-reference protection. The market aggregation job stays
-active. This change deleted no records, changed no grants, and did not stop
-worker collection. Watch hosted growth while replacement cleanup is pending;
-local F: headroom does not expand hosted storage or egress quotas.
+The protected inventory function and storage meter are live, but the cleanup job
+is intentionally inactive. Both legacy deletion jobs were removed; do not recreate
+or re-enable them. The active market-aggregation job is separate and worker
+collection continues. Hosted verification proved that saved, watched, purchased,
+outcome-linked and alert-matched vehicles survive the bounded cleanup function.
 
-Do not re-enable the legacy hard-delete jobs. Apply the independently reviewed
-replacement, prove saved/watchlist/inventory/outcome/alert reference survival,
-verify grants and cron targets, and test archive restoration first. The pause
-is a temporary safety measure, not an archive or permanent retention guarantee.
-
-Current-main worker rollout on October 13 uses image
-`mikehunt-scraper-release:c6c63d5`, with original cache/profile/log mounts and
-persisted quotas. Hosted read-only inspection reports 109,563,027 database bytes;
-protected prune and storage-measurement RPCs are still absent. Source URL storage
-is not a durable photo archive, and daily writes do not certify monthly capacity.
+The latest read-only meter reported 299,035,795 database bytes, about 59.8% of the
+500 MB free-tier database allowance. The worker buffers new inventory at the
+configured threshold instead of assuming local F: capacity expands Supabase storage
+or egress. Continue measuring actual hosted growth; a point-in-time reading does not
+certify monthly headroom. Source URL storage is not a durable photo archive.
 
 ## Supabase (500 MB)
 
@@ -82,9 +71,9 @@ and reuses `cleanup-expired-deals` as the sole routine listing-retention executo
 demotion, unreferenced-listing deletion and expired URL-cache batch to the requested limit (default
 1,000, maximum 2,000). The replacement job is installed with `active=false` in the
 same transaction. Approved installation of the storage-meter function and guard
-does not authorize enabling the cleanup job. Activation requires separately
-approved off-device backup/restore proof and permanent-deletion approval, followed
-by operator verification of the exact job, owner, command and monitored run.
+does not authorize enabling the cleanup job. Activation requires independent owner
+custody of the recovery identity and permanent-deletion approval, followed by
+operator verification of the exact job, owner, command and monitored run.
 URL-cache rows use ordered `FOR UPDATE SKIP LOCKED` and return a separate
 `url_cache_deleted` count; there is no unbounded raw DELETE after the function.
 
@@ -101,14 +90,16 @@ through a wrapper that changes the setting mid-statement. Direct PostgREST mutat
 not part of the routine execution path. Do not broadly change service-role defaults to satisfy a
 check. Verify the actual scheduled command, role, cancellation and rollback before hosted rollout.
 
-**Deployment status (2026-10-18):** #360 merged as `b61d867c` after exact-head CI and
+**Deployment status (verified 2026-10-21):** #360 merged as `b61d867c` after exact-head CI and
 independent agent review. Its targeted migration was applied with operator approval to the
 primary project. Source equality, service-only grants and all six protected-reference
 fingerprints were verified. Legacy jobs 3 and 6 were removed; replacement job 8 remains
 **inactive**. No listing cleanup was run. The local Docker Desktop worker was updated with
-an image-only override, preserving its environment, mounts, source permissions and quotas.
-The live storage meter reported 266,013,843 bytes at verification; this is a point-in-time
-measurement, not a monthly capacity guarantee. Production recovery remains unproven; see
+an image-only override to `mikehunt-scraper:refresh-complete-6f277b7f`, preserving its
+environment, mounts, source permissions and quotas. The live storage meter reported
+299,035,795 bytes at verification; this is a point-in-time measurement, not a monthly
+capacity guarantee. The encrypted off-device production export and isolated restore are
+verified. Independent owner custody of the recovery identity remains open; see
 [the recovery checklist](production-recovery.md). Do not activate cleanup on this receipt alone.
 
 Run `node scripts/test-protected-retention.mjs` against the existing local Supabase Docker stack.
@@ -132,7 +123,8 @@ Both rehearsals reject target arguments and Docker host overrides, verify the
 local endpoint/project label, and pin the inspected context for every command.
 This tests representative fixture data, not the complete production schema or
 user records, encryption, off-device durability, source photo preservation or
-production recovery time. Production backup and restore approval remains separate.
+production recovery time. The separate production receipt is recorded in
+[the recovery checklist](production-recovery.md).
 
 The replacement job no longer age-purges `vin_price_history`. Those observations can support saved
 research and are not disposable cache entries. Owner-aware history archival/retention needs its
