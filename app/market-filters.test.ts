@@ -8,6 +8,9 @@ import type { Prefs } from "@/hooks/usePreferences";
 const state = vi.hoisted(() => ({
   mode: "personal",
   pending: false,
+  profitEvidence: 1,
+  profitScoreEvidence: 1,
+  priceGapEvidence: 1,
   keys: [] as (string | null)[],
   prefs: {} as Prefs,
 }));
@@ -21,6 +24,9 @@ vi.mock("swr", () => ({
             total: 1105,
             mode: "all",
             facets: {
+              profitEvidence: state.profitEvidence,
+              profitScoreEvidence: state.profitScoreEvidence,
+              priceGapEvidence: state.priceGapEvidence,
               sources: [
                 { value: "copart", n: 640 },
                 { value: "iaa", n: 310 },
@@ -78,6 +84,9 @@ beforeEach(() => {
   );
   window.history.replaceState(null, "", "/market");
   state.mode = "personal";
+  state.profitEvidence = 1;
+  state.profitScoreEvidence = 1;
+  state.priceGapEvidence = 1;
   state.pending = false;
   state.keys = [];
   state.prefs = {};
@@ -374,6 +383,22 @@ describe("Market filter journey", () => {
     expect(
       state.keys.filter(Boolean).some((key) => key!.includes("mode=all")),
     ).toBe(true);
+  });
+  it("disables unsupported economics sorts instead of presenting arbitrary rankings", async () => {
+    state.mode = "dealer";
+    state.profitEvidence = 0;
+    state.profitScoreEvidence = 0;
+    state.priceGapEvidence = 0;
+    await render();
+    const options = Array.from(host.querySelectorAll("option"));
+    const byValue = (value: string) =>
+      options.find((option) => option.value === value)!;
+    expect(byValue("profitEstimate:desc").disabled).toBe(true);
+    expect(byValue("profitEstimate:desc").textContent).toContain(
+      "needs verified costs",
+    );
+    expect(byValue("profitScore:desc").disabled).toBe(true);
+    expect(byValue("priceGap:desc").disabled).toBe(true);
   });
   it("offers working quick filters while keeping exact controls collapsed", async () => {
     await render();

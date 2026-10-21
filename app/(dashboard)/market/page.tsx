@@ -477,6 +477,30 @@ export default function MarketPage() {
     topMakes: [],
     laneColors: {},
   };
+  const profitEvidence = Number(facets.profitEvidence || 0);
+  const profitScoreEvidence = Number(facets.profitScoreEvidence || 0);
+  const priceGapEvidence = Number(facets.priceGapEvidence || 0);
+  React.useEffect(() => {
+    if (busy || !data) return;
+    const unavailable =
+      (f.sort === "profitEstimate" && profitEvidence === 0) ||
+      (f.sort === "profitScore" && profitScoreEvidence === 0) ||
+      (f.sort === "priceGap" && priceGapEvidence === 0);
+    if (!unavailable) return;
+    setPage(0);
+    setF((current) =>
+      current.sort === f.sort
+        ? { ...current, sort: "lastSeenAt", sortDir: "desc" }
+        : current,
+    );
+  }, [
+    busy,
+    data,
+    f.sort,
+    priceGapEvidence,
+    profitEvidence,
+    profitScoreEvidence,
+  ]);
   const total: number = data?.total ?? 0;
   const areaSummary = searchAreaLabel(f);
   const quickSourceOptions = INVENTORY_SOURCE_FILTERS.filter(
@@ -1494,14 +1518,34 @@ export default function MarketPage() {
               className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
             >
               <option value="lastSeenAt:desc">Recently seen</option>
-              <option value="priceGap:desc">Below estimate ↓</option>
+              <option value="priceGap:desc" disabled={priceGapEvidence === 0}>
+                {priceGapEvidence > 0
+                  ? "Below estimate ↓"
+                  : "Below estimate · needs verified price"}
+              </option>
               {(f.near || f.lat) && (
                 <option value="distanceMiles:asc">Nearest first</option>
               )}
               {flipDesk && (
-                <option value="profitEstimate:desc">Profit ↓</option>
+                <option
+                  value="profitEstimate:desc"
+                  disabled={profitEvidence === 0}
+                >
+                  {profitEvidence > 0
+                    ? "Profit ↓"
+                    : "Profit · needs verified costs"}
+                </option>
               )}
-              {flipDesk && <option value="profitScore:desc">Score ↓</option>}
+              {flipDesk && (
+                <option
+                  value="profitScore:desc"
+                  disabled={profitScoreEvidence === 0}
+                >
+                  {profitScoreEvidence > 0
+                    ? "Score ↓"
+                    : "Score · needs verified costs"}
+                </option>
+              )}
               <option value="askPrice:asc">Advertised amount ↑</option>
               <option value="askPrice:desc">Advertised amount ↓</option>
               <option value="mileage:asc">Miles ↑</option>

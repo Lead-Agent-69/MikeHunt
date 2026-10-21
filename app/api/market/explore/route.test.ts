@@ -136,6 +136,55 @@ describe("Market inventory filtering and pagination", () => {
     ]);
     expect(body.rows[0].priceGap).toBe(10000);
     expect(body.rows[2].priceGap).toBeUndefined();
+    expect(body.facets.priceGapEvidence).toBe(2);
+  });
+  it("keeps unsupported economics behind verified rows and orders that tail by freshness", async () => {
+    const supported = {
+      id: "supported",
+      source: "independent_dealer",
+      source_url: "https://dealer.example/vehicle/supported",
+      ask_price: 10000,
+      sell_estimate: 16000,
+      true_net_profit: 2500,
+      profit_score: 80,
+      last_seen_at: "2026-10-19T00:00:00.000Z",
+      price_evidence: { kind: "asking", askingPrice: 10000 },
+      deal_analysis: {
+        valuation: {
+          resaleEvidence: true,
+          source: "comparables",
+          compCount: 6,
+          compKind: "ask",
+          confidence: "medium",
+        },
+      },
+    };
+    state.rows = [
+      {
+        ...supported,
+        id: "unsupported-old",
+        last_seen_at: "2026-10-17T00:00:00.000Z",
+        price_evidence: { kind: "unknown" },
+      },
+      supported,
+      {
+        ...supported,
+        id: "unsupported-new",
+        last_seen_at: "2026-10-20T00:00:00.000Z",
+        price_evidence: { kind: "unknown" },
+      },
+    ];
+
+    const body = await (
+      await request("sort=profitEstimate&sortDir=desc")
+    ).json();
+    expect(body.rows.map((row: { id: string }) => row.id)).toEqual([
+      "supported",
+      "unsupported-new",
+      "unsupported-old",
+    ]);
+    expect(body.facets.profitEvidence).toBe(1);
+    expect(body.facets.profitScoreEvidence).toBe(1);
   });
   beforeEach(() => {
     invalidate();
