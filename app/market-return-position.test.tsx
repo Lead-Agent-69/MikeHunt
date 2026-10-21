@@ -22,6 +22,7 @@ beforeEach(() => {
     "",
     "/market?mode=all",
   );
+  window.sessionStorage.clear();
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -51,8 +52,18 @@ it("records the selected card within its current history entry, preserving route
   rememberMarketPosition(card);
   expect(window.history.state).toEqual({
     nextRouterState: "preserved",
-    marketReturnPosition: { url: "/market?mode=all", id: "car-9", top: 280 },
+    marketReturnPosition: {
+      url: "/market?mode=all",
+      id: "car-9",
+      top: 280,
+      savedAt: expect.any(Number),
+    },
   });
+  expect(
+    JSON.parse(
+      window.sessionStorage.getItem("mh-market-return-position-v1") || "{}",
+    ),
+  ).toMatchObject({ url: "/market?mode=all", id: "car-9", top: 280 });
 });
 
 it("restores after results mount and consumes only its own marker", async () => {
@@ -64,6 +75,50 @@ it("restores after results mount and consumes only its own marker", async () => 
   await act(async () => vi.runAllTimers());
   expect(scrollTo).toHaveBeenCalledWith({ top: 1120, behavior: "instant" });
   expect(window.history.state).toEqual({ nextRouterState: "preserved" });
+  expect(
+    window.sessionStorage.getItem("mh-market-return-position-v1"),
+  ).toBeNull();
+});
+
+it("restores from session storage when the router replaces history metadata", async () => {
+  rememberMarketPosition(card);
+  window.history.replaceState({ nextRouterState: "new" }, "");
+  vi.mocked(card.getBoundingClientRect).mockReturnValue({
+    top: 900,
+  } as DOMRect);
+  await act(async () => root.render(<MarketReturnPosition />));
+  await act(async () => vi.runAllTimers());
+  expect(scrollTo).toHaveBeenCalledWith({ top: 620, behavior: "instant" });
+  expect(window.history.state).toEqual({ nextRouterState: "new" });
+  expect(
+    window.sessionStorage.getItem("mh-market-return-position-v1"),
+  ).toBeNull();
+});
+
+it("retries until asynchronous results mount, then restores", async () => {
+  rememberMarketPosition(card);
+  card.remove();
+  await act(async () => root.render(<MarketReturnPosition />));
+  await act(async () => vi.advanceTimersByTime(64));
+  expect(scrollTo).not.toHaveBeenCalled();
+  vi.spyOn(card, "getBoundingClientRect").mockReturnValue({
+    top: 1040,
+  } as DOMRect);
+  document.body.append(card);
+  await act(async () => vi.runAllTimers());
+  expect(scrollTo).toHaveBeenCalledWith({ top: 760, behavior: "instant" });
+});
+
+it("restarts restoration when Back reactivates a preserved market page", async () => {
+  await act(async () => root.render(<MarketReturnPosition />));
+  await act(async () => vi.runAllTimers());
+  rememberMarketPosition(card);
+  vi.mocked(card.getBoundingClientRect).mockReturnValue({
+    top: 780,
+  } as DOMRect);
+  await act(async () => window.dispatchEvent(new PopStateEvent("popstate")));
+  await act(async () => vi.runAllTimers());
+  expect(scrollTo).toHaveBeenCalledWith({ top: 500, behavior: "instant" });
 });
 
 it("does not move a different search", async () => {
