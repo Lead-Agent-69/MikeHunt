@@ -641,15 +641,22 @@ export class LocalScraperCache {
         kind: "insert" | "update";
         priceChanged: boolean;
       }[] = [];
+      const plan = getSweepPlan();
       // Spend scarce full updates on seller changes before model-only recalculations.
-      const modelOnly = (row: Record<string, any>) => {
+      const persistencePriority = (row: Record<string, any>) => {
         const prior = existing.get(`${row.source}|${row.source_deal_id}`);
-        return prior && sameSourceObservation(prior, row) ? 1 : 0;
+        if (prior) return sameSourceObservation(prior, row) ? 1 : 0;
+        const state = String(row.location_state || "")
+          .trim()
+          .toUpperCase();
+        if (plan?.demandStates?.includes(state)) return 2;
+        if (plan?.states?.includes(state)) return 3;
+        if (Object.prototype.hasOwnProperty.call(US_STATES, state)) return 4;
+        return 5;
       };
       const prioritized = [...candidates].sort(
-        (a, b) => modelOnly(a) - modelOnly(b),
+        (a, b) => persistencePriority(a) - persistencePriority(b),
       );
-      const plan = getSweepPlan();
       const prioritizeLocatedInserts =
         !getScrapeRunScope() &&
         plan?.demandStates?.some(

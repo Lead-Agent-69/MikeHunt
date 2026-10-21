@@ -6,6 +6,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { RotatingLog } from "../lib/scrapers/rotating-log";
 import {
   createStorageBudgetChecker,
+  storageInsertAllowance,
   type StorageBudget,
 } from "../lib/scrapers/storage-budget";
 import {
@@ -326,6 +327,11 @@ async function initializeRuntime(): Promise<void> {
     beforeWrite: async () => waitUntilWritable(),
     allowInsert: async (client) => {
       const budget = await checkStorage(client);
+      const allowance = storageInsertAllowance(
+        budget,
+        cache.getQuota(),
+        Number(process.env.STORAGE_WARNING_MAX_DAILY_INSERTS || 500),
+      );
       if (
         currentStatus.databaseStorage?.state !== budget.state &&
         budget.state !== "normal"
@@ -334,8 +340,12 @@ async function initializeRuntime(): Promise<void> {
           `[storage-budget] ${budget.state}; new inserts ${budget.allowInsert ? "allowed" : "buffered locally"}`,
         );
       }
-      currentStatus.databaseStorage = budget;
-      return budget.allowInsert;
+      currentStatus.databaseStorage = {
+        ...budget,
+        effectiveDailyInsertLimit: allowance.dailyLimit,
+        effectiveInsertsRemaining: allowance.remaining,
+      };
+      return allowance.allowed;
     },
   });
   await cache.load();
