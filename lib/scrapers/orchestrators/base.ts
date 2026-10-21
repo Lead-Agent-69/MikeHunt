@@ -2,7 +2,7 @@
 // Base orchestrator that all other orchestrators extend.
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { ScrapeResult, ScraperRun } from "@/types";
+import { ScrapeResult } from "@/types";
 import { CostGuard, CostGuardOptions } from "../tools/cost-guard";
 import {
   CircuitBreakerRegistry,
@@ -10,11 +10,7 @@ import {
 } from "../tools/circuit-breaker";
 
 export type OrchestratorStatus =
-  | "idle"
-  | "running"
-  | "paused"
-  | "error"
-  | "completed";
+  "idle" | "running" | "paused" | "error" | "completed";
 
 export interface OrchestratorOptions {
   supabaseUrl?: string;
@@ -29,6 +25,8 @@ export interface OrchestratorOptions {
   circuitBreaker?: CircuitBreakerRegistry;
   circuitBreakerOptions?: CircuitBreakerOptions;
   skipSupabaseRunTracking?: boolean;
+  /** Per-source wall-clock limit. Operator refreshes may need longer for polite detail crawling. */
+  perSourceTimeoutMs?: number;
 }
 
 export interface OrchestratorProgress {

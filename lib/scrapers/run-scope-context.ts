@@ -1,16 +1,21 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { BuyerScope } from "./buyer-scope";
 
-const storage = new AsyncLocalStorage<BuyerScope>();
+/** Public normalization never creates refreshExisting; it is an operator-only queue hint. */
+export interface ScrapeRunScope extends BuyerScope {
+  refreshExisting?: boolean;
+}
+
+const storage = new AsyncLocalStorage<ScrapeRunScope>();
 
 export function withScrapeRunScope<T>(
-  scope: BuyerScope | undefined,
+  scope: ScrapeRunScope | undefined,
   run: () => Promise<T>,
 ): Promise<T> {
   if (!scope) return run();
   return storage.run(scope, run);
 }
 
-export function getScrapeRunScope(): BuyerScope | undefined {
+export function getScrapeRunScope(): ScrapeRunScope | undefined {
   return storage.getStore();
 }

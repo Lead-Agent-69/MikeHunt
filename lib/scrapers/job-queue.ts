@@ -1,13 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { BuyerScope } from "./buyer-scope";
+import type { ScrapeRunScope } from "./run-scope-context";
 import type { OrchestratorType } from "./runner";
 
 export type ScrapeJobStatus = "pending" | "running" | "completed" | "failed";
 
 /** Operator-only queue hint. Public buyer-scope normalization never sets this flag. */
-export interface ScopedScrapeScope extends BuyerScope {
-  refreshExisting?: boolean;
-}
+export type ScopedScrapeScope = ScrapeRunScope;
 
 /** Idle health must distinguish a live process from permission to collect/store more rows. */
 export function scopedWorkerIdleState(

@@ -7,7 +7,6 @@ import {
   scrapeIndependentDealer,
   autoDiscoverAndCrawl,
   scrapeCuratedSites,
-  scrapeCarsCom,
   scrapeCarsComAllStates,
 } from "./sources/index";
 import { scrapeEbayMotors } from "./sources/ebay-motors";
@@ -36,6 +35,7 @@ import { ScraperRegistry } from "./tools/registry";
 import { getSkipSources } from "./health";
 import type { BuyerScope } from "./buyer-scope";
 import { withScrapeRunScope } from "./run-scope-context";
+import { sourceTimeoutMs } from "./source-timeout";
 import {
   SequentialOrchestrator,
   ConcurrentOrchestrator,
@@ -45,11 +45,7 @@ import {
   type OrchestratorOptions,
 } from "./orchestrators";
 export type OrchestratorType =
-  | "sequential"
-  | "concurrent"
-  | "priority"
-  | "queue"
-  | "realtime";
+  "sequential" | "concurrent" | "priority" | "queue" | "realtime";
 
 export interface RunScraperOptions {
   orchestrator?: OrchestratorType;
@@ -500,6 +496,7 @@ function buildOrchestratorOptions(
     dryRun: options.dryRun || false,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    perSourceTimeoutMs: sourceTimeoutMs(options.scope),
     onProgress: (progress) => {
       options.onProgress?.({
         total: progress.total,

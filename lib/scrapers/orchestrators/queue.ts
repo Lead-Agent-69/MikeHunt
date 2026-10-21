@@ -63,7 +63,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
     this.queueName = options.queueName || "MikeHunt:scraper:queue";
     this.workerConcurrency = options.workerConcurrency || 3;
     this.retries = options.retries ?? 2;
-    this.jobTimeoutMs = options.jobTimeoutMs || 300000;
+    this.jobTimeoutMs =
+      options.jobTimeoutMs || options.perSourceTimeoutMs || 300_000;
     this.maxAttempts = options.maxAttempts || 3;
     this.stopWhenIdle = options.stopWhenIdle || false;
     this.waitForNextJob = options.waitForNextJob;

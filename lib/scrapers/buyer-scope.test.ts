@@ -1,11 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBuyerScopeLinks,
+  normalizeBuyerScope,
   planScrapeForBuyerScope,
   resolveBuyerSourceRequest,
 } from "./buyer-scope";
 
 describe("buyer scope planning", () => {
+  it("strips operator-only refresh controls from public buyer scope", () => {
+    const scope = normalizeBuyerScope({
+      state: "MO",
+      refreshExisting: true,
+    });
+
+    expect(scope).toMatchObject({ state: "MO", lane: "all" });
+    expect(scope).not.toHaveProperty("refreshExisting");
+  });
+
   it("keeps retail aggregators eligible for all-lane state searches without widening location", () => {
     const plan = planScrapeForBuyerScope({
       lane: "all",

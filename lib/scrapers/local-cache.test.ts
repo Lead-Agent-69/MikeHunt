@@ -558,6 +558,60 @@ describe("LocalScraperCache", () => {
     expect(next.priceChangedKeys.size).toBe(0);
     expect(db.rows.get("test|model")?.deal_analysis).toEqual({ profit: 500 });
   });
+  it("lets an operator refresh use only the hard update reserve", async () => {
+    const { cache } = await makeCache({
+      maxDailyInserts: 5,
+      maxDailyUpdates: 5,
+    });
+    const db = fakeSupabase([observed("existing")]);
+    for (const price of [9000, 8000, 7000, 6000]) {
+      expect(
+        (
+          await cache.persistRows(
+            [observed("existing")].map((item) => ({
+              ...item,
+              ask_price: price,
+            })),
+            db.client,
+            "*",
+          )
+        ).updates,
+      ).toBe(1);
+    }
+    expect(cache.getQuota().updates).toBe(4);
+    expect(
+      (
+        await cache.persistRows(
+          [{ ...observed("existing"), ask_price: 5000 }],
+          db.client,
+          "*",
+        )
+      ).updates,
+    ).toBe(0);
+
+    const refreshed = await withScrapeRunScope(
+      { state: "MO", refreshExisting: true },
+      () =>
+        cache.persistRows(
+          [{ ...observed("existing"), ask_price: 5000 }],
+          db.client,
+          "*",
+        ),
+    );
+    expect(refreshed).toMatchObject({ updates: 1, inserts: 0 });
+    expect(cache.getQuota().updates).toBe(5);
+
+    for (const id of ["new-1", "new-2", "new-3", "new-4"])
+      expect((await cache.persistRows([row(id)], db.client, "*")).inserts).toBe(
+        1,
+      );
+    const deferredInsert = await withScrapeRunScope(
+      { state: "MO", refreshExisting: true },
+      () => cache.persistRows([row("new-5")], db.client, "*"),
+    );
+    expect(deferredInsert).toMatchObject({ inserts: 0, updates: 0 });
+    expect(db.rows.has("test|new-5")).toBe(false);
+  });
   it.each(["concurrent", "failure", "unknown", "missing", "newer observation"])(
     "never confirms a deferred model update after %s",
     async (mode) => {
