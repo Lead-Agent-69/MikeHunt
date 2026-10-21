@@ -30,6 +30,51 @@ describe("dealer CMS accepted-record receipt", () => {
     name: "Test dealer",
     sourceId: "test-dealer",
   } as DealerCmsSite;
+  it("persists matched detail cash evidence with the response's observation time", async () => {
+    vi.stubEnv("CDG_DETAIL_LIMIT", "1");
+    const source_url =
+      "https://dgautollc.com/2022-ford-f250-1ft7w2bt3nec06696/";
+    mocks.crawl.mockResolvedValue([
+      {
+        source_url,
+        title: "2022 Ford F250",
+        vin: "1FT7W2BT3NEC06696",
+        ask_price: 999,
+      },
+    ]);
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      observedAt: "2026-10-20T12:00:00Z",
+      body: `<script type="application/ld+json">${JSON.stringify({ "@type": "Vehicle", vehicleIdentificationNumber: "1FT7W2BT3NEC06696", description: "Down payment $999. Cash price $18,000." })}</script>`,
+    });
+    mocks.upsert.mockResolvedValue(1);
+    await scrapeDealerCms(dealerCmsSiteFor(source_url)!);
+    expect(
+      mocks.upsert.mock.calls[0][0][0].options.priceEvidence,
+    ).toMatchObject({
+      kind: "asking",
+      askingPrice: 18000,
+      checkedAt: "2026-10-20T12:00:00Z",
+    });
+  });
+  it("does not replace a known vehicle with a different VIN served at its old URL", async () => {
+    vi.stubEnv("CDG_DETAIL_LIMIT", "1");
+    const row = {
+      source_url: "https://dgautollc.com/car/",
+      title: "2022 Ford F250",
+      vin: "1FT7W2BT3NEC06696",
+      mileage: 1000,
+    };
+    mocks.crawl.mockResolvedValue([row]);
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      observedAt: "2026-10-20T12:00:00Z",
+      body: '<script type="application/ld+json">{"@type":"Vehicle","vehicleIdentificationNumber":"1HGCM82633A004352","description":"Cash price $1,000"}</script>',
+    });
+    mocks.upsert.mockResolvedValue(1);
+    await scrapeDealerCms(dealerCmsSiteFor(row.source_url)!);
+    expect(mocks.upsert).toHaveBeenCalledWith([row]);
+  });
   it.each([0, 1, 2])(
     "returns %i accepted writes rather than parsed inventory",
     async (accepted) => {

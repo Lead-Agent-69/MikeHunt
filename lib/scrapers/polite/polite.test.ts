@@ -303,10 +303,14 @@ describe("PoliteCrawler", () => {
       });
     });
     const first = await h.crawler.fetch("https://dealer.com/inv");
+    h.advance(30_000);
     const second = await h.crawler.fetch("https://dealer.com/inv");
     expect(first.body).toBe("<h1>page</h1>");
     expect(second.notModified).toBe(true);
     expect(second.body).toBe("<h1>page</h1>");
+    expect(Date.parse(second.observedAt!) - Date.parse(first.observedAt!)).toBe(
+      30_000,
+    );
     expect(n).toBe(2);
   });
 
@@ -316,11 +320,13 @@ describe("PoliteCrawler", () => {
       n++;
       return new Response("p");
     });
-    await h.crawler.fetch("https://dealer.com/inv");
+    const first = await h.crawler.fetch("https://dealer.com/inv");
+    h.advance(30_000);
     const again = await h.crawler.fetch("https://dealer.com/inv", {
       freshForMs: 60_000,
     });
     expect(again.fromCache).toBe(true);
+    expect(again.observedAt).toBe(first.observedAt);
     expect(n).toBe(1);
   });
 

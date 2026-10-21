@@ -43,7 +43,11 @@ export interface PoliteFetchOptions {
   signal?: AbortSignal;
 }
 
-export type PoliteSkipReason = "robots" | "breaker" | "invalid_url" | "blocked_url";
+export type PoliteSkipReason =
+  | "robots"
+  | "breaker"
+  | "invalid_url"
+  | "blocked_url";
 
 export interface PoliteResponse {
   url: string;
@@ -52,6 +56,8 @@ export interface PoliteResponse {
   ok: boolean;
   fromCache: boolean;
   notModified: boolean;
+  /** Time this response body was fetched or conditionally revalidated at its source. */
+  observedAt?: string;
   /** Not requested at all, and why. */
   skipped?: PoliteSkipReason;
   /** The site served a bot challenge / denial page. The domain is now paused. */
@@ -266,6 +272,7 @@ export class PoliteCrawler {
         body: cached.body,
         ok: true,
         fromCache: true,
+        observedAt: new Date(cached.fetchedAt).toISOString(),
       };
     }
 
@@ -316,6 +323,7 @@ export class PoliteCrawler {
           ok: true,
           fromCache: true,
           notModified: true,
+          observedAt: new Date(this.now()).toISOString(),
           headers,
         };
       }
@@ -336,7 +344,14 @@ export class PoliteCrawler {
           lastModified: headers["last-modified"],
           fetchedAt: this.now(),
         });
-        return { ...base, status, body, ok: true, headers };
+        return {
+          ...base,
+          status,
+          body,
+          ok: true,
+          headers,
+          observedAt: new Date(this.now()).toISOString(),
+        };
       }
 
       if (isBanSignal(status)) {

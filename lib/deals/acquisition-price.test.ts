@@ -7,6 +7,22 @@ import {
 } from "./acquisition-price";
 
 describe("reported acquisition price", () => {
+  it("does not choose one of conflicting seller-stated purchase prices", () => {
+    const description = "Cash price $18,000. Sale price $22,000.";
+    expect(disclosedPriceEvidence(description, 18000)).toMatchObject({
+      kind: "unknown",
+    });
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 18000,
+        description,
+        options: { priceEvidence: { kind: "asking", askingPrice: 18000 } },
+      }),
+    ).toBe(0);
+    expect(
+      disclosedPriceEvidence("Cash price $18,000. Full price $18,000.", 18000),
+    ).toMatchObject({ kind: "asking", askingPrice: 18000 });
+  });
   it.each([
     { askingPrice: 299, evidenceText: "Sale price: $299/month" },
     { askingPrice: 2180, evidenceText: "Savings off sale price: $2,180" },

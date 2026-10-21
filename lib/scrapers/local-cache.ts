@@ -121,14 +121,23 @@ const VOLATILE_FIELDS = new Set([
   "first_seen_at",
 ]);
 
-function stable(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(stable);
+function stable(value: unknown, keys: string[] = []): unknown {
+  // Keep the actual source timestamp in the payload. Comparing its UTC day avoids
+  // spending a full update on every same-day observation of an unchanged price.
+  // A new day or any changed amount/meaning still refreshes the stored evidence.
+  if (
+    keys.join(".") === "options.priceEvidence.checkedAt" &&
+    typeof value === "string" &&
+    Number.isFinite(Date.parse(value))
+  )
+    return new Date(value).toISOString().slice(0, 10);
+  if (Array.isArray(value)) return value.map((child) => stable(child, keys));
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .filter(([key]) => !VOLATILE_FIELDS.has(key))
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, child]) => [key, stable(child ?? null)]),
+        .map(([key, child]) => [key, stable(child ?? null, [...keys, key])]),
     );
   }
   return value ?? null;

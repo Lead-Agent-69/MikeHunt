@@ -1,5 +1,6 @@
 // Personal model adjustments from complete owner-reported records and matched, dated snapshots.
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { predictionPrecedesPurchase } from "@/lib/outcomes/prediction-timing";
 import {
   ledgerTotals,
   completeOutcomeRows,
@@ -45,6 +46,10 @@ export function calibrationFromRows(
     if (
       !Number.isFinite(captured) ||
       captured > Date.now() ||
+      !predictionPrecedesPurchase(
+        row.purchased_at,
+        row.prediction_captured_at,
+      ) ||
       row.prediction_captured_at.slice(0, 10) > row.sold_at.slice(0, 10)
     )
       return false;

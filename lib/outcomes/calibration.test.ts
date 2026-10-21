@@ -23,6 +23,7 @@ describe("personal learning evidence", () => {
       { actual_recon: null },
       { prediction_basis: "none" },
       { prediction_captured_at: "2026-10-02" },
+      { prediction_captured_at: "2026-09-02T12:00:00Z" },
     ])
       expect(calibrationFromRows(samples(change))).toBeNull();
   });
