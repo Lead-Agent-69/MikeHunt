@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type MouseEvent as ReactMouseEvent, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -47,6 +47,20 @@ function ListingCard({
   const previewTrigger = useRef<HTMLButtonElement>(null);
   const cardRef = useRef<HTMLElement>(null);
   const rememberPosition = () => rememberMarketPosition(cardRef.current);
+  const rememberNavigationClick = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+  ) => {
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    rememberPosition();
+  };
   const photos = gallery.images;
   const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
@@ -119,6 +133,10 @@ function ListingCard({
             onNavigate={rememberPosition}
             aria-label={`Open details for ${row.title}`}
             {...photoNavigation}
+            onClick={(event) => {
+              photoNavigation.onClick(event);
+              rememberNavigationClick(event);
+            }}
             title={
               photos.length > 1
                 ? "Tap left / right to browse photos"
@@ -243,6 +261,7 @@ function ListingCard({
               href={`/deal/${row.id}`}
               prefetch={false}
               onNavigate={rememberPosition}
+              onClick={rememberNavigationClick}
               className="hover:underline after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
             >
               {row.title || `${row.year} ${row.make} ${row.model}`}
@@ -355,6 +374,7 @@ function ListingCard({
             prefetch={false}
             className="relative z-20 inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
             onNavigate={rememberPosition}
+            onClick={rememberNavigationClick}
           >
             Review listing →
           </Link>
