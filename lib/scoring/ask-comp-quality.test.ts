@@ -72,6 +72,8 @@ describe("asking-price comparison quality", () => {
       title: "2022 Toyota Corolla",
       last_seen_at: new Date().toISOString(),
       ask_price: 20000,
+      price_evidence: { kind: "asking", askingPrice: 20000 },
+      source_url: "https://seller.example/car/1",
     };
     const rows = [
       ...Array.from({ length: 6 }, () => ({ ...base })),

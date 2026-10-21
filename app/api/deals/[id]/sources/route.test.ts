@@ -96,6 +96,37 @@ describe("reported VIN price comparisons", () => {
     ).toBeNull();
     expect(state.calls).toContainEqual(["deals", "limit", 51]);
   });
+  it("shows expired and stale observations without inventing a current cash range", async () => {
+    const old = new Date(Date.now() - 8 * 86400000).toISOString();
+    state.rows = [
+      listing("a"),
+      listing("expired", {
+        source: "copart",
+        buy_now_price: 1000,
+        auction_end_at: new Date().toISOString(),
+        price_evidence: { kind: "current_bid", currentBid: 500 },
+      }),
+      listing("stale", { last_seen_at: old }),
+      listing("old-price-check", {
+        listing_description: "Cash price: $15,000",
+        price_evidence: { kind: "asking", askingPrice: 15000, checkedAt: old },
+      }),
+    ];
+    const body = await (await request()).json();
+    expect(body).toMatchObject({
+      count: 4,
+      comparableCount: 1,
+      cheapest: null,
+      dearest: null,
+      spread: null,
+    });
+    expect(body.sources).toHaveLength(4);
+    expect(body.sources.find((s: any) => s.id === "expired")).toMatchObject({
+      askPrice: 500,
+      priceContext: { cashPrice: 1000, comparisonEligible: false },
+    });
+  });
+
   it("does not return fake zero spread for one eligible price", async () => {
     state.rows = [listing("a")];
     expect(await (await request()).json()).toMatchObject({

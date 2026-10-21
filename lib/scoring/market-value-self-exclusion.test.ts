@@ -16,6 +16,8 @@ const row = (id: string, ask_price: number, extra: any = {}) => ({
   trim: null,
   source: "cars_com",
   ask_price,
+  price_evidence: { kind: "asking", askingPrice: ask_price },
+  source_url: `https://seller.example/car/${id}`,
   condition: "used",
   damage_type: null,
   title: "2018 Honda Accord",

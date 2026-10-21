@@ -4,7 +4,12 @@ import {
   type PriceEvidence,
 } from "./acquisition-price";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
-import { eligibleAskingPrices } from "@/lib/ai/asking-price-context";
+import { retailAskingRows } from "./retail-asking";
+import { dealFreshness } from "./freshness";
+import {
+  hasOpenPriceWindow,
+  isRecentPriceObservation,
+} from "./price-observation";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 
 export const SOURCE_PRICE_FIELDS =
@@ -79,25 +84,18 @@ export function sourcePriceContext(row: SourcePriceRow, now = Date.now()) {
           : kind === "reference"
             ? (positivePrice(evidence?.referenceValue) ?? advertisedAmount)
             : advertisedAmount;
-  const seen = row.last_seen_at ? Date.parse(row.last_seen_at) : NaN;
-  const fresh =
-    Number.isFinite(seen) &&
-    seen <= now + 300_000 &&
-    seen >= now - 30 * 86400000;
-  const checked =
-    evidence?.checkedAt != null ? Date.parse(evidence.checkedAt) : null;
+  const fresh = isRecentPriceObservation(row.last_seen_at, now);
   const evidenceCurrent =
-    checked == null ||
-    (Number.isFinite(checked) &&
-      checked <= now + 300_000 &&
-      checked >= now - 30 * 86400000);
+    evidence?.checkedAt == null ||
+    isRecentPriceObservation(evidence.checkedAt, now);
+  const open = hasOpenPriceWindow(row.auction_end_at, now);
   const url = vendorIdentity(row.source, row.source_url).href;
   const comparisonEligible =
-    cashPrice != null && fresh && evidenceCurrent && !!url;
+    cashPrice != null && fresh && evidenceCurrent && open && !!url;
   const canCompareToAskingCurve =
     comparisonEligible &&
     kind === "asking" &&
-    eligibleAskingPrices([
+    retailAskingRows([
       {
         source: row.source,
         ask_price: cashPrice,
@@ -117,7 +115,8 @@ export function sourcePriceContext(row: SourcePriceRow, now = Date.now()) {
     cashPrice,
     buyNowPrice,
     comparisonEligible,
-    observationCurrent: fresh && !!url,
+    evidenceCurrent,
+    observationCurrent: fresh && open && !!url && dealFreshness(row, now).live,
     canCompareToAskingCurve,
   };
 }

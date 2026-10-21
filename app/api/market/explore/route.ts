@@ -362,14 +362,6 @@ export async function GET(req: NextRequest) {
             d.sell_estimate,
           );
           const price = sourcePriceContext(d);
-          const bidCheckedAt = d.price_evidence?.checkedAt;
-          const bidCheckedTime =
-            bidCheckedAt == null ? null : Date.parse(bidCheckedAt);
-          const bidEvidenceCurrent =
-            bidCheckedTime == null ||
-            (Number.isFinite(bidCheckedTime) &&
-              bidCheckedTime >= Date.now() - 30 * 86400_000 &&
-              bidCheckedTime <= Date.now() + 300_000);
           // Stored profit math must use the same acquisition amount as the displayed quote.
           // Deposits, payments, references, unverified amounts, and corrected teaser prices
           // cannot inherit an old GO/profit simply because the resale estimate has comps.
@@ -379,7 +371,7 @@ export async function GET(req: NextRequest) {
               (price.kind === "current_bid" &&
                 d.price_evidence?.kind === "current_bid" &&
                 d.price_evidence.currentBid === price.amount &&
-                bidEvidenceCurrent &&
+                price.evidenceCurrent &&
                 price.observationCurrent)) &&
             price.amount != null &&
             price.amount === Number(d.ask_price) &&

@@ -498,6 +498,15 @@ describe("Market inventory filtering and pagination", () => {
       missing: false,
       supported: true,
     },
+    {
+      evidence: {
+        kind: "current_bid",
+        currentBid: 500,
+        checkedAt: new Date(Date.now() - 8 * 86400000).toISOString(),
+      },
+      missing: false,
+      supported: false,
+    },
     { evidence: { kind: "current_bid" }, missing: false, supported: false },
     {
       evidence: {

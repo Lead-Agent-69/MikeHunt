@@ -243,6 +243,7 @@ describe("POST /api/deal-check market value", () => {
     model: "MDX",
     mileage: 40000,
     ask_price,
+    price_evidence: { kind: "asking", askingPrice: ask_price },
     source: "cars_com",
     source_deal_id: `cc-${id}`,
     source_url: `https://www.cars.com/vehicledetail/${id}/`,
@@ -302,6 +303,37 @@ describe("POST /api/deal-check market value", () => {
     expect(body.marketComparison).toBeNull();
     expect(body.marketValue).toMatchObject({ known: false, value: null });
     expect(body.marketValue.reason).toMatch(/unknown/i);
+  });
+
+  it("uses confirmed cash asks and excludes stale evidence, payments and unclassified amounts", async () => {
+    const old = new Date(Date.now() - 8 * 86400000).toISOString();
+    dealRows.rows = [
+      row("cash-a", 299, {
+        price_evidence: { kind: "asking", askingPrice: 28000 },
+      }),
+      row("cash-b", 30000),
+      row("cash-c", 32000),
+      row("unclassified", 2000, { price_evidence: null }),
+      row("payment", 2000, {
+        listing_description: "Advertised price is a down payment",
+      }),
+      row("stale-evidence", 2000, {
+        listing_description: "Cash price: $2,000",
+        price_evidence: { kind: "asking", askingPrice: 2000, checkedAt: old },
+      }),
+      row("reference", 2000, { reference_only: "true" }),
+    ];
+    generateText.mockResolvedValueOnce(extraction());
+    const body = await (await post("2020 Acura MDX 30000")).json();
+    expect(body.marketValue).toMatchObject({ known: true, sampleSize: 3 });
+    expect(body.marketComparison.marketAvg).toBe(28500);
+    expect(body.marketComparison.comps.map((r: any) => r.id)).toEqual([
+      "cash-a",
+      "cash-b",
+      "cash-c",
+    ]);
+    expect(body.marketComparison.comps[0].ask_price).toBe(28000);
+    expect(dealRows.rows[0].ask_price).toBe(299);
   });
 
   it("says unknown when comps cannot be loaded", async () => {
