@@ -200,7 +200,7 @@ time other sources need. FlareSolverr stays the reserve tier inside `smartFetch`
 ### 5.3b Rings, tiers, and want-hit (2026-10-06)
 
 Ring-0 demand still comes from `scrape_demand()` (home / search / recent). The planner then expands
-each anchor through `nearbyStates` (`expandDemandRings`): ring *r* keeps weight · 1/(1+r). ZIP3
+each anchor through `nearbyStates` (`expandDemandRings`): ring _r_ keeps weight · 1/(1+r). ZIP3
 preference stays on ring-0 only.
 
 Among sources already allowed by `resolveSweepSources` (terms-safe defaults + any `SCRAPE_SOURCES`
@@ -231,6 +231,16 @@ once indexes are included.
 | Changed rows      | `MAX_DAILY_UPDATES=2500` (2,000/day)                       | price and content changes      |
 | Freshness touches | `MAX_DAILY_TOUCHES=20000`, at most once per row per 12h    | `last_seen_at` only, no egress |
 | Retention         | nightly cron: inactive after 30d unseen, deleted after 60d | caps table size                |
+
+The measured database-size guard is authoritative over the daily row budget. Below 350 MB the
+worker may use the full configured intake. From 350 MB through 449 MB it automatically falls back to
+`500` configured inserts (`400` after the 20% reserve). At 450 MB it buffers new rows locally and
+performs no new hosted inserts. Failed or unavailable storage measurements also fail closed.
+
+Broad aggregator collection is bounded to 1,000 unique observations per run and reserves the final
+two minutes of the source deadline for validation and persistence. It covers planned regional markets
+before national comp depth, rotates its national starting query between runs, and passes the worker's
+abort signal into every request. This prevents a late timeout from discarding an otherwise useful run.
 
 **Supabase Free (500 MB DB, 5 GB egress/month)**
 
@@ -348,20 +358,20 @@ output is thrown away unless every field matches the page text. The invent consu
 
 ## 9. Rollout (one concern per PR)
 
-| PR  | Concern                                                                                                          |
-| --- | ---------------------------------------------------------------------------------------------------------------- |
-| #53 | Hybrid Docker mode, resilient queue claim (merged `dfd22cc`)                                                     |
-| #54 | `last_seen_at` touch for unchanged rows (merged `7a3b27d`)                                                       |
-| #62 | Free-tier write budget + slim classify reads (merged `30d5c53`)                                                  |
-| #63 | State rotation + 50-state metro ZIP grid (merged `70e997b`)                                                      |
-| #65 | This design doc (merged `f46d456`)                                                                               |
-| #66 | Prefs: `homeLocation` / `searchLocations` split + sanitizer (merged `84b4a3c`)                                   |
-| #67 | `scrape_demand()` RPC migration (merged `c024ba9`; **not yet applied on hosted**)                                |
-| #68 | Craigslist: drop the full-text `cars trucks` filter (merged `567fc53`; CL is now restricted by default, see 7.2) |
-| #70 | Demand-weighted planner + baseline floor + source backoff (merged `6d785ba`)                                     |
-| #80 | robots.txt + site-policy gate for curated sites                                                                  |
-| #83 | Damage.com location fixed (MO)                                                                                   |
-| #85 | Default sweep skips terms-restricted sources                                                                     |
+| PR  | Concern                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| #53 | Hybrid Docker mode, resilient queue claim (merged `dfd22cc`)                                                                                                                               |
+| #54 | `last_seen_at` touch for unchanged rows (merged `7a3b27d`)                                                                                                                                 |
+| #62 | Free-tier write budget + slim classify reads (merged `30d5c53`)                                                                                                                            |
+| #63 | State rotation + 50-state metro ZIP grid (merged `70e997b`)                                                                                                                                |
+| #65 | This design doc (merged `f46d456`)                                                                                                                                                         |
+| #66 | Prefs: `homeLocation` / `searchLocations` split + sanitizer (merged `84b4a3c`)                                                                                                             |
+| #67 | `scrape_demand()` RPC migration (merged `c024ba9`; **not yet applied on hosted**)                                                                                                          |
+| #68 | Craigslist: drop the full-text `cars trucks` filter (merged `567fc53`; CL is now restricted by default, see 7.2)                                                                           |
+| #70 | Demand-weighted planner + baseline floor + source backoff (merged `6d785ba`)                                                                                                               |
+| #80 | robots.txt + site-policy gate for curated sites                                                                                                                                            |
+| #83 | Damage.com location fixed (MO)                                                                                                                                                             |
+| #85 | Default sweep skips terms-restricted sources                                                                                                                                               |
 | —   | scrape-ci / scrape-worker default filtered through `TOS_RESTRICTED_SOURCES`; municibid + offerup restricted; health shows "Off for site terms"; `/api/discover` returns a `coverage` block |
 
 ### Zeus deploy (after merges)

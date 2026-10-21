@@ -22,6 +22,7 @@ import {
   positivePrice,
   type PriceEvidence,
 } from "@/lib/deals/acquisition-price";
+import type { ScraperArgs } from "../tools/registry";
 
 const API = "https://www.autotempest.com/api/search";
 const UA =
@@ -30,6 +31,15 @@ const UA =
 // Site codes Autotempest accepts; we ask for the whole network and keep whatever responds.
 const SITES =
   "ah|at|cab|cg|cgc|cm|cs|ct|cv|eb|ebcom|fbm|hem|hemc|kj|ot|pa|ssm|st|tc|te";
+
+// Leave enough of the executor's five-minute source deadline for validation,
+// geocoding, cache classification, and bounded database writes. A successful
+// partial run is more useful than collecting thousands of rows and losing the
+// whole result at the deadline.
+const PERSISTENCE_RESERVE_MS = 120_000;
+const REQUEST_TIMEOUT_MS = 30_000;
+const DEFAULT_MAX_RESULTS_PER_RUN = 1_000;
+const MAX_RESULTS_PER_RUN = 2_000;
 
 // Broad market coverage — popular makes (model-less searches still return multiple sites). A handful
 // of make+model combos pull the slower walled sites (CarMax/Carvana/TrueCar) too.
@@ -225,6 +235,7 @@ async function fetchPage(
   zip: string,
   cursor: unknown[] | null,
   radius = 13000,
+  signal?: AbortSignal,
 ): Promise<{ items: Partial<Deal>[]; cursor: unknown[] | null }> {
   const params = new URLSearchParams({
     make: q.make,
@@ -240,6 +251,7 @@ async function fetchPage(
   if (cursor) params.set("searchAfter", JSON.stringify(cursor));
 
   const res = await fetch(`${API}?${params.toString()}`, {
+    signal,
     headers: {
       "User-Agent": UA,
       Accept: "application/json",
@@ -264,19 +276,67 @@ async function harvestQuery(
   byId: Map<string, Partial<Deal>>,
   maxPages: number,
   radius = 13000,
-): Promise<void> {
+  control: {
+    signal?: AbortSignal;
+    deadlineAt?: number;
+    maxResults: number;
+  },
+): Promise<boolean> {
   let cursor: unknown[] | null = null;
   let prevKey = "";
   for (let page = 0; page < maxPages; page++) {
-    const { items, cursor: next } = await fetchPage(q, zip, cursor, radius);
-    if (!items.length) break;
+    const persistenceDeadline =
+      control.deadlineAt != null
+        ? control.deadlineAt - PERSISTENCE_RESERVE_MS
+        : undefined;
+    if (
+      control.signal?.aborted ||
+      byId.size >= control.maxResults ||
+      (persistenceDeadline != null && Date.now() >= persistenceDeadline)
+    )
+      return false;
+    const requestTimeout = AbortSignal.timeout(
+      Math.max(
+        1,
+        Math.min(
+          REQUEST_TIMEOUT_MS,
+          persistenceDeadline != null
+            ? persistenceDeadline - Date.now()
+            : REQUEST_TIMEOUT_MS,
+        ),
+      ),
+    );
+    const requestSignal = control.signal
+      ? AbortSignal.any([control.signal, requestTimeout])
+      : requestTimeout;
+    const { items, cursor: next } = await fetchPage(
+      q,
+      zip,
+      cursor,
+      radius,
+      requestSignal,
+    );
+    if (!items.length) return true;
     for (const it of items) byId.set(it.source_deal_id!, it);
+    if (byId.size >= control.maxResults) return false;
     const key = next ? JSON.stringify(next) : "";
-    if (!next || key === prevKey) break; // cursor exhausted / not advancing
+    if (!next || key === prevKey) return true; // cursor exhausted / not advancing
     prevKey = key;
     cursor = next;
-    await new Promise((r) => setTimeout(r, 900)); // be polite to the aggregator
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(control.signal?.reason || new Error("Aborted"));
+      };
+      const timer = setTimeout(() => {
+        control.signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, 900); // be polite to the aggregator
+      if (control.signal?.aborted) onAbort();
+      else control.signal?.addEventListener("abort", onAbort, { once: true });
+    });
   }
+  return true;
 }
 
 // Broad makes that exist in every state — used for the regional coverage pass.
@@ -325,56 +385,86 @@ export function autotempestBuyerQueries(
   );
 }
 
-export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
+/** Rotate the first national query so a bounded run does not starve later makes. */
+export function autotempestQueryOrder(
+  slot = Math.floor(Date.now() / (4 * 60 * 60 * 1000)),
+) {
+  const start =
+    (((slot * 7) % QUERIES.length) + QUERIES.length) % QUERIES.length;
+  return [...QUERIES.slice(start), ...QUERIES.slice(0, start)];
+}
+
+function resultLimit() {
+  const configured = Number(process.env.AUTOTEMPEST_MAX_RESULTS_PER_RUN);
+  return Number.isFinite(configured) && configured > 0
+    ? Math.min(MAX_RESULTS_PER_RUN, Math.floor(configured))
+    : DEFAULT_MAX_RESULTS_PER_RUN;
+}
+
+export async function scrapeAutotempest(
+  maxPagesPerQuery = 3,
+  args: Pick<ScraperArgs, "abortSignal" | "deadlineAt"> = {},
+): Promise<number> {
   console.log("[Autotempest] Starting aggregator scrape...");
   const stateZips = Object.values(STATE_SEED_ZIPS).filter(Boolean) as string[];
   const nationalZip =
     stateZips[Math.floor(Math.random() * stateZips.length)] || "75201";
 
   const byId = new Map<string, Partial<Deal>>();
+  const control = {
+    signal: args.abortSignal,
+    deadlineAt: args.deadlineAt,
+    maxResults: resultLimit(),
+  };
   const scope = getScrapeRunScope();
   if (scope?.state || scope?.states?.length) {
     for (const zip of autotempestRegionalZips(undefined, Math.random, scope)) {
       for (const query of autotempestBuyerQueries(scope)) {
         try {
-          await harvestQuery(
+          const complete = await harvestQuery(
             query,
             zip,
             byId,
             maxPagesPerQuery,
             REGIONAL_RADIUS,
+            control,
           );
+          if (!complete) break;
         } catch (error) {
+          if (args.abortSignal?.aborted) throw error;
           console.warn(
             `[Autotempest] scoped ${query.make}@${zip} failed:`,
             (error as Error).message,
           );
         }
       }
+      if (
+        byId.size >= control.maxResults ||
+        (args.deadlineAt != null &&
+          Date.now() + PERSISTENCE_RESERVE_MS >= args.deadlineAt)
+      )
+        break;
     }
     const scopedDeals = Array.from(byId.values());
     return scopedDeals.length ? upsertDeals(scopedDeals) : 0;
   }
 
-  // Pass 1 — NATIONAL: deep-paginated make/model queries for comp volume (mostly Cars.com/eBay).
-  for (const q of QUERIES) {
-    try {
-      await harvestQuery(q, nationalZip, byId, maxPagesPerQuery, 13000);
-    } catch (e) {
-      console.warn(
-        `[Autotempest] national ${q.make} ${q.model || ""} failed:`,
-        (e as Error).message,
-      );
-    }
-  }
-
-  // Pass 2 — REGIONAL: tight-radius local inventory. In a Docker sweep this follows the state
-  // rotation (every planned metro); otherwise a random window of state seeds.
-  for (const zip of autotempestRegionalZips()) {
-    for (const make of REGIONAL_MAKES) {
+  // Pass 1 — REGIONAL: cover every planned market with one broad make before adding depth.
+  // This makes scarce hosted intake useful to the buyer instead of filling it with national comps.
+  regional: for (const make of REGIONAL_MAKES) {
+    for (const zip of autotempestRegionalZips()) {
       try {
-        await harvestQuery({ make }, zip, byId, 1, REGIONAL_RADIUS);
+        const complete = await harvestQuery(
+          { make },
+          zip,
+          byId,
+          1,
+          REGIONAL_RADIUS,
+          control,
+        );
+        if (!complete) break regional;
       } catch (e) {
+        if (args.abortSignal?.aborted) throw e;
         console.warn(
           `[Autotempest] regional ${make}@${zip} failed:`,
           (e as Error).message,
@@ -383,7 +473,31 @@ export async function scrapeAutotempest(maxPagesPerQuery = 3): Promise<number> {
     }
   }
 
-  const deals = Array.from(byId.values());
+  // Pass 2 — NATIONAL: fill remaining capacity with rotating make/model coverage. Rotation keeps
+  // bounded runs broad even when the regional pass consumes most of the current source deadline.
+  if (byId.size < control.maxResults) {
+    for (const q of autotempestQueryOrder()) {
+      try {
+        const complete = await harvestQuery(
+          q,
+          nationalZip,
+          byId,
+          maxPagesPerQuery,
+          13000,
+          control,
+        );
+        if (!complete) break;
+      } catch (e) {
+        if (args.abortSignal?.aborted) throw e;
+        console.warn(
+          `[Autotempest] national ${q.make} ${q.model || ""} failed:`,
+          (e as Error).message,
+        );
+      }
+    }
+  }
+
+  const deals = Array.from(byId.values()).slice(0, control.maxResults);
   const withState = deals.filter((d) => d.location_state).length;
   console.log(
     `[Autotempest] Found ${deals.length} listings (${withState} with state)`,

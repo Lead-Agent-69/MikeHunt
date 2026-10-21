@@ -373,7 +373,7 @@ export function createScraperRegistry(
     frequencyMinutes: 360,
     requiresAuth: false,
     stealthRequired: false,
-    fn: () => scrapeAutotempest(),
+    fn: (args) => scrapeAutotempest(3, args),
     enabled: true,
     estimatedDealsPerRun: 400,
   });

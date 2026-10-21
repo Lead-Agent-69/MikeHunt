@@ -1,10 +1,40 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createStorageBudgetChecker } from "./storage-budget";
+import {
+  createStorageBudgetChecker,
+  storageInsertAllowance,
+} from "./storage-budget";
 afterEach(() => vi.useRealTimers());
 const result = (value: unknown) => ({
   abortSignal: vi.fn().mockResolvedValue(value),
 });
 describe("database size budget", () => {
+  it("uses full normal capacity, slows at warning, and fails closed", () => {
+    const quota = { inserts: 399, maxInserts: 1250 };
+    expect(
+      storageInsertAllowance(
+        { bytes: 349_000_000, state: "normal", allowInsert: true },
+        quota,
+      ),
+    ).toEqual({ dailyLimit: 1250, remaining: 601, allowed: true });
+    expect(
+      storageInsertAllowance(
+        { bytes: 350_000_000, state: "warning", allowInsert: true },
+        quota,
+      ),
+    ).toEqual({ dailyLimit: 500, remaining: 1, allowed: true });
+    expect(
+      storageInsertAllowance(
+        { bytes: 350_000_000, state: "warning", allowInsert: true },
+        { ...quota, inserts: 400 },
+      ).allowed,
+    ).toBe(false);
+    expect(
+      storageInsertAllowance(
+        { bytes: 450_000_000, state: "critical", allowInsert: false },
+        quota,
+      ).allowed,
+    ).toBe(false);
+  });
   it("warns at 350 MB and stops new inserts at 450 MB", async () => {
     for (const [bytes, state, allowInsert] of [
       [349_000_000, "normal", true],
