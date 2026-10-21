@@ -41,14 +41,28 @@ beforeEach(() => {
   state.inventory.mockResolvedValue({ items: [], total: 0, hasMore: false });
   state.insert.mockImplementation((payload) => ({
     select: () => ({
-      single: async () => ({ data: { ...payload, id: "unit" }, error: null }),
+      single: async () => ({ data: { ...payload }, error: null }),
     }),
   }));
   state.database.mockReturnValue({
-    from: (table: string) => ({
-      insert:
-        table === "inventory" ? state.insert : async () => ({ error: null }),
-    }),
+    from: (table: string) => {
+      const query = {
+        select: () => query,
+        eq: () => query,
+        order: () => query,
+        limit: () => query,
+        maybeSingle: async () => ({ data: null, error: null }),
+        insert:
+          table === "inventory"
+            ? state.insert
+            : (payload: unknown) => ({
+                select: () => ({
+                  single: async () => ({ data: payload, error: null }),
+                }),
+              }),
+      };
+      return query;
+    },
   });
 });
 function request(
@@ -101,6 +115,10 @@ describe("inventory account boundaries", () => {
   });
   it("derives a purchase's owner from the session and returns the same mapped contract as reads", async () => {
     const response = await request("POST", "one", "", {
+      id: "a0000000-0000-4000-8000-000000000001",
+      purchaseDate: "2026-01-01",
+      make: "Honda",
+      model: "Civic",
       dealerId: "forged",
       purchasePrice: 100,
       stage: "acquired",
@@ -109,10 +127,10 @@ describe("inventory account boundaries", () => {
     expect(state.insert).toHaveBeenCalledWith(
       expect.objectContaining({ dealer_id: "one", purchase_price: 100 }),
     );
-    expect(await response.json()).toEqual({
+    expect(await response.json()).toMatchObject({
       ownerId: "one",
       item: {
-        id: "unit",
+        id: "a0000000-0000-4000-8000-000000000001",
         dealerId: "one",
         purchasePrice: 100,
         stage: "acquired",

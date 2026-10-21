@@ -5,6 +5,9 @@ import { Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useDealerId } from "@/hooks/useDealerId";
 import { useRecordOwner } from "@/hooks/useRecordOwner";
+import { actualAmount } from "@/lib/outcomes/ledger";
+import { purchaseRetryId } from "@/lib/inventory/purchase-record";
+import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   writeInventory,
   invalidateInventoryViews,
@@ -64,11 +67,16 @@ function PurchaseRecord({
   const [loading, setLoading] = useState(false);
   const [acquired, setAcquired] = useState(false);
   const [pricePaid, setPricePaid] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  });
   const [condition, setCondition] = useState(deal.condition || "unknown");
   const [error, setError] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const recordedLink = useRef<HTMLAnchorElement>(null);
+  const retryId = useRef<string | null>(null);
   const title =
     [deal.year, deal.make, deal.model].filter(Boolean).join(" ") || "Vehicle";
 
@@ -85,15 +93,23 @@ function PurchaseRecord({
   async function record(event: React.FormEvent) {
     event.preventDefault();
     if (loading || accountLoading || !ownerId || !isCurrentOwner()) return;
-    const paid = Number(pricePaid);
-    if (!pricePaid.trim() || !Number.isFinite(paid) || paid < 0) {
-      setError("Enter the actual non-negative purchase price paid.");
+    const paid = actualAmount(pricePaid);
+    if (paid === null) {
+      setError(
+        "Enter the actual purchase price paid with at most two decimal places (maximum $100,000,000).",
+      );
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      await writeInventory(ownerId, "POST", {
+      retryId.current ??= purchaseRetryId(
+        ownerId,
+        deal.id || deal.vin || title,
+      );
+      const result = await writeInventory(ownerId, "POST", {
+        id: retryId.current,
+        purchaseDate,
         dealId: deal.id || undefined,
         vin: deal.vin || "",
         year: deal.year || 0,
@@ -110,6 +126,8 @@ function PurchaseRecord({
       invalidateInventoryViews(ownerId);
       setAcquired(true);
       setOpen(false);
+      if (result.outcomeReview?.synced === false)
+        setError(result.outcomeReview.message);
       try {
         const status = await onRecorded?.();
         if (status === false) throw new Error("Unconfirmed shortlist status");
@@ -119,10 +137,13 @@ function PurchaseRecord({
           "Purchase recorded. Saved-list status did not update; check Pipeline. Do not record it again.",
         );
       }
-    } catch {
+    } catch (error) {
       if (!isCurrentOwner()) return;
       setError(
-        "Purchase record was not confirmed. Check Pipeline before retrying to avoid a duplicate.",
+        userFacingErrorMessage(
+          error,
+          "Purchase was not confirmed. Retry this form to check the same record, or review Pipeline.",
+        ),
       );
     } finally {
       if (isCurrentOwner()) setLoading(false);
@@ -194,11 +215,27 @@ function PurchaseRecord({
                   type="number"
                   min="0"
                   step="0.01"
+                  max="100000000"
                   required
                   autoFocus
                   value={pricePaid}
                   onChange={(event) => setPricePaid(event.target.value)}
                   className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3"
+                />
+              </label>
+              <p className="text-xs text-[var(--t3)]">
+                Use the amount actually paid. Asking prices, bids and monthly
+                payments are different amounts.
+              </p>
+              <label className="block text-sm">
+                Purchase date
+                <input
+                  type="date"
+                  required
+                  value={purchaseDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(event) => setPurchaseDate(event.target.value)}
+                  className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3"
                 />
               </label>
               <label className="block text-sm">

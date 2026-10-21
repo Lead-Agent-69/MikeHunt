@@ -134,6 +134,38 @@ describe("confirmed inventory records", () => {
     state.updated = null;
     expect((await patch({ stage: "recon" })).status).toBe(409);
   });
+  it.each([1.234, 100000001, 0, -1])(
+    "rejects unsupported expense amount %s without rounding it into a different actual",
+    async (amount) => {
+      expect(
+        (
+          await patch({
+            expense: { category: "repair", amount, expectedTotal: 100 },
+          })
+        ).status,
+      ).toBe(400);
+      expect(state.payload).toEqual({});
+    },
+  );
+  it("rejects expense totals beyond the supported amount", async () => {
+    state.row.repair_cost = 100000000;
+    expect(
+      (
+        await patch({
+          expense: { category: "repair", amount: 1, expectedTotal: 100000000 },
+        })
+      ).status,
+    ).toBe(400);
+    expect(state.payload).toEqual({});
+  });
+  it("keeps an explicit zero purchase in a recovered sale outcome and uses its inventory id for retry safety", async () => {
+    state.row.purchase_price = 0;
+    expect((await patch({ stage: "sold", soldPrice: 0 })).status).toBe(200);
+    expect(state.outcomePayload).toMatchObject({
+      id: "unit",
+      purchase_price: 0,
+    });
+  });
   it.each(["__proto__", "constructor", "missing"])(
     "rejects unsupported category %s",
     async (category) => {

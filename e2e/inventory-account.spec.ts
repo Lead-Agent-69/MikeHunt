@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { storagePath } from "./support/accounts";
 import { localOnly } from "./support/target";
@@ -23,7 +24,8 @@ test.describe("inventory account confirmations", () => {
     expect(ownerId).toBeTruthy();
     const headers = { "x-inventory-owner": ownerId };
     const model = `Inventory QA ${info.project.name} ${Date.now()}`;
-    let id: string | undefined;
+    const purchaseDate = new Date().toISOString().slice(0, 10);
+    const id = randomUUID();
     const other = await browser.newContext({
       storageState: storagePath("dealer"),
     });
@@ -31,6 +33,8 @@ test.describe("inventory account confirmations", () => {
       const created = await page.request.post("/api/inventory", {
         headers,
         data: {
+          id,
+          purchaseDate,
           year: 2020,
           make: "QA",
           model,
@@ -41,7 +45,43 @@ test.describe("inventory account confirmations", () => {
       });
       expect(created.status()).toBe(200);
       const confirmed = await created.json();
-      id = confirmed.item.id;
+      expect(confirmed.item.id).toBe(id);
+      const replay = await page.request.post("/api/inventory", {
+        headers,
+        data: {
+          id,
+          purchaseDate,
+          year: 2020,
+          make: "QA",
+          model,
+          condition: "unknown",
+          purchasePrice: 1000.25,
+        },
+      });
+      expect(replay.ok()).toBe(true);
+      expect(await replay.json()).toMatchObject({
+        replayed: true,
+        item: { id },
+      });
+      const changed = await page.request.post("/api/inventory", {
+        headers,
+        data: {
+          id,
+          purchaseDate,
+          year: 2020,
+          make: "QA",
+          model,
+          purchasePrice: 2000,
+        },
+      });
+      expect(changed.status()).toBe(409);
+      const storedOutcome = await db
+        .from("deal_outcomes")
+        .select("id,costs_complete")
+        .eq("inventory_id", id)
+        .eq("user_id", ownerId);
+      expect(storedOutcome.error).toBeNull();
+      expect(storedOutcome.data).toEqual([{ id, costs_complete: false }]);
       expect(confirmed).toMatchObject({
         ownerId,
         item: { dealerId: ownerId, purchasePrice: 1000.25, stage: "acquired" },
