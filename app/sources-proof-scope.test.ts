@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("sources proof scope", () => {
+  it("keeps the tall search header in document flow rather than covering source controls", () => {
+    const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
+    expect(page).not.toContain("md:sticky md:top-0");
+  });
   it("connects refresh to the current scope and rechecks coverage without an admin runner", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).toContain("<SourceRefreshAction");

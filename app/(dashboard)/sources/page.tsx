@@ -1904,7 +1904,7 @@ export default function SourcesPage() {
   return (
     <div className="min-h-screen bg-[var(--s1)]">
       {/* Header */}
-      <div className="relative z-20 border-b border-[var(--b1)] bg-[var(--s0)] md:sticky md:top-0 md:z-40">
+      <div className="relative z-20 border-b border-[var(--b1)] bg-[var(--s0)]">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-4">
             <div>
