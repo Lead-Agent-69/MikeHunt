@@ -99,9 +99,13 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
   const host = document.createElement("div");
   const root = createRoot(host);
   try {
+    const selected = vi.fn();
     await act(async () =>
       root.render(
-        <DealerMap points={[{ id: "car", name: "Car", lat: 38, lng: -90 }]} />,
+        <DealerMap
+          points={[{ id: "car", name: "Car", lat: 38, lng: -90 }]}
+          onPointSelect={selected}
+        />,
       ),
     );
     const preview = state.previews.at(-1)!;
@@ -118,6 +122,7 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
     preview.handlers.get("mouseover")!();
     preview.handlers.get("click")!();
     expect(preview.open).toBe(true);
+    expect(selected).toHaveBeenLastCalledWith("car");
   } finally {
     await act(async () => root.unmount());
   }

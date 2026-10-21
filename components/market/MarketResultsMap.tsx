@@ -7,11 +7,13 @@ import { LocateFixed } from "lucide-react";
 import { Mono } from "@/components/shared/Mono";
 import type { MapPoint } from "@/components/map/DealerMap";
 import type { MarketListing } from "@/lib/market/explorer";
+import { useListingPhotos } from "@/hooks/useListingPhotos";
+import { proxiedImage } from "@/lib/image-url";
 
 const DealerMap = dynamic(() => import("@/components/map/DealerMap"), {
   ssr: false,
   loading: () => (
-    <div className="grid min-h-[26rem] place-items-center bg-[var(--s0)] text-xs text-[var(--t4)]">
+    <div className="grid h-full min-h-0 place-items-center bg-[var(--s0)] text-xs text-[var(--t4)]">
       Loading interactive map…
     </div>
   ),
@@ -94,7 +96,10 @@ export function MarketResultsMap({
     if (!points.some((point) => String(point.id) === selectedId))
       setSelectedId(points[0] ? String(points[0].id) : "");
   }, [points, selectedId]);
-  const selected = rows.find((row) => row.id === selectedId) || rows[0];
+  const selected =
+    rows.find((row) => row.id === selectedId) ||
+    rows.find((row) => row.id === String(points[0]?.id));
+  const gallery = useListingPhotos(selected?.images, selected?.id);
 
   return (
     <section
@@ -144,7 +149,11 @@ export function MarketResultsMap({
 
       {points.length ? (
         <div className="h-[clamp(22rem,35vw,30rem)] min-h-0">
-          <DealerMap points={points} />
+          <DealerMap
+            points={points}
+            compact
+            onPointSelect={(id) => setSelectedId(String(id))}
+          />
         </div>
       ) : (
         <div className="grid min-h-[26rem] place-items-center bg-[var(--s0)] p-6 text-center">
@@ -162,10 +171,23 @@ export function MarketResultsMap({
 
       {selected && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-[var(--t1)]">
-              {selected.title}
-            </p>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {gallery.image && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={proxiedImage(gallery.image)}
+                alt={selected.title}
+                onError={gallery.reject}
+                loading="lazy"
+                decoding="async"
+                className="h-16 w-24 shrink-0 rounded-md bg-[var(--s2)] object-contain"
+              />
+            )}
+            <div className="min-w-0">
+              <p className="break-words text-sm font-bold text-[var(--t1)]">
+                {selected.title}
+              </p>
+            </div>
             <p className="text-[10px] text-[var(--t4)]">
               {[selected.locationCity, selected.locationState]
                 .filter(Boolean)

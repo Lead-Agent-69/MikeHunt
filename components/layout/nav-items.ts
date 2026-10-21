@@ -579,6 +579,7 @@ export function accountMenuForMode(buyerMode: unknown): {
     tools,
     secondary: [
       { name: "Settings", href: "/settings" },
+      { name: "Sources", href: "/sources" },
       { name: "Upgrade", href: "/upgrade" },
       { name: "Help & updates", href: "/changelog" },
     ],

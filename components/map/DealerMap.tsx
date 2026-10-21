@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { titleBadgeHtml, titleBadgeModel } from "@/lib/deals/title-badge-model";
 import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
 import { vehiclePopup } from "@/lib/map/vehicle-popup";
@@ -83,6 +83,8 @@ function pinTitleBadge(p: MapPoint): string {
 
 interface DealerMapProps {
   points?: MapPoint[];
+  compact?: boolean;
+  onPointSelect?: (id: MapPoint["id"]) => void;
 }
 
 const TIER_HEX: Record<string, string> = {
@@ -177,8 +179,15 @@ function cardPopup(p: MapPoint): string {
 
 // Clustered markers — dense areas collapse into count bubbles; housing points render as price pills with
 // photo-card popups, cars keep the dot + text popup.
-function ClusteredMarkers({ points }: { points: MapPoint[] }) {
+function ClusteredMarkers({
+  points,
+  onPointSelect,
+}: Pick<DealerMapProps, "onPointSelect"> & { points: MapPoint[] }) {
   const map = useMap();
+  const selected = useRef(onPointSelect);
+  useEffect(() => {
+    selected.current = onPointSelect;
+  }, [onPointSelect]);
   useEffect(() => {
     const group = (L as any).markerClusterGroup({
       showCoverageOnHover: false,
@@ -203,15 +212,18 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
       // bindPopup toggles on click/Enter, which closes an already-open hover/focus preview.
       // This newly-created marker has no other click/keypress listeners to preserve yet.
       marker.off("click keypress");
-      marker.on("click mouseover", () => marker.openPopup());
+      const activate = () => {
+        marker.openPopup();
+        selected.current?.(p.id);
+      };
+      marker.on("click mouseover", activate);
       marker.on("keypress", (event) => {
-        if ((event.originalEvent as KeyboardEvent).key === "Enter")
-          marker.openPopup();
+        if ((event.originalEvent as KeyboardEvent).key === "Enter") activate();
       });
       marker.on("add", () => {
         const element = marker.getElement();
         element?.setAttribute("aria-label", p.name);
-        element?.addEventListener("focus", () => marker.openPopup());
+        element?.addEventListener("focus", activate);
       });
       group.addLayer(marker);
     }
@@ -228,7 +240,11 @@ function ClusteredMarkers({ points }: { points: MapPoint[] }) {
   return null;
 }
 
-export default function DealerMap({ points = [] }: DealerMapProps) {
+export default function DealerMap({
+  points = [],
+  compact = false,
+  onPointSelect,
+}: DealerMapProps) {
   const [mapKey, setMapKey] = useState("map-initial");
 
   useEffect(() => {
@@ -253,7 +269,9 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
   );
 
   return (
-    <div className="w-full h-full min-h-[400px] md:min-h-[500px] rounded-[var(--r4)] overflow-hidden border border-[var(--b1)] shadow-inner z-0 relative">
+    <div
+      className={`w-full h-full ${compact ? "min-h-0" : "min-h-[400px] md:min-h-[500px]"} rounded-[var(--r4)] overflow-hidden border border-[var(--b1)] shadow-inner z-0 relative`}
+    >
       <MapContainer
         key={mapKey}
         center={[39.8283, -98.5795]}
@@ -274,7 +292,7 @@ export default function DealerMap({ points = [] }: DealerMapProps) {
           maxZoom={19}
         />
 
-        <ClusteredMarkers points={validPoints} />
+        <ClusteredMarkers points={validPoints} onPointSelect={onPointSelect} />
         <ZoomControl position="topright" />
       </MapContainer>
 

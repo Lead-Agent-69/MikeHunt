@@ -234,8 +234,14 @@ describe("smart market exploration", () => {
       root.render(
         <MarketResultsMap
           rows={[
-            listing("one", "First truck", -90.2),
-            listing("two", "Second truck", -87.6),
+            {
+              ...listing("one", "First truck", -90.2),
+              images: ["https://photos.test/one.jpg"],
+            },
+            {
+              ...listing("two", "Second truck", -87.6),
+              images: ["https://photos.test/two.jpg"],
+            },
           ]}
           flipDesk
         />,
@@ -251,5 +257,8 @@ describe("smart market exploration", () => {
     const link = host.querySelector<HTMLAnchorElement>('a[href="/deal/two"]');
     expect(link?.textContent).toContain("Review listing");
     expect(host.textContent).toContain("Second truck");
+    expect(
+      host.querySelector('img[alt="Second truck"]')?.getAttribute("src"),
+    ).toContain("two.jpg");
   });
 });

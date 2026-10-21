@@ -55,6 +55,7 @@ const MENU_ICONS: Record<string, LucideIcon> = {
   "/swipe": Layers,
   "/dealer-network": Store,
   "/settings": Settings,
+  "/sources": Store,
   "/changelog": CircleHelp,
   "/deal-check": FileCheck,
   "/compare": ArrowLeftRight,
