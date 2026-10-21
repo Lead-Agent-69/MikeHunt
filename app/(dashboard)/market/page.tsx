@@ -194,11 +194,20 @@ function normalizeLegacyMarketParams(params: URLSearchParams) {
   }
   if (!params.has("lanes")) {
     const lane = (params.get("lane") || "").trim().toLowerCase();
+    // Sources' legacy private lane includes small dealers. Market's private lane
+    // means private sellers; keep the exact named dealer without adding that conflict.
+    const namedDealerSearch =
+      Boolean(params.get("dealerSourceIds")?.trim()) &&
+      params.get("sources") === params.get("dealerSourceIds") &&
+      (!params.has("sellerTypes") || params.get("sellerTypes") === "dealer");
     if (["auction", "government"].includes(lane))
       params.set("lanes", "auction");
     else if (["damaged", "salvage"].includes(lane))
       params.set("lanes", "salvage,repairable");
-    else if (["private", "clean-retail", "marketplace"].includes(lane))
+    else if (
+      ["private", "clean-retail", "marketplace"].includes(lane) &&
+      !(lane === "private" && namedDealerSearch)
+    )
       params.set("lanes", lane);
   }
   const legacySort = params.get("sort");
