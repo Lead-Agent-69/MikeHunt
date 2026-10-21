@@ -555,6 +555,31 @@ describe("GET /api/scrape/health lane scoping", () => {
     });
   });
 
+  it("rejects oversized dealer selections instead of silently dropping requested shops", async () => {
+    const { GET } = await import("./route");
+    const ids = Object.keys(DEALER_SOURCE_DOMAINS).slice(0, 26);
+    const response = await GET(
+      req(`/api/scrape/health?dealerSourceIds=${ids.join(",")}`),
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: expect.stringContaining("up to 25 dealers"),
+    });
+  });
+
+  it("deduplicates repeated dealer IDs before applying the selection limit", async () => {
+    const { GET } = await import("./route");
+    const response = await GET(
+      req(
+        `/api/scrape/health?dealerSourceIds=${Array(30).fill("dealer-x2builders-com").join(",")}`,
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect((await response.json()).scope.dealerSourceIds).toEqual([
+      "dealer-x2builders-com",
+    ]);
+  });
+
   it("keeps every accepted dealer domain in all-dealers health queries", async () => {
     const { scopedDealerUrlNeedles } = await import("./route");
     const ids = Object.keys(DEALER_SOURCE_DOMAINS);

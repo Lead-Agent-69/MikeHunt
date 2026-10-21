@@ -2102,14 +2102,7 @@ export default function SourcesPage() {
                 }
                 className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
               >
-                <option value="">Any watched dealer</option>
-                <option
-                  value={FEATURED_DEALER_OPTIONS.map(
-                    (dealer) => dealer.id,
-                  ).join(",")}
-                >
-                  All featured dealers
-                </option>
+                <option value="">No specific dealer</option>
                 {FEATURED_DEALER_OPTIONS.map((dealer) => (
                   <option key={dealer.id} value={dealer.id}>
                     {dealer.label}

@@ -191,8 +191,8 @@ export function curatedRingStates(
 }
 
 /**
- * Sites for a buyer-demand run: only dealers in the demanded states' rings, demanded states first,
- * least-recently-attempted first within a state. Membership is the registry's `state` tag, so a
+ * Sites for a buyer-demand run: only dealers in the demanded states' rings, with two home-state
+ * slots per neighbouring-state slot retained across interrupted runs. Membership uses state tags, so a
  * newly added dealer joins its state's ring with no other wiring. Falls back to the normal rotation
  * when no curated dealer sits in the ring.
  */
@@ -209,19 +209,5 @@ export function selectCuratedSitesForDemand<
     rank.has(String(site.state || "").toUpperCase()),
   );
   if (!inRing.length) return planCuratedRotation(sites, rotation, ring);
-  const anchorSet = new Set(anchors.map((s) => s.toUpperCase()));
-  const tier = (site: T) =>
-    anchorSet.has(String(site.state || "").toUpperCase()) ? 0 : 1;
-  return inRing
-    .map((site, i) => ({ site, i }))
-    .sort(
-      (a, b) =>
-        tier(a.site) - tier(b.site) ||
-        (rotation.lastAttempted[curatedSiteKey(a.site)] || 0) -
-          (rotation.lastAttempted[curatedSiteKey(b.site)] || 0) ||
-        rank.get(String(a.site.state).toUpperCase())! -
-          rank.get(String(b.site.state).toUpperCase())! ||
-        a.i - b.i,
-    )
-    .map(({ site }) => site);
+  return planCuratedRotation(inRing, rotation, anchors);
 }
