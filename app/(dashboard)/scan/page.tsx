@@ -21,6 +21,7 @@ import { useRecentSearches } from "@/components/shared/useRecentSearches";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { wantsAuctionInventory } from "@/lib/discovery/auction-scope";
 import { isAuctionChannel } from "@/lib/sources/source-meta";
+import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
 import {
   pollScopedScrapeJob,
@@ -216,6 +217,7 @@ type ReadinessItem = {
 type SourceHealthItem = {
   id: string;
   name: string;
+  type?: string;
   readiness:
     | "ready"
     | "needs_login"
@@ -634,6 +636,13 @@ function ScopeQualityPanel({
       0,
     );
     const sourceIds = new Set(results.map((row) => row.source).filter(Boolean));
+    const auctionRows = results.filter((row) =>
+      auctionDateApplies({
+        source: row.source,
+        sourceUrl: row.sourceUrl,
+        sellerType: row.sellerType,
+      }),
+    );
     const scopedSourceIds = Array.from(sourceIds);
     const readySources = scopedSourceIds.filter((id) => {
       const health = sourceHealthById.get(id);
@@ -686,10 +695,13 @@ function ScopeQualityPanel({
         ),
         total,
       ),
-      auctionDatePct: pct(
-        count((row) => Boolean(row.auctionEndAt)),
-        total,
-      ),
+      auctionDatePct: auctionRows.length
+        ? pct(
+            auctionRows.filter((row) => Boolean(row.auctionEndAt)).length,
+            auctionRows.length,
+          )
+        : null,
+      auctionDateApplicableRows: auctionRows.length,
       sourceCount: sourceIds.size,
       readySources,
       freshestHours,
@@ -707,7 +719,9 @@ function ScopeQualityPanel({
     { label: "Mileage", value: summary.mileagePct },
     { label: "Seller", value: summary.sellerPct },
     { label: "Contact", value: summary.sellerContactPct },
-    { label: "Auction date", value: summary.auctionDatePct },
+    ...(summary.auctionDatePct == null
+      ? []
+      : [{ label: "Auction timing", value: summary.auctionDatePct }]),
     { label: "Source link", value: summary.sourceLinkPct },
   ];
   const weakFields = fields.filter((item) => item.value < 70).slice(0, 3);
@@ -715,7 +729,9 @@ function ScopeQualityPanel({
     summary.vinPct < 70 ? "VIN" : null,
     summary.mileagePct < 70 ? "mileage" : null,
     summary.sellerContactPct < 70 ? "seller contact" : null,
-    summary.auctionDatePct < 70 ? "auction timing" : null,
+    summary.auctionDatePct != null && summary.auctionDatePct < 70
+      ? "auction timing"
+      : null,
   ].filter(Boolean) as string[];
   const buyerVerdict =
     summary.avgQuality >= 78 &&
@@ -1307,14 +1323,23 @@ function SmartDataPlanCard({
     new Set(
       postRunProof.flatMap((item) => {
         const c = item.health?.completeness || {};
-        return [
+        const fields: Array<[string, number | undefined]> = [
           ["VIN", c.vinPct],
           ["mileage", c.mileagePct],
           ["seller contact", c.sellerContactPct],
-          ["auction date", c.auctionDatePct],
           ["source link", c.sourceLinkPct],
           ["photos", c.photosPct],
-        ]
+        ];
+        if (
+          item.health &&
+          auctionDateApplies({
+            source: item.health.id,
+            sourceType: item.health.type,
+          })
+        ) {
+          fields.push(["auction date", c.auctionDatePct]);
+        }
+        return fields
           .filter(
             ([, value]) => typeof value === "number" && Number(value) < 70,
           )

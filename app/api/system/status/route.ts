@@ -18,6 +18,7 @@ import { systemReadiness } from "@/lib/system-readiness";
 import { sourceFromUrl, sourceMeta } from "@/lib/sources/source-meta";
 import { buildRealDataReadiness } from "@/lib/real-data-readiness";
 import { sellerContact } from "@/lib/data/deal-contact";
+import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { summarizeReliability } from "@/lib/scrapers/reliability";
 import { sourceReadinessRank } from "@/lib/scrapers/source-proof-readiness";
 import {
@@ -441,6 +442,9 @@ async function computeFullStatus(): Promise<Record<string, any>> {
             auction: 0,
             source: 0,
           },
+          applicable: {
+            auction: 0,
+          },
           total: 0,
           mode: "unconfigured",
         },
@@ -578,9 +582,30 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     price: qualityCount((row) => Number(row.ask_price || 0) > 0),
     seller: qualityCount(hasSellerProof),
     sellerContact: qualityCount(hasContact),
-    auction: qualityCount((row) => Boolean(row.auction_end_at)),
+    auction: qualityCount(
+      (row) =>
+        auctionDateApplies({
+          source: statusSource(row),
+          sourceUrl: row.source_url,
+          adapterId: row.options?.sourceAdapterId,
+          sellerType: row.options?.sellerType,
+        }) && Boolean(row.auction_end_at),
+    ),
     source: qualityCount((row) => Boolean(row.source_url)),
   };
+  const auctionApplicableRows =
+    exactCoverage?.applicable.auction ??
+    qualityCount((row) =>
+      auctionDateApplies({
+        source: statusSource(row),
+        sourceUrl: row.source_url,
+        adapterId: row.options?.sourceAdapterId,
+        sellerType: row.options?.sellerType,
+      }),
+    );
+  const auctionDatePct = auctionApplicableRows
+    ? Math.round((detailCoverage.auction / auctionApplicableRows) * 100)
+    : 100;
   // Closed-loop learning: makes the dealer has profited on that the pipeline now prioritizes.
   const [outcomesLogged, profitableMakes] = await Promise.all([
     sb
@@ -646,7 +671,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     vinPct: exactCoverage ? qualityPct(detailCoverage.vin) : pct(withVin),
     sellerPct: qualityPct(detailCoverage.seller),
     sellerContactPct: qualityPct(detailCoverage.sellerContact),
-    auctionDatePct: qualityPct(detailCoverage.auction),
+    auctionDatePct,
     decisionReady: go > 0 && soldComps > 0,
   });
 
@@ -744,10 +769,13 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       pricePct: qualityPct(detailCoverage.price),
       sellerPct: qualityPct(detailCoverage.seller),
       sellerContactPct: qualityPct(detailCoverage.sellerContact),
-      auctionDatePct: qualityPct(detailCoverage.auction),
+      auctionDatePct,
       sourceLinkPct: qualityPct(detailCoverage.source),
       detailCoverage: {
         counts: detailCoverage,
+        applicable: {
+          auction: auctionApplicableRows,
+        },
         total: qualityBase,
         mode: exactCoverage ? "customer_visible_rollup" : "bounded_sample",
       },

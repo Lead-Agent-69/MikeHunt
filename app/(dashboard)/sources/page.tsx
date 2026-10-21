@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
 import {
   Activity,
@@ -669,9 +670,13 @@ function weakestDetailProof(source: SourceHealthRow) {
 function weightedCompleteness(
   sources: SourceHealthRow[],
   key: Exclude<keyof NonNullable<SourceHealthRow["completeness"]>, "counts">,
+  applies: (source: SourceHealthRow) => boolean = () => true,
 ) {
   const rowsWithCompleteness = sources.filter(
-    (source) => Number(source.activeRows || 0) > 0 && source.completeness,
+    (source) =>
+      Number(source.activeRows || 0) > 0 &&
+      source.completeness &&
+      applies(source),
   );
   const totalRows = rowsWithCompleteness.reduce(
     (sum, source) => sum + (Number(source.activeRows) || 0),
@@ -747,10 +752,10 @@ function SourceProofPanel({
     .filter((source) => filter === "all" || source.readiness === filter)
     .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))
     .slice(0, 40);
-  const readySources = sources
+  const allReadySources = sources
     .filter((source) => source.readiness === "ready")
-    .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))
-    .slice(0, 3);
+    .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0));
+  const readySources = allReadySources.slice(0, 3);
   const actionSources = sources
     .filter((source) =>
       ["needs_login", "blocked", "needs_run", "no_rows"].includes(
@@ -830,18 +835,23 @@ function SourceProofPanel({
   const proofQuality = summary.averageQuality || readyQuality;
   const aggregateProof = [
     { label: "Photos", value: proofPhotoCoverage },
-    { label: "VIN", value: weightedCompleteness(readySources, "vinPct") },
+    { label: "VIN", value: weightedCompleteness(allReadySources, "vinPct") },
     {
       label: "Mileage",
-      value: weightedCompleteness(readySources, "mileagePct"),
+      value: weightedCompleteness(allReadySources, "mileagePct"),
     },
     {
       label: "Seller contact",
-      value: weightedCompleteness(readySources, "sellerContactPct"),
+      value: weightedCompleteness(allReadySources, "sellerContactPct"),
     },
     {
-      label: "Auction date",
-      value: weightedCompleteness(readySources, "auctionDatePct"),
+      label: "Auction timing",
+      value: weightedCompleteness(allReadySources, "auctionDatePct", (source) =>
+        auctionDateApplies({
+          source: source.id,
+          sourceType: source.type,
+        }),
+      ),
     },
   ];
   const weakestAggregateProof = aggregateProof

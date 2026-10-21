@@ -83,10 +83,10 @@ describe("sources proof scope", () => {
 
     expect(page).toContain("function weightedCompleteness");
     expect(page).toContain("Number(source.activeRows) || 0");
-    expect(page).toContain('weightedCompleteness(readySources, "vinPct")');
-    expect(page).toContain(
-      'weightedCompleteness(readySources, "sellerContactPct")',
-    );
+    expect(page).toContain('weightedCompleteness(allReadySources, "vinPct")');
+    expect(page).toContain("weightedCompleteness(allReadySources");
+    expect(page).toContain('"sellerContactPct"');
+    expect(page).toContain("auctionDateApplies");
   });
 
   it("uses the API health summary as the authoritative source-proof contract", () => {
