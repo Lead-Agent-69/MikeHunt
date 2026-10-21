@@ -41,6 +41,7 @@ import { boundingBox } from "@/lib/geo/distance";
 import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
+import { listingIdentityWarning } from "@/lib/vehicle/listing-identity";
 import { marketSourceCoverage } from "@/lib/market/source-coverage";
 import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import {
@@ -360,6 +361,7 @@ export async function GET(req: NextRequest) {
           const valuation = marketValuation(
             d.deal_analysis?.valuation,
             d.sell_estimate,
+            d,
           );
           const price = sourcePriceContext(d);
           // Stored profit math must use the same acquisition amount as the displayed quote.
@@ -386,6 +388,7 @@ export async function GET(req: NextRequest) {
               : undefined;
           return {
             id: d.id,
+            identityWarning: listingIdentityWarning(d) || undefined,
             title:
               d.title ||
               `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),

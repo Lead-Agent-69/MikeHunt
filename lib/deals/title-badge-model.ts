@@ -5,7 +5,7 @@
 //   text ("Clean Carfax") is never read, so nothing is upgraded to Clean from copy.
 // - A clean claim next to repair evidence reads "Title unconfirmed" (#195's title-signal rule).
 // - A title the source stamped by default (options.titleSource = "source_default") is a weaker
-//   claim than one the listing states, so it reads "… (reported by source)" in a muted style.
+//   claim than one the listing states, so it reads "Title unconfirmed" in a muted style.
 // - Flood/fire/hail get a damage chip; parts_only is Salvage with a "Parts only" sub-chip.
 import {
   parseTitleTypes,
@@ -130,7 +130,7 @@ export function titleBadgeModel(input: {
   const base = unconfirmed
     ? TITLE_UNCONFIRMED_LABEL
     : TITLE_CATEGORY_LABELS[detail.category];
-  const label = weak ? `${base} ${REPORTED_BY_SOURCE}` : base;
+  const label = weak ? TITLE_UNCONFIRMED_LABEL : base;
   const tone: TitleBadgeTone = unconfirmed
     ? "amber"
     : weak
@@ -139,7 +139,7 @@ export function titleBadgeModel(input: {
   const hint = unconfirmed
     ? "The listing claims a clean title, but its condition or damage says repairable. Verify the title before buying."
     : weak
-      ? "This source labels every listing this way by default; the listing itself doesn't state the title. Verify before buying."
+      ? `The source catalog defaults to ${TITLE_CATEGORY_LABELS[detail.category].toLowerCase()}, but this listing does not establish its title. Verify the title documents before buying.`
       : detail.category === "unknown"
         ? "The listing doesn't state a title status. Verify before buying."
         : "Listing-reported title status. Verify the actual title before buying.";

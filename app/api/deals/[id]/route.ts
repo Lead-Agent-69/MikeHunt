@@ -8,6 +8,7 @@ import { getServerUser } from "@/lib/server-supabase";
 import { recordDealSignal } from "@/lib/reco/signals";
 import { getUserPlan, meterDealView } from "@/lib/auth/plan";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
+import { withholdConflictingEconomics } from "@/lib/vehicle/listing-identity";
 import {
   isFlipDeskMode,
   readSavedBuyerMode,
@@ -32,7 +33,8 @@ export async function GET(
   try {
     const { id } = await params;
     const dealsService = new DealsService();
-    const deal = await dealsService.getDealById(id);
+    const observed = await dealsService.getDealById(id);
+    const deal = observed ? withholdConflictingEconomics(observed) : null;
 
     if (!deal) {
       return NextResponse.json({ error: "Deal not found" }, { status: 404 });

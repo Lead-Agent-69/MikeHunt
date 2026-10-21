@@ -116,6 +116,26 @@ async function load() {
   return (await res.json()).deal as Record<string, any>;
 }
 
+it("withholds model-dependent economics for a conflicting listing even on a dealer desk", async () => {
+  signedIn("dealer-1");
+  savedMode("dealer");
+  getDealById.mockResolvedValue({
+    ...FULL_DEAL,
+    title: "2024 Buick Allure Sport Touring",
+    year: 2024,
+    make: "Buick",
+    model: "Envista",
+  });
+  const deal = await load();
+  expect(deal.deskAccess).toBe("flip");
+  expect(deal.sellEstimate).toBeUndefined();
+  expect(deal.profitEstimate).toBeUndefined();
+  expect(deal.dealAnalysis).toBeUndefined();
+  expect(deal.decisionEvidence.acquisitionReady).toBe(false);
+  expect(deal.decisionEvidence.nextCheck).toContain("Confirm VIN");
+  expect(deal.contact).toEqual(FULL_DEAL.contact);
+});
+
 const FLIP_KEYS = [
   "true_net_profit",
   "trueNetProfit",

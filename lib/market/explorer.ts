@@ -8,6 +8,7 @@ export type MarketPrice = ReturnType<typeof sourcePriceContext>;
 export type MarketListing = {
   id: string;
   title: string;
+  identityWarning?: string;
   source: string;
   sourceUrl?: string;
   year: number;

@@ -1,6 +1,7 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { hasReportedRepairRisk } from "./repair-risk";
 import { hasRecentSoldEvidence } from "@/lib/valuation/evidence-confidence";
+import { listingIdentityWarning } from "@/lib/vehicle/listing-identity";
 
 export type DecisionEvidenceState =
   | "verified"
@@ -35,6 +36,9 @@ const AUCTION_SOURCES = new Set([
 
 type GuardInput = {
   title?: string | null;
+  year?: number | null;
+  make?: string | null;
+  model?: string | null;
   source?: string | null;
   condition?: string | null;
   damageType?: string | null;
@@ -61,6 +65,16 @@ export type PurchaseEvidenceGates = {
  * is never valued as clean retail without condition-specific evidence.
  */
 export function assessDecisionEvidence(input: GuardInput): DecisionEvidence {
+  const identityWarning = listingIdentityWarning(input);
+  if (identityWarning)
+    return {
+      state: "needs_evidence",
+      label: "Vehicle identity needs verification",
+      summary: identityWarning,
+      nextCheck:
+        "Confirm VIN, year, make and model with the source before comparing prices or planning a purchase.",
+      acquisitionReady: false,
+    };
   const analysis = input.dealAnalysis || {};
   const valuation = input.valuation || analysis.valuation || {};
   const source = String(input.source || "").toLowerCase();

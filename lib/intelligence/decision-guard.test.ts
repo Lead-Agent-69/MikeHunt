@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
+it("blocks a stored GO when listing name and recorded model disagree", () => {
+  const result = assessDecisionEvidence({
+    title: "2024 Buick Allure Sport Touring",
+    year: 2024,
+    make: "Buick",
+    model: "Envista",
+    dealVerdict: "go",
+    askPrice: 21000,
+  });
+  expect(result.acquisitionReady).toBe(false);
+  expect(result.state).toBe("needs_evidence");
+  expect(result.nextCheck).toContain("Confirm VIN");
+});
+
 describe("assessDecisionEvidence", () => {
   it("treats both IAA source spellings as auction evidence", () => {
     for (const source of ["iaa", "iaai"]) {

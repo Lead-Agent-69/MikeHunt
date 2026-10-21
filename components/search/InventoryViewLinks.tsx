@@ -154,7 +154,7 @@ export function InventoryViewLinks({
             name="body"
             aria-label="Shop by body style"
             defaultValue={params.get("body") || ""}
-            className="min-h-11 w-28 min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)] sm:w-auto"
+            className="min-h-11 w-44 min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2 text-xs text-[var(--t1)] sm:w-auto"
           >
             <option value="">All body styles</option>
             {INVENTORY_DETAIL_FIELDS.find(

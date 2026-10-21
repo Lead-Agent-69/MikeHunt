@@ -88,6 +88,50 @@ const request = (search: string) =>
   GET(new NextRequest(`https://example.test/api/market/explore?${search}`));
 
 describe("Market inventory filtering and pagination", () => {
+  it("does not publish resale or profit claims for conflicting vehicle identities", async () => {
+    state.rows = [
+      {
+        id: "conflicting",
+        title: "2024 Buick Allure Sport Touring",
+        year: 2024,
+        make: "Buick",
+        model: "Envista",
+        source: "independent_dealer",
+        source_url: "https://dealer.test/car",
+        ask_price: 20000,
+        sell_estimate: 25000,
+        true_net_profit: 4000,
+        profit_score: 90,
+        deal_verdict: "go",
+        last_seen_at: new Date().toISOString(),
+        price_evidence: { kind: "asking", askingPrice: 20000 },
+        deal_analysis: {
+          valuation: {
+            source: "comparables",
+            resaleEvidence: true,
+            compCount: 5,
+            confidence: "medium",
+            compKind: "ask",
+          },
+        },
+      },
+    ];
+    const body = await (await request("sort=profitScore")).json();
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0].valuationEvidence).toEqual({
+      label: "Vehicle identity needs verification",
+      supported: false,
+    });
+    for (const field of [
+      "sellEstimate",
+      "profitEstimate",
+      "profitScore",
+      "priceGap",
+      "recommendedMaxBid",
+      "dealVerdict",
+    ])
+      expect(body.rows[0][field]).toBeUndefined();
+  });
   it("keeps unknown-title and no-repair constraints instead of broadening a shared search", async () => {
     const response = await request("titleType=unknown&includeRepairable=0");
     expect(response.status).toBe(200);

@@ -950,9 +950,12 @@ export default function DealPage({
           <section aria-label="Listing photos" className="min-w-0">
             <ImageGallery
               images={serverDeal.images}
-              title={[serverDeal.year, serverDeal.make, serverDeal.model]
-                .filter(Boolean)
-                .join(" ")}
+              title={
+                serverDeal.title ||
+                [serverDeal.year, serverDeal.make, serverDeal.model]
+                  .filter(Boolean)
+                  .join(" ")
+              }
             />
             <p className="mt-2 text-xs text-[var(--t5)]">
               Photos are source-provided and are not a mechanic inspection.

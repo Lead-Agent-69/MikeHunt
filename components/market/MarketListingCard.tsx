@@ -315,6 +315,11 @@ function ListingCard({
             </div>
           )}
         </dl>
+        {row.identityWarning && (
+          <p className="text-xs font-semibold text-[var(--amber-d)]">
+            {row.identityWarning}
+          </p>
+        )}
         {flipDesk && row.sellEstimate != null && (
           <p className="text-xs text-[var(--t3)]">
             Estimated resale:{" "}

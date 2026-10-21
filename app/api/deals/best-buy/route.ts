@@ -243,6 +243,10 @@ export async function GET(req: NextRequest) {
   // evidence-backed GO records; otherwise keep the best non-anomalous result in a research/watch state.
   const evidenceFor = (deal: any) =>
     assessDecisionEvidence({
+      title: deal.title,
+      year: deal.year,
+      make: deal.make,
+      model: deal.model,
       source: deal.source,
       condition: deal.condition,
       damageType: deal.damage_type,
