@@ -1,6 +1,14 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import useSWR from "swr";
+import Link from "next/link";
+import {
+  ownerInventoryFetcher,
+  writeInventory,
+  invalidateInventoryViews,
+} from "@/lib/inventory/account-client";
+import { useRecordOwner } from "@/hooks/useRecordOwner";
 import { useRouter } from "next/navigation";
 import { Panel } from "@/components/shared/Panel";
 import { Tag } from "@/components/shared/Tag";
@@ -24,6 +32,7 @@ function ReconCard({
   flipDesk: boolean;
 }) {
   const [advancing, setAdvancing] = useState(false);
+  const isCurrentOwner = useRecordOwner(item.dealerId);
   const [updateError, setUpdateError] = useState("");
 
   const rate = Math.max(0, item.dailyFloorRate);
@@ -35,31 +44,24 @@ function ReconCard({
     if (advancing) return;
     setAdvancing(true);
     setUpdateError("");
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
     try {
-      const res = await fetch("/api/inventory", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id, stage: "listed" }),
-        signal: controller.signal,
+      const data = await writeInventory(item.dealerId, "PATCH", {
+        id: item.id,
+        stage: "listed",
       });
-      const data = await res.json();
-      if (!res.ok || data.item?.id !== item.id || data.item?.stage !== "listed")
-        throw new Error("Unconfirmed update");
-      onUpdated(data.item);
+      if (isCurrentOwner()) onUpdated(data.item);
     } catch {
+      if (!isCurrentOwner()) return;
       setUpdateError(
         "The stage change was not confirmed. Reload Recon before retrying.",
       );
     } finally {
-      clearTimeout(timer);
-      setAdvancing(false);
+      if (isCurrentOwner()) setAdvancing(false);
     }
-  }, [item.id, onUpdated, advancing]);
+  }, [item.id, item.dealerId, onUpdated, advancing, isCurrentOwner]);
 
   return (
-    <div className="panel p-5 space-y-4 reveal-on-scroll transition-all">
+    <article className="panel p-5 space-y-4 reveal-on-scroll transition-all">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-bold text-[15px] leading-tight text-[var(--t1)]">
@@ -102,7 +104,7 @@ function ReconCard({
         </div>
         <div>
           <p className="text-[10px] uppercase font-semibold text-[var(--amber)] tracking-widest mb-1">
-            Carrying Cost
+            Estimated Carrying Cost
           </p>
           <Mono className="text-sm font-bold text-[var(--amber)]">
             ${carryNow.toLocaleString(undefined, { maximumFractionDigits: 0 })}
@@ -130,19 +132,54 @@ function ReconCard({
           {updateError}
         </p>
       )}
-    </div>
+    </article>
   );
 }
 
 export default function ReconPage() {
+  const { dealerId, loading } = useDealerId();
+  return (
+    <ReconWorkspace
+      key={dealerId || "signed-out"}
+      dealerId={dealerId}
+      dealerLoading={loading}
+    />
+  );
+}
+
+function ReconWorkspace({
+  dealerId,
+  dealerLoading,
+}: {
+  dealerId: string | null;
+  dealerLoading: boolean;
+}) {
   const router = useRouter();
-  const { dealerId, loading: dealerLoading } = useDealerId();
+  const isCurrentOwner = useRecordOwner(dealerId);
   const { intent } = useBuyerIntent();
   // Back-lot recon is dealer/reseller language; parts, DIY and personal get a neutral repair tracker.
   const flipDesk = isFlipBuyerMode(intent?.buyerMode);
-  const [fleet, setFleet] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    error: fetchError,
+    isLoading,
+    mutate,
+  } = useSWR(
+    !dealerLoading && dealerId
+      ? (["/api/inventory?stage=recon&limit=100", dealerId] as [string, string])
+      : null,
+    ownerInventoryFetcher,
+    { keepPreviousData: false },
+  );
+  const fleet = useMemo(
+    () => (data?.ownerId === dealerId ? data.items : []),
+    [data, dealerId],
+  );
+  const loading = dealerLoading || isLoading;
+  const error =
+    !dealerLoading && !dealerId
+      ? "Please sign in to view recon vehicles."
+      : fetchError?.message;
   const [now, setNow] = useState(Date.now());
 
   useEffect(() => {
@@ -150,37 +187,31 @@ export default function ReconPage() {
     return () => clearInterval(t);
   }, []);
 
-  useEffect(() => {
-    if (dealerLoading) return;
-    if (!dealerId) {
-      setError("Please sign in to view recon vehicles.");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    fetch(`/api/inventory?dealerId=${dealerId}&stage=recon&limit=100`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          setError(data.error);
-          setFleet([]);
-        } else setFleet(data.items || []);
-      })
-      .catch((e) => {
-        setError(e.message);
-        setFleet([]);
-      })
-      .finally(() => setLoading(false));
-  }, [dealerId, dealerLoading]);
-
-  const handleUpdated = useCallback((updated: InventoryItem) => {
-    // If it's no longer in recon, remove it from the list
-    if (updated.stage !== "recon") {
-      setFleet((prev) => prev.filter((f) => f.id !== updated.id));
-    } else {
-      setFleet((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
-    }
-  }, []);
+  const handleUpdated = useCallback(
+    (updated: InventoryItem) => {
+      if (!isCurrentOwner() || updated.dealerId !== dealerId) return;
+      void mutate(
+        (current) =>
+          current?.ownerId === dealerId
+            ? {
+                ...current,
+                items:
+                  updated.stage !== "recon"
+                    ? current.items.filter((item) => item.id !== updated.id)
+                    : current.items.map((item) =>
+                        item.id === updated.id ? updated : item,
+                      ),
+              }
+            : current,
+        { revalidate: false },
+      );
+      invalidateInventoryViews(
+        dealerId!,
+        "/api/inventory?stage=recon&limit=100",
+      );
+    },
+    [dealerId, isCurrentOwner, mutate],
+  );
 
   const stats = useMemo(() => {
     const totalCarry = fleet.reduce((a, f) => {
@@ -254,7 +285,7 @@ export default function ReconPage() {
             style={{ background: "var(--alo)" }}
           >
             <p className="text-[10px] uppercase font-semibold text-[var(--amber)] tracking-widest mb-1">
-              {flipDesk ? "Total Carry Bleed" : "Holding Cost"}
+              {flipDesk ? "Estimated Carry" : "Estimated Holding Cost"}
             </p>
             <Mono className="text-2xl font-bold text-[var(--amber)]">
               ${stats.totalCarry.toLocaleString()}
@@ -274,8 +305,23 @@ export default function ReconPage() {
         <ErrorState
           title="Couldn't load recon data"
           message={error}
-          onRetry={() => window.location.reload()}
+          onRetry={
+            dealerId
+              ? () => {
+                  void mutate();
+                }
+              : undefined
+          }
         />
+      )}
+
+      {!dealerLoading && !dealerId && (
+        <Link
+          href="/login"
+          className="inline-flex min-h-11 items-center rounded-lg border border-[var(--b2)] px-4 text-sm font-semibold"
+        >
+          Sign in to view recon vehicles
+        </Link>
       )}
 
       {!loading && !error && fleet.length === 0 && (

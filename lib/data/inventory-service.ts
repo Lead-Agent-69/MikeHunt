@@ -58,7 +58,7 @@ export type InventoryFilters = {
 export class InventoryService {
   private supabase = createServerComponentClient();
 
-  private mapDbToItem(row: any): InventoryItem {
+  mapDbToItem(row: any): InventoryItem {
     return {
       id: row.id,
       dealerId: row.dealer_id,

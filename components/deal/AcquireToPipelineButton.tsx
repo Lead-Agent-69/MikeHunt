@@ -3,6 +3,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
+import { useDealerId } from "@/hooks/useDealerId";
+import { useRecordOwner } from "@/hooks/useRecordOwner";
+import {
+  writeInventory,
+  invalidateInventoryViews,
+} from "@/lib/inventory/account-client";
 
 interface AcquireButtonProps {
   deal: {
@@ -24,12 +30,36 @@ interface AcquireButtonProps {
   onRecorded?: () => void | boolean | Promise<void | boolean>;
 }
 
-export function AcquireToPipelineButton({
+export function AcquireToPipelineButton(props: AcquireButtonProps) {
+  const { dealerId, loading } = useDealerId();
+  if (!loading && !dealerId)
+    return (
+      <Link
+        href="/login"
+        className={`inline-flex min-h-11 items-center rounded-lg border border-[var(--b2)] px-3 text-sm ${props.className || ""}`}
+      >
+        Sign in to record purchase
+      </Link>
+    );
+  return (
+    <PurchaseRecord
+      key={`${dealerId}:${props.deal.id || props.deal.vin || [props.deal.year, props.deal.make, props.deal.model].join(":")}`}
+      {...props}
+      ownerId={dealerId}
+      accountLoading={loading}
+    />
+  );
+}
+
+function PurchaseRecord({
   deal,
   className = "",
   label = "Record purchase",
   onRecorded,
-}: AcquireButtonProps) {
+  ownerId,
+  accountLoading,
+}: AcquireButtonProps & { ownerId: string | null; accountLoading: boolean }) {
+  const isCurrentOwner = useRecordOwner(ownerId);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [acquired, setAcquired] = useState(false);
@@ -54,7 +84,7 @@ export function AcquireToPipelineButton({
 
   async function record(event: React.FormEvent) {
     event.preventDefault();
-    if (loading) return;
+    if (loading || accountLoading || !ownerId || !isCurrentOwner()) return;
     const paid = Number(pricePaid);
     if (!pricePaid.trim() || !Number.isFinite(paid) || paid < 0) {
       setError("Enter the actual non-negative purchase price paid.");
@@ -63,45 +93,39 @@ export function AcquireToPipelineButton({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/inventory", {
-        signal: AbortSignal.timeout(20000),
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dealId: deal.id || undefined,
-          vin: deal.vin || "",
-          year: deal.year || 0,
-          make: deal.make || "",
-          model: deal.model || "",
-          trim: deal.trim,
-          condition,
-          purchasePrice: paid,
-          stage: "acquired",
-          predictedProfit: deal.trueNetProfit,
-          predictedSell: deal.sellEstimate,
-          purchasedCity: deal.locationCity,
-          purchasedState: deal.locationState,
-        }),
+      await writeInventory(ownerId, "POST", {
+        dealId: deal.id || undefined,
+        vin: deal.vin || "",
+        year: deal.year || 0,
+        make: deal.make || "",
+        model: deal.model || "",
+        trim: deal.trim,
+        condition,
+        purchasePrice: paid,
+        stage: "acquired",
+        purchasedCity: deal.locationCity,
+        purchasedState: deal.locationState,
       });
-      const result = await response.json();
-      if (!response.ok || !result.item?.id)
-        throw new Error("Unconfirmed purchase record");
+      if (!isCurrentOwner()) return;
+      invalidateInventoryViews(ownerId);
       setAcquired(true);
       setOpen(false);
       try {
         const status = await onRecorded?.();
         if (status === false) throw new Error("Unconfirmed shortlist status");
       } catch {
+        if (!isCurrentOwner()) return;
         setError(
           "Purchase recorded. Saved-list status did not update; check Pipeline. Do not record it again.",
         );
       }
     } catch {
+      if (!isCurrentOwner()) return;
       setError(
         "Purchase record was not confirmed. Check Pipeline before retrying to avoid a duplicate.",
       );
     } finally {
-      setLoading(false);
+      if (isCurrentOwner()) setLoading(false);
     }
   }
 
@@ -121,6 +145,7 @@ export function AcquireToPipelineButton({
           ref={opener}
           type="button"
           onClick={() => setOpen(true)}
+          disabled={accountLoading || !ownerId}
           className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm font-semibold text-[var(--t1)] ${className}`}
         >
           <Plus size={16} aria-hidden="true" />

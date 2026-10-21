@@ -230,16 +230,13 @@ export function CapitalVelocityTracker({
           {
             label: "Avg Flip Time",
             value:
-              metrics.avgDaysToFlip == null
-                ? "Unavailable"
-                : `${metrics.avgDaysToFlip}d`,
+              metrics.avgDaysToFlip == null ? "—" : `${metrics.avgDaysToFlip}d`,
             sub: "complete recorded sales",
             color: "var(--amber)",
           },
           {
             label: "Win Rate",
-            value:
-              metrics.winRate == null ? "Unavailable" : `${metrics.winRate}%`,
+            value: metrics.winRate == null ? "—" : `${metrics.winRate}%`,
             sub: `${metrics.completedCount} complete records`,
             color:
               (metrics.winRate ?? 0) >= 70 ? "var(--green)" : "var(--amber)",
@@ -248,7 +245,7 @@ export function CapitalVelocityTracker({
             label: "Avg Net / Deal",
             value:
               metrics.avgNet == null
-                ? "Unavailable"
+                ? "—"
                 : `${metrics.avgNet >= 0 ? "+" : "-"}$${Math.round(Math.abs(metrics.avgNet)).toLocaleString()}`,
             sub: "owner-reported; before income tax",
             color: (metrics.avgNet ?? 0) >= 0 ? "var(--green)" : "var(--red)",
@@ -267,6 +264,9 @@ export function CapitalVelocityTracker({
             </p>
             <Mono
               className="text-lg font-black break-words"
+              aria-label={
+                kpi.value === "—" ? `${kpi.label} unavailable` : undefined
+              }
               style={{ color: kpi.color }}
             >
               {kpi.value}

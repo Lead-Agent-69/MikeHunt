@@ -1,4 +1,5 @@
 import React, { act } from "react";
+import { SWRConfig } from "swr";
 import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 vi.mock("@/hooks/useDealerId", () => ({
@@ -14,6 +15,7 @@ let root: Root;
 let request: ReturnType<typeof vi.fn>;
 const item = {
   id: "car",
+  dealerId: "owner",
   year: 2020,
   make: "Honda",
   model: "Civic",
@@ -29,12 +31,25 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   request = vi.fn(async () => ({
     ok: true,
-    json: async () => ({ items: [item] }),
+    json: async () => ({
+      ownerId: "owner",
+      items: [item],
+      total: 1,
+      hasMore: false,
+    }),
   }));
   vi.stubGlobal("fetch", request);
   host = document.createElement("div");
   root = createRoot(host);
-  await act(async () => root.render(React.createElement(Page)));
+  await act(async () =>
+    root.render(
+      React.createElement(
+        SWRConfig,
+        { value: { provider: () => new Map(), shouldRetryOnError: false } },
+        React.createElement(Page),
+      ),
+    ),
+  );
 });
 afterEach(() => {
   act(() => root.unmount());
@@ -48,7 +63,10 @@ it("does not derive repair completion or invented costs from spending", () => {
 it("rejects an unconfirmed stage update and retains the vehicle", async () => {
   request.mockResolvedValueOnce({
     ok: true,
-    json: async () => ({ item: { ...item, id: "other", stage: "listed" } }),
+    json: async () => ({
+      ownerId: "owner",
+      item: { ...item, id: "other", stage: "listed" },
+    }),
   });
   await act(async () =>
     Array.from(host.querySelectorAll("button"))
