@@ -435,6 +435,23 @@ describe("LocalScraperCache", () => {
       ]),
     );
   });
+  it("spends scarce intake on a demanded state before another valid state", async () => {
+    const { cache } = await makeCache({ maxDailyInserts: 1 });
+    const db = fakeSupabase();
+    await withSweepPlan(marketPlan, () =>
+      cache.persistRows(
+        [
+          { ...row("border"), location_state: "IL" },
+          { ...row("home"), location_state: "MO" },
+        ],
+        db.client,
+        "*",
+      ),
+    );
+    expect(db.writes.flat().map((item) => item.source_deal_id)).toEqual([
+      "home",
+    ]);
+  });
   it("keeps existing unlocated listings updatable and accepts real border locations", async () => {
     const { cache } = await makeCache();
     const db = fakeSupabase([row("existing")]);
