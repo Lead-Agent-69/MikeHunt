@@ -5,18 +5,25 @@ import {
   curatedRingStates,
   scopeDemandStates,
   selectCuratedSitesForDemand,
+  recordCuratedAttempt,
+  curatedSiteKey,
 } from "./curated-rotation";
 import {
   demandStatesFromPrefs,
   locationDemandSourceIds,
 } from "@/lib/preferences/kick-location-demand";
 
-const empty = { version: 1 as const, lastAttempted: {} as Record<string, number> };
+const empty = {
+  version: 1 as const,
+  lastAttempted: {} as Record<string, number>,
+};
 
 describe("per-state curated demand ring", () => {
   it("reads the state(s) a location-demand kick put on the job scope", () => {
     expect(scopeDemandStates({ state: "ks" })).toEqual(["KS"]);
-    expect(scopeDemandStates({ state: "KS", states: ["OK", "KS", "x"] })).toEqual(["OK", "KS"]);
+    expect(
+      scopeDemandStates({ state: "KS", states: ["OK", "KS", "x"] }),
+    ).toEqual(["OK", "KS"]);
     expect(scopeDemandStates(undefined)).toEqual([]);
   });
 
@@ -34,21 +41,69 @@ describe("per-state curated demand ring", () => {
       { url: "https://ks.example", state: "KS" },
       { url: "https://national.example" },
     ];
-    const rotation = { version: 1 as const, lastAttempted: { "ks.example": 999 } };
+    const rotation = {
+      version: 1 as const,
+      lastAttempted: { "ks.example": 999 },
+    };
     const picked = selectCuratedSitesForDemand(sites, rotation, ["KS"]);
-    expect(picked.map((s) => s.url)).toEqual(["https://ks.example", "https://mo.example"]);
+    expect(picked.map((s) => s.url)).toEqual([
+      "https://ks.example",
+      "https://mo.example",
+    ]);
   });
 
   it("a newly added dealer joins its state's ring by its state tag alone", () => {
     const added = { url: "https://brand-new-yard.example", state: "TN" };
-    const picked = selectCuratedSitesForDemand([...CURATED_SITES, added], empty, ["TN"]);
+    const picked = selectCuratedSitesForDemand(
+      [...CURATED_SITES, added],
+      empty,
+      ["TN"],
+    );
     expect(picked[0]).toBe(added);
   });
 
+  it("reaches neighbouring dealers even when each demand run ends after one attempt", () => {
+    const sites = [
+      { url: "https://a.example", state: "MO" },
+      { url: "https://b.example", state: "MO" },
+      { url: "https://c.example", state: "MO" },
+      { url: "https://x2.example", state: "IL" },
+      { url: "https://smith.example", state: "IL" },
+      { url: "https://outside.example", state: "FL" },
+    ];
+    let rotation = {
+      version: 1 as const,
+      lastAttempted: {},
+      preferredStreak: 0,
+    };
+    const picked: string[] = [];
+    for (let tick = 1; tick <= 6; tick++) {
+      const site = selectCuratedSitesForDemand(sites, rotation, ["MO"])[0];
+      picked.push(curatedSiteKey(site));
+      recordCuratedAttempt(rotation, site, ["MO"], tick);
+      rotation = JSON.parse(JSON.stringify(rotation));
+    }
+    expect(picked).toEqual([
+      "a.example",
+      "b.example",
+      "x2.example",
+      "c.example",
+      "a.example",
+      "smith.example",
+    ]);
+    expect(new Set(picked).size).toBe(5);
+    expect(picked).not.toContain("outside.example");
+  });
+
   it("every demanded state reaches at least one curated dealer through its ring or the rotation", () => {
-    const states = "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(" ");
+    const states =
+      "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(
+        " ",
+      );
     for (const st of states)
-      expect(selectCuratedSitesForDemand(CURATED_SITES, empty, [st]).length).toBeGreaterThan(0);
+      expect(
+        selectCuratedSitesForDemand(CURATED_SITES, empty, [st]).length,
+      ).toBeGreaterThan(0);
   });
 
   it("home + saved-search states are what the preferences kick puts on the job", () => {

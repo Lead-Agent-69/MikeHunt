@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("sources proof scope", () => {
+  it("does not offer an unbounded dealer shortcut that the API would truncate", () => {
+    const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
+    expect(page).not.toContain("All featured dealers");
+    expect(page).toContain("No specific dealer");
+    expect(page).toContain("<option key={dealer.id} value={dealer.id}>");
+  });
   it("preserves min price through source health and scan links", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
 

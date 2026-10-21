@@ -155,7 +155,7 @@ function normalizeDealerSourceIds(value: string | null) {
   // The picker includes curated dealers beyond the older featured proof registry.
   // Dropping those valid IDs silently broadens a one-dealer query to every dealer.
   const known = new Set(Object.keys(DEALER_SOURCE_DOMAINS));
-  return (value || "")
+  const ids = (value || "")
     .toLowerCase()
     .split(",")
     .map((id) =>
@@ -164,8 +164,8 @@ function normalizeDealerSourceIds(value: string | null) {
         .replace(/[^a-z0-9_-]/g, "")
         .trim(),
     )
-    .filter((id) => known.has(id))
-    .slice(0, 25);
+    .filter((id) => known.has(id));
+  return Array.from(new Set(ids)).slice(0, 25);
 }
 
 export function dbSourceValues(sourceId: string) {
@@ -1283,6 +1283,21 @@ export async function GET(request: NextRequest) {
     const maxPriceParam = searchParams.get("maxPrice");
     const minPriceParam = searchParams.get("minPrice");
     const lane = normalizeQuery(searchParams.get("lane")) || undefined;
+    const requestedDealerIds = new Set(
+      (searchParams.get("dealerSourceIds") || "")
+        .toLowerCase()
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+    if (requestedDealerIds.size > 25)
+      return NextResponse.json(
+        {
+          error:
+            "Choose up to 25 dealers, or clear the dealer filter to search more broadly.",
+        },
+        { status: 400 },
+      );
     const selectedSourceIds = normalizeDealerSourceIds(
       [
         searchParams.get("source"),
