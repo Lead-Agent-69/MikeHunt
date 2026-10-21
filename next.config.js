@@ -1,4 +1,4 @@
-const { withSentryConfig } = require("@sentry/nextjs/config");
+const { withSentryConfig } = require("@sentry/nextjs");
 require("./scripts/prepare-replay-worker.cjs")();
 
 function supabaseConnectSources() {

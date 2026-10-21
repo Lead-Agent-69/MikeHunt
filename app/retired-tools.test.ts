@@ -77,7 +77,7 @@ describe("retired non-sourcing tools", () => {
       module: configModule,
       require: (name: string) => {
         if (name === "./scripts/prepare-replay-worker.cjs") return () => {};
-        if (name !== "@sentry/nextjs/config")
+        if (name !== "@sentry/nextjs")
           throw new Error(`Unexpected config import: ${name}`);
         return { withSentryConfig: (config: unknown) => config };
       },
