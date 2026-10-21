@@ -108,22 +108,59 @@ describe("Market filter journey", () => {
     window.history.replaceState(
       null,
       "",
-      "/market?lane=private&sellerType=dealer&dealerSourceIds=dealer-x2builders-com&source=independent_dealer&sort=score",
+      "/market?lane=private&state=IL&sellerType=dealer&dealerSourceIds=dealer-x2builders-com&source=independent_dealer&sort=score&maxPrice=25000&maxMileage=50000",
     );
     await render();
     const params = new URLSearchParams(window.location.search);
     expect(params.get("sources")).toBe("dealer-x2builders-com");
-    expect(params.get("lanes")).toBe("private");
+    expect(params.get("lanes")).toBeNull();
     expect(params.get("sellerTypes")).toBe("dealer");
+    expect(params.get("states")).toBe("IL");
+    expect(params.get("priceMax")).toBe("25000");
+    expect(params.get("mileageMax")).toBe("50000");
     const requests = state.keys.filter((key) =>
       key?.startsWith("/api/market/explore?"),
     );
     expect(requests.length).toBeGreaterThan(0);
-    for (const request of requests)
-      expect(
-        new URL(request!, "https://example.test").searchParams.get("sources"),
-      ).toBe("dealer-x2builders-com");
+    for (const request of requests) {
+      const requested = new URL(request!, "https://example.test").searchParams;
+      expect(requested.get("sources")).toBe("dealer-x2builders-com");
+      expect(requested.get("lanes")).toBeNull();
+      expect(requested.get("states")).toBe("IL");
+      expect(requested.get("priceMax")).toBe("25000");
+      expect(requested.get("mileageMax")).toBe("50000");
+    }
   });
+
+  it("does not add a private-seller restriction to a named dealer with any seller selected", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?lane=private&dealerSourceIds=dealer-billsmithauto-com&state=IL",
+    );
+    await render();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("lanes")).toBeNull();
+    expect(params.get("sources")).toBe("dealer-billsmithauto-com");
+    expect(params.get("states")).toBe("IL");
+  });
+
+  it.each([
+    "/market?lanes=private&lane=private&dealerSourceIds=dealer-x2builders-com&sellerType=dealer",
+    "/market?lane=private&sellerType=private&dealerSourceIds=dealer-x2builders-com",
+    "/market?lane=private&sellerType=dealer&dealerSourceIds=dealer-x2builders-com&sources=copart",
+    "/market?lane=private&sellerType=dealer",
+    "/market?lane=private",
+  ])(
+    "preserves deliberate or unrelated private-seller filters: %s",
+    async (url) => {
+      window.history.replaceState(null, "", url);
+      await render();
+      expect(new URLSearchParams(window.location.search).get("lanes")).toBe(
+        "private",
+      );
+    },
+  );
 
   it("preserves multiple legacy dealers without replacing explicit Market sources", async () => {
     window.history.replaceState(
