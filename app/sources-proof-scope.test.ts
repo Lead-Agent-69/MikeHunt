@@ -5,6 +5,9 @@ describe("sources proof scope", () => {
   it("keeps the tall search header in document flow rather than covering source controls", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).not.toContain("md:sticky md:top-0");
+    expect(page).toContain(
+      "grid-cols-2 gap-2 text-center text-xs sm:grid-cols-3 xl:grid-cols-5",
+    );
   });
   it("connects refresh to the current scope and rechecks coverage without an admin runner", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");

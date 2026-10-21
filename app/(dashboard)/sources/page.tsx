@@ -971,7 +971,7 @@ function SourceProofPanel({
           ) : null}
           {refreshAction}
         </div>
-        <div className="grid grid-cols-5 gap-2 text-center text-xs">
+        <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-3 xl:grid-cols-5">
           <div className="rounded-[var(--r3)] border border-[var(--green)]/30 bg-[var(--green)]/10 px-3 py-2">
             <div className="font-black text-[var(--green)]">
               {summary.ready}
