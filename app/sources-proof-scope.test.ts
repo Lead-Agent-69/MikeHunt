@@ -2,6 +2,23 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("sources proof scope", () => {
+  it("constrains filter fields to the mobile grid and labels dropdowns", () => {
+    const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
+    expect(page).toContain(
+      "grid grid-cols-1 gap-2 [&>*]:min-w-0 [&>*]:w-full lg:grid-cols-9",
+    );
+    for (const label of [
+      "Vehicle market",
+      "Seller type",
+      "Title status",
+      "Dealer",
+    ]) {
+      expect(page).toContain(`aria-label="${label}"`);
+    }
+    expect(page).toContain("aria-pressed={selectedCategory === cat.id}");
+    expect(page).not.toContain("bg-[var(--grad-amber)] text-[#0A0A0F]");
+    expect(page).toContain("btn btn-primary inline-flex min-h-11 shrink-0");
+  });
   it("keeps the tall search header in document flow rather than covering source controls", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).not.toContain("md:sticky md:top-0");
