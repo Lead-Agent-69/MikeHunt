@@ -626,6 +626,15 @@ export async function GET(req: NextRequest) {
             );
           }).length,
         }));
+        const profitEvidence = rows.filter(
+          (row) => row.profitEstimate != null,
+        ).length;
+        const profitScoreEvidence = rows.filter(
+          (row) => row.profitScore != null,
+        ).length;
+        const priceGapEvidence = rows.filter(
+          (row) => row.priceGap != null,
+        ).length;
         // Median profit per lane — a "where's the money by channel" bar for the viz.
         const profitByLane: Record<string, number[]> = {};
         for (const r of rows)
@@ -668,8 +677,16 @@ export async function GET(req: NextRequest) {
             };
             const av = value(a),
               bv = value(b);
-            if (!Number.isFinite(av))
-              return Number.isFinite(bv) ? 1 : a.id.localeCompare(b.id);
+            if (!Number.isFinite(av)) {
+              if (Number.isFinite(bv)) return 1;
+              const aSeen = a.lastSeenAt ? Date.parse(a.lastSeenAt) : NaN;
+              const bSeen = b.lastSeenAt ? Date.parse(b.lastSeenAt) : NaN;
+              if (Number.isFinite(aSeen) && Number.isFinite(bSeen))
+                return bSeen - aSeen || a.id.localeCompare(b.id);
+              if (Number.isFinite(aSeen)) return -1;
+              if (Number.isFinite(bSeen)) return 1;
+              return a.id.localeCompare(b.id);
+            }
             if (!Number.isFinite(bv)) return -1;
             return dir * (av - bv) || a.id.localeCompare(b.id);
           });
@@ -713,6 +730,9 @@ export async function GET(req: NextRequest) {
             assemblyCountries: ranked(assemblyCounts),
             availability: ranked(availabilityCounts),
             freshness,
+            profitEvidence,
+            profitScoreEvidence,
+            priceGapEvidence,
             priceKinds: ranked(priceKindCounts),
             priceHistogram,
             mileageHistogram,
