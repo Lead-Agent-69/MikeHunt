@@ -150,9 +150,11 @@ export const INVENTORY_DETAIL_GROUPS: {
       {
         key: "hasPhotos",
         label: "Photos",
+        emptyLabel: "Default",
         options: [
-          { value: "yes", label: "Available" },
-          { value: "no", label: "Not reported" },
+          { value: "yes", label: "Vehicle photos only" },
+          { value: "any", label: "Include missing photos" },
+          { value: "no", label: "Missing photos only" },
         ],
       },
       {

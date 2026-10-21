@@ -180,7 +180,13 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     const detailParams = new URLSearchParams(sp);
-    const photoFilter = sp.get("hasPhotos");
+    const photoFilter =
+      sp.get("hasPhotos") === "all" ? "any" : sp.get("hasPhotos") || "yes";
+    if (!["yes", "no", "any"].includes(photoFilter))
+      return NextResponse.json(
+        { error: "Choose a valid photo filter." },
+        { status: 400 },
+      );
     if (location.radius != null) detailParams.delete("zip");
     for (const [oldKey, key] of [
       ["priceMin", "minPrice"],

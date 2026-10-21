@@ -84,10 +84,48 @@ vi.mock("@/lib/deals/deal-desk-access", async (original) => ({
 }));
 import { GET } from "./route";
 import { invalidate } from "@/lib/cache";
-const request = (search: string) =>
-  GET(new NextRequest(`https://example.test/api/market/explore?${search}`));
+const request = (search: string) => {
+  // General filter fixtures intentionally include incomplete records for explicit research.
+  const params = new URLSearchParams(search);
+  if (!params.has("hasPhotos")) params.set("hasPhotos", "any");
+  return GET(
+    new NextRequest(`https://example.test/api/market/explore?${params}`),
+  );
+};
 
 describe("Market inventory filtering and pagination", () => {
+  it("defaults to usable vehicle photos before counts and pagination", async () => {
+    const base = {
+      year: 2024,
+      make: "Buick",
+      model: "Envista",
+      source: "independent_dealer",
+      ask_price: 20000,
+    };
+    state.rows = [
+      { ...base, id: "vehicle", images: ["https://dealer.test/car.jpg"] },
+      { ...base, id: "missing", images: [] },
+      { ...base, id: "logo", images: ["https://dealer.test/images/logo.png"] },
+      {
+        ...base,
+        id: "unavailable",
+        images: ["https://dealer.test/dead.jpg"],
+        photo_state: "unavailable",
+      },
+    ];
+    const body = await (
+      await GET(
+        new NextRequest("https://example.test/api/market/explore?pageSize=1"),
+      )
+    ).json();
+    expect(body.total).toBe(1);
+    expect(body.rows.map((row: any) => row.id)).toEqual(["vehicle"]);
+    const research = await (await request("hasPhotos=any")).json();
+    expect(research.total).toBe(4);
+  });
+  it("rejects an invalid photo filter rather than silently including missing photos", async () => {
+    expect((await request("hasPhotos=invalid")).status).toBe(400);
+  });
   it("does not publish resale or profit claims for conflicting vehicle identities", async () => {
     state.rows = [
       {

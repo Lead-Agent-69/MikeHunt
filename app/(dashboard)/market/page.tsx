@@ -170,6 +170,7 @@ function toggle(arr: string[], v: string): string[] {
 
 /** Keep shared legacy Scan/Discover links useful while Market Explorer becomes the one workspace. */
 function normalizeLegacyMarketParams(params: URLSearchParams) {
+  if (params.get("hasPhotos") === "all") params.set("hasPhotos", "any");
   const titleTypes = parseTitleTypes(params.get("titleType"));
   if (titleTypes.length) params.set("titleType", titleTypes.join(","));
   const copy = (legacy: string, current: string) => {
@@ -275,12 +276,15 @@ export default function MarketPage() {
     setPage(0);
     if (key === "titleType")
       setF((current) => ({ ...current, conditions: [] }));
-    setDetails((current) => ({ ...current, [key]: value }));
+    setDetails((current) => ({
+      ...current,
+      [key]: key === "hasPhotos" && !value ? "yes" : value,
+    }));
   };
   const reset = () => {
     setPage(0);
     setF(EMPTY);
-    setDetails({});
+    setDetails({ hasPhotos: "yes" });
   };
   React.useEffect(() => {
     if (prefsLoading) return;
@@ -360,7 +364,7 @@ export default function MarketPage() {
         next.sortDir = "desc";
       }
       setF(next);
-      setDetails(readInventoryDetails(params));
+      setDetails({ hasPhotos: "yes", ...readInventoryDetails(params) });
       setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
       setReady(true);
     };
@@ -523,7 +527,7 @@ export default function MarketPage() {
     return countDifference || left.name.localeCompare(right.name);
   });
   const activeCount =
-    Object.values(details).filter(Boolean).length +
+    Object.values(details).filter((value) => value && value !== "any").length +
     (f.priceKind ? 1 : 0) +
     (f.near || f.lat ? 1 : 0) +
     f.sources.length +
@@ -670,7 +674,7 @@ export default function MarketPage() {
       label: "Has photos",
       active: details.hasPhotos === "yes",
       onToggle: () =>
-        setDetail("hasPhotos", details.hasPhotos === "yes" ? "" : "yes"),
+        setDetail("hasPhotos", details.hasPhotos === "yes" ? "any" : "yes"),
     },
     {
       key: "complete-data",
@@ -935,28 +939,31 @@ export default function MarketPage() {
               <X className="h-3 w-3 shrink-0" />
             </button>
           ))}
-          {INVENTORY_DETAIL_FIELDS.filter((field) => details[field.key]).map(
-            (field) => (
-              <button
-                type="button"
-                key={field.key}
-                aria-label={`Remove ${field.label} filter`}
-                className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 text-[11px]"
-                onClick={() => {
-                  setPage(0);
-                  setDetails((current) => ({ ...current, [field.key]: "" }));
-                }}
-              >
-                <span className="max-w-52 truncate">
-                  {field.label}:{" "}
-                  {field.options?.find(
-                    (option) => option.value === details[field.key],
-                  )?.label || details[field.key]}
-                </span>
-                <X className="h-3 w-3 shrink-0" />
-              </button>
-            ),
-          )}
+          {INVENTORY_DETAIL_FIELDS.filter(
+            (field) => details[field.key] && details[field.key] !== "any",
+          ).map((field) => (
+            <button
+              type="button"
+              key={field.key}
+              aria-label={`Remove ${field.label} filter`}
+              className="inline-flex min-h-9 max-w-full items-center gap-2 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 text-[11px]"
+              onClick={() => {
+                setPage(0);
+                setDetails((current) => ({
+                  ...current,
+                  [field.key]: field.key === "hasPhotos" ? "any" : "",
+                }));
+              }}
+            >
+              <span className="max-w-52 truncate">
+                {field.label}:{" "}
+                {field.options?.find(
+                  (option) => option.value === details[field.key],
+                )?.label || details[field.key]}
+              </span>
+              <X className="h-3 w-3 shrink-0" />
+            </button>
+          ))}
           <button
             type="button"
             onClick={reset}
