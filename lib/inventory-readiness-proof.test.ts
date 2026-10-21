@@ -35,7 +35,7 @@ describe("inventory readiness proof", () => {
         location: 5,
         seller: 5,
         explicit_seller_contact: 1,
-        auction_date: 0,
+        auction_date: 4,
         source_link: 5,
         newest_seen: "2026-10-20T14:00:00.000Z",
       },
@@ -54,8 +54,11 @@ describe("inventory readiness proof", () => {
         price: 13,
         seller: 13,
         sellerContact: 9,
-        auction: 2,
+        auction: 4,
         source: 13,
+      },
+      applicable: {
+        auction: 5,
       },
       newestSeen: "2026-10-20T14:00:00.000Z",
     });
@@ -76,6 +79,7 @@ describe("inventory readiness proof", () => {
       storedTotal: 0,
       newestSeen: null,
       counts: { photo: 0, price: 0 },
+      applicable: { auction: 0 },
     });
   });
 });

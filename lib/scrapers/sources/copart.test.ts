@@ -112,6 +112,7 @@ describe("parseCopartLots", () => {
           mkn: "HONDA",
           lm: "CIVIC",
           la: -1,
+          lotPlugAcv: 12_000,
           hb: 0,
           memberVehicleType: "SEDAN",
         },
@@ -120,7 +121,9 @@ describe("parseCopartLots", () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toMatchObject({
       ask_price: 0,
-      options: { priceEvidence: { kind: "unknown" } },
+      options: {
+        priceEvidence: { kind: "reference", referenceValue: 12_000 },
+      },
     });
   });
 
@@ -176,7 +179,7 @@ describe("parseCopartLots", () => {
   });
 });
 
-import { copartOdometer, copartZip } from "./copart";
+import { copartAuctionEnd, copartOdometer, copartZip } from "./copart";
 
 describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", () => {
   it("reads orr as mileage unless the reading is not actual or exempt", () => {
@@ -189,6 +192,13 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
   it("keeps the 5-digit zip", () => {
     expect(copartZip("33578 7610")).toBe("33578");
     expect(copartZip(undefined)).toBeUndefined();
+  });
+  it("maps Copart's sale day to a conservative auction cutoff", () => {
+    expect(copartAuctionEnd({ lad: 1_772_524_800_000 })).toBe(
+      "2026-03-03T23:59:59.999Z",
+    );
+    expect(copartAuctionEnd({ lad: 0 })).toBeUndefined();
+    expect(copartAuctionEnd({ lad: "not-a-date" })).toBeUndefined();
   });
   it("maps orr, ltd and zip on a parsed lot", () => {
     const [row] = parseCopartLots({
@@ -208,6 +218,7 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
               dd: "FRONT END",
               locState: "FL",
               locCity: "RIVERVIEW",
+              lad: 1_772_524_800_000,
             },
           ],
         },
@@ -217,6 +228,7 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
       mileage: 74308,
       trim: "S",
       location_zip: "33578",
+      auction_end: "2026-03-03T23:59:59.999Z",
     });
   });
 });

@@ -317,7 +317,7 @@ export default function StatusPage() {
     ["Has mileage", q?.mileagePct ?? 0],
     ["Has seller/source proof", q?.sellerPct ?? 0],
     ["Has direct contact", q?.sellerContactPct ?? 0],
-    ["Has auction date", q?.auctionDatePct ?? 0],
+    ["Has auction timing (auction rows)", q?.auctionDatePct ?? 0],
     ["Has VIN", q?.vinPct ?? 0],
   ] as const;
   const newestStoredHours = breakdown.reduce<number | null>((min, row) => {
@@ -362,8 +362,8 @@ export default function StatusPage() {
       action: "Provider checklist",
     },
     {
-      title: "Contact, auction date, VIN, and mileage are too thin",
-      detail: `${q?.sellerContactPct ?? 0}% direct contact, ${q?.auctionDatePct ?? 0}% auction date, ${q?.vinPct ?? 0}% VIN, and ${q?.mileagePct ?? 0}% mileage coverage. Buyers can discover deals, but must verify weak fields before acting.`,
+      title: "Contact, auction timing, VIN, and mileage need proof",
+      detail: `${q?.sellerContactPct ?? 0}% direct contact, ${q?.auctionDatePct ?? 0}% auction timing across auction rows, ${q?.vinPct ?? 0}% VIN, and ${q?.mileagePct ?? 0}% mileage coverage. Buyers can discover deals, but must verify weak fields before acting.`,
       href: "/sources",
       action: "Source proof",
     },
@@ -760,7 +760,7 @@ export default function StatusPage() {
                     vinPct: "VIN",
                     sellerPct: "Seller/source proof",
                     sellerContactPct: "Direct contact",
-                    auctionDatePct: "Auction date",
+                    auctionDatePct: "Auction timing (auction rows)",
                   };
                   return (
                     <Bar

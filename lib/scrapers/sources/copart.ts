@@ -50,6 +50,21 @@ export function copartZip(raw: unknown): string | undefined {
   return String(raw ?? "").match(/^\s*(\d{5})/)?.[1];
 }
 
+/**
+ * Copart's `lad` is the sale-day timestamp, while `at` is a yard-local time
+ * without a reliable UTC offset. Keep the lot visible through that UTC day,
+ * then let the shared auction window retire it instead of leaving it active
+ * forever. This is deliberately day precision, not an invented exact time.
+ */
+export function copartAuctionEnd(v: any): string | undefined {
+  const timestamp = Number(v?.lad);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return undefined;
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) return undefined;
+  date.setUTCHours(23, 59, 59, 999);
+  return date.toISOString();
+}
+
 /** Parse a Copart search-results API response (data.results.content) into salvage deal rows. */
 export function parseCopartLots(json: any): Partial<Deal>[] {
   const lots = json?.data?.results?.content;
@@ -71,7 +86,7 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
     const dyn = v.dynamicLotDetails || {};
     const bid = positivePrice(dyn.currentBid) || positivePrice(v.hb) || 0;
     const buyNow = positivePrice(dyn.buyTodayBid);
-    const acv = positivePrice(v.la);
+    const acv = positivePrice(v.la) || positivePrice(v.lotPlugAcv);
     const price = bid || buyNow || 0;
     const priceEvidence: PriceEvidence = {
       kind: bid
@@ -101,6 +116,7 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
       ask_price: price,
       buy_now_price: buyNow,
       options: { priceEvidence },
+      auction_end: copartAuctionEnd(v),
       // `orr` is the odometer reading in the public lots JSON (checked 2026-10-10: 74308 on a 2017
       // Sentra). Not-actual / exempt readings ("ord") are dropped, never guessed.
       mileage: copartOdometer(v),
@@ -124,6 +140,8 @@ export function parseCopartLots(json: any): Partial<Deal>[] {
         current_bid: bid,
         price_is_acv_estimate: !price && !!acv,
         sale_ts: Number(v.lad) || undefined,
+        sale_time_local: str(v.at),
+        sale_timezone: str(v.tz),
         vehicle_type: vt || undefined,
         partial_vin: str(v.fv),
       },

@@ -1,4 +1,5 @@
 import { sellerContact } from "@/lib/data/deal-contact";
+import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 
 export type InventoryProofRollup = {
   source?: string | null;
@@ -39,6 +40,9 @@ export type InventoryReadinessProof = {
   total: number;
   storedTotal: number;
   counts: InventoryCoverageCounts;
+  applicable: {
+    auction: number;
+  };
   newestSeen: string | null;
 };
 
@@ -72,6 +76,9 @@ export function summarizeInventoryProofRollups(
       auction: 0,
       source: 0,
     },
+    applicable: {
+      auction: 0,
+    },
     newestSeen: null,
   };
 
@@ -100,8 +107,17 @@ export function summarizeInventoryProofRollups(
     proof.counts.sellerContact += directSellerLink
       ? sourceLinks
       : count(row.explicit_seller_contact);
-    proof.counts.auction += count(row.auction_date);
     proof.counts.source += sourceLinks;
+    const auctionApplies = auctionDateApplies({
+      source: row.source,
+      sourceUrl: row.source_host ? `https://${row.source_host}/` : null,
+      adapterId: row.adapter_id,
+      sellerType: row.seller_type,
+    });
+    if (auctionApplies) {
+      proof.counts.auction += count(row.auction_date);
+      proof.applicable.auction += count(row.active_rows);
+    }
 
     const newest = row.newest_seen || null;
     if (

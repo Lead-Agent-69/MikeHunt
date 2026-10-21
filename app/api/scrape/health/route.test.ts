@@ -906,7 +906,7 @@ describe("database inventory health rollups", () => {
         seller: "3",
         explicit_seller_identity: "0",
         explicit_seller_contact: "0",
-        auction_date: "0",
+        auction_date: "3",
         source_link: "3",
         newest_seen: "2026-10-19T08:00:00.000Z",
         newest_stored_seen: "2026-10-19T08:00:00.000Z",
@@ -950,16 +950,19 @@ describe("database inventory health rollups", () => {
       qualityPresent: 30,
       qualityChecks: 30,
       lastSeenAt: "2026-10-19T08:00:00.000Z",
+      applicable: { auctionDate: 0 },
     });
     expect(proof.proofBySource[dealerId].completeness).toMatchObject({
       photos: 3,
       sellerContact: 3,
+      auctionDate: 0,
       sourceLink: 3,
     });
     expect(proof.proofBySource.govdeals).toMatchObject({
       activeRows: 2,
       qualityPresent: 18,
       qualityChecks: 22,
+      applicable: { auctionDate: 2 },
     });
 
     expect(buildLiveCoverageFromRollups(rows)).toMatchObject({

@@ -20,6 +20,7 @@ import {
 } from "@/lib/sources/source-meta";
 import { sellerContact } from "@/lib/data/deal-contact";
 import { sellerTypeEvidence } from "@/lib/deals/seller-type";
+import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import { isCustomerInventory } from "@/lib/search/customer-inventory";
 import {
@@ -87,6 +88,9 @@ type SourceProof = {
   qualityPresent: number;
   qualityChecks: number;
   completeness: ReturnType<typeof emptyCompleteness>;
+  applicable: {
+    auctionDate: number;
+  };
   lastSeenAt: string | null;
   storedLastSeenAt: string | null;
 };
@@ -397,7 +401,15 @@ function addCompleteness(
   if (present(contact.phone || contact.email || contact.url)) {
     completeness.sellerContact += 1;
   }
-  if (present(row.auction_end || row.auction_end_at || row.auctionEndAt)) {
+  if (
+    auctionDateApplies({
+      source: row.source,
+      sourceUrl: row.source_url || row.sourceUrl,
+      adapterId: row.options?.sourceAdapterId,
+      sellerType: rowSellerType(row),
+    }) &&
+    present(row.auction_end || row.auction_end_at || row.auctionEndAt)
+  ) {
     completeness.auctionDate += 1;
   }
   if (present(row.source_url || row.sourceUrl)) completeness.sourceLink += 1;
@@ -406,9 +418,11 @@ function addCompleteness(
 function completenessPercentages(
   counts: ReturnType<typeof emptyCompleteness>,
   total: number,
+  applicable: { auctionDate?: number } = {},
 ) {
   const pct = (value: number) =>
     total ? Math.round((value / total) * 100) : 0;
+  const auctionDateRows = applicable.auctionDate ?? total;
   return {
     photosPct: pct(counts.photos),
     vinPct: pct(counts.vin),
@@ -419,8 +433,13 @@ function completenessPercentages(
     locationPct: pct(counts.location),
     sellerPct: pct(counts.seller),
     sellerContactPct: pct(counts.sellerContact),
-    auctionDatePct: pct(counts.auctionDate),
+    auctionDatePct: auctionDateRows
+      ? Math.round((counts.auctionDate / auctionDateRows) * 100)
+      : 0,
     sourceLinkPct: pct(counts.sourceLink),
+    applicableRows: {
+      auctionDate: auctionDateRows,
+    },
   };
 }
 
@@ -535,8 +554,12 @@ function broadenScopeAction(scope?: HealthScope) {
 function missingCoverageActions(row: any) {
   const c = row.completeness || {};
   const missing: string[] = [];
-  const type = String(row.type || row.sellerType || "").toLowerCase();
-  const auctionDateExpected = !["dealer", "private", "retail"].includes(type);
+  const auctionDateExpected = auctionDateApplies({
+    source: row.id || row.source,
+    sourceUrl: row.source_url || row.sourceUrl,
+    sellerType: row.sellerType,
+    sourceType: row.type,
+  });
   const low = (value: unknown, threshold = 50) =>
     Number(value || 0) > 0 ? Number(value || 0) < threshold : true;
   if (low(c.vinPct)) missing.push("VIN");
@@ -1087,9 +1110,12 @@ export function buildProofFromRollups(
     const explicitContact = rollupCount(row.explicit_seller_contact);
     const inferredSellerType = rowSellerType(evidence);
     const directSellerLink = Boolean(sellerContact(evidence).url);
-    const auctionDateExpected = !["dealer", "private", "retail"].includes(
-      inferredSellerType,
-    );
+    const auctionDateExpected = auctionDateApplies({
+      source: evidence.source,
+      sourceUrl: evidence.source_url,
+      adapterId: row.adapter_id,
+      sellerType: inferredSellerType,
+    });
     const sellerIdentityRows = inferredSellerType
       ? activeRows
       : explicitIdentity;
@@ -1117,6 +1143,7 @@ export function buildProofFromRollups(
         qualityPresent: 0,
         qualityChecks: 0,
         completeness: emptyCompleteness(),
+        applicable: { auctionDate: 0 },
         lastSeenAt: null,
         storedLastSeenAt: null,
       });
@@ -1135,8 +1162,11 @@ export function buildProofFromRollups(
     proof.completeness.location += rollupCount(row.location);
     proof.completeness.seller += rollupCount(row.seller);
     proof.completeness.sellerContact += sellerContactRows;
-    proof.completeness.auctionDate += rollupCount(row.auction_date);
+    if (auctionDateExpected) {
+      proof.completeness.auctionDate += rollupCount(row.auction_date);
+    }
     proof.completeness.sourceLink += sourceLinks;
+    if (auctionDateExpected) proof.applicable.auctionDate += activeRows;
 
     const newestSeen = row.newest_seen ? new Date(row.newest_seen) : null;
     if (
@@ -1618,6 +1648,7 @@ export async function GET(request: NextRequest) {
           qualityPresent: 0,
           qualityChecks: 0,
           completeness: emptyCompleteness(),
+          applicable: { auctionDate: 0 },
           lastSeenAt: null,
           storedLastSeenAt: null,
         });
@@ -1625,6 +1656,16 @@ export async function GET(request: NextRequest) {
       proof.activeRows += 1;
       if (images.length > 0) proof.rowsWithPhotos += 1;
       addCompleteness(proof.completeness, row);
+      if (
+        auctionDateApplies({
+          source: row.source,
+          sourceUrl: row.source_url,
+          adapterId: row.options?.sourceAdapterId,
+          sellerType: rowSellerType(row),
+        })
+      ) {
+        proof.applicable.auctionDate += 1;
+      }
       proof.qualityTotal += gradeDataQuality({
         images,
         vin: row.vin,
@@ -1665,6 +1706,7 @@ export async function GET(request: NextRequest) {
             qualityPresent: 0,
             qualityChecks: 0,
             completeness: emptyCompleteness(),
+            applicable: { auctionDate: 0 },
             lastSeenAt: null,
             storedLastSeenAt: null,
           });
@@ -1775,7 +1817,9 @@ export async function GET(request: NextRequest) {
         completeness: proof
           ? {
               counts: proof.completeness,
-              ...completenessPercentages(proof.completeness, proof.activeRows),
+              ...completenessPercentages(proof.completeness, proof.activeRows, {
+                auctionDate: proof.applicable.auctionDate,
+              }),
             }
           : {
               counts: emptyCompleteness(),
