@@ -67,7 +67,14 @@ async function main() {
           typeof photoAudit === "object" &&
           !Array.isArray(photoAudit) &&
           typeof photoAudit.state === "string"
-            ? { state: photoAudit.state }
+            ? {
+                state: photoAudit.state,
+                placeholderUrls: Array.isArray(photoAudit.placeholderUrls)
+                  ? photoAudit.placeholderUrls.filter(
+                      (url): url is string => typeof url === "string",
+                    )
+                  : undefined,
+              }
             : undefined,
       },
     }));

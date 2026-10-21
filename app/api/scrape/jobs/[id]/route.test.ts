@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
@@ -27,8 +27,43 @@ beforeEach(() => {
   mocks.eq.mockReturnValue(query);
   mocks.getUser.mockResolvedValue({ data: { user: { id: "buyer-1" } } });
 });
+afterEach(() => vi.useRealTimers());
 
 describe("customer collection status", () => {
+  it("returns a sanitized dated wait only for the owner of an unstarted job", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-21T23:00:00Z"));
+    mocks.maybeSingle.mockResolvedValue({
+      data: {
+        id: "job-1",
+        status: "pending",
+        result: {
+          waiting: {
+            reason: "daily_capacity",
+            observedAt: "2026-10-21T22:00:00Z",
+            nextCheckAt: "2026-10-22T00:00:00.000Z",
+            token: "secret-key",
+          },
+          runner: "secret-key",
+        },
+      },
+      error: null,
+    });
+    const { GET } = await import("./route");
+    const response = await GET(
+      new NextRequest("https://app.test/api/scrape/jobs/job-1"),
+      { params: Promise.resolve({ id: "job-1" }) },
+    );
+    const body = await response.json();
+    expect(body.job.waiting).toEqual({
+      reason: "daily_capacity",
+      observedAt: "2026-10-21T22:00:00.000Z",
+      nextCheckAt: "2026-10-22T00:00:00.000Z",
+    });
+    expect(body.job.result).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("secret-key");
+    expect(mocks.eq).toHaveBeenCalledWith("requested_by", "buyer-1");
+  });
   it("restricts status to its owner and removes raw runner diagnostics", async () => {
     mocks.maybeSingle.mockResolvedValue({
       data: {
