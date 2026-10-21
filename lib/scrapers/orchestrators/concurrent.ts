@@ -8,7 +8,6 @@ import { ScraperExecutor } from "../tools/executor";
 
 export interface ConcurrentOrchestratorOptions extends OrchestratorOptions {
   concurrency?: number;
-  perSourceTimeoutMs?: number;
   staggerMs?: number;
   retries?: number;
 }
@@ -19,6 +18,7 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
   private concurrency: number;
   private staggerMs: number;
   private retries: number;
+  private perSourceTimeoutMs: number;
 
   constructor(
     registry: ScraperRegistry,
@@ -30,6 +30,7 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
     this.concurrency = options.concurrency || 3;
     this.staggerMs = options.staggerMs || 1000;
     this.retries = options.retries || 2;
+    this.perSourceTimeoutMs = options.perSourceTimeoutMs ?? 300_000;
   }
 
   async run(sourceIds?: string[]): Promise<ScrapeResult[]> {
@@ -64,7 +65,7 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
           abortSignal: this.abortController?.signal,
           dryRun: this.options.dryRun,
           maxRetries: this.retries,
-          timeoutMs: 300000,
+          timeoutMs: this.perSourceTimeoutMs,
           costGuard: this.costGuard,
           circuitBreaker: this.circuitBreaker,
         });

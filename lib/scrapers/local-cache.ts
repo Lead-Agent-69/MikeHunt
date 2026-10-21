@@ -610,9 +610,14 @@ export class LocalScraperCache {
         1,
         Math.floor(this.maxDailyInserts * 0.8),
       );
+      const operatorRefresh = getScrapeRunScope()?.refreshExisting === true;
+      // Ordinary collection keeps the 20% safety reserve. A reviewed operator refresh may
+      // spend that reserve on already-stored rows only; insert capacity remains unchanged.
       const updateThreshold = Math.max(
         1,
-        Math.floor(this.maxDailyUpdates * 0.8),
+        operatorRefresh
+          ? this.maxDailyUpdates
+          : Math.floor(this.maxDailyUpdates * 0.8),
       );
       let insertsAvailable = Math.max(
         0,

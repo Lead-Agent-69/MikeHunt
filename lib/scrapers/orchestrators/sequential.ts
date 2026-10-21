@@ -46,6 +46,7 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
         const execResult = await this.executor.execute(scraper, {
           abortSignal: this.abortController.signal,
           dryRun: this.options.dryRun,
+          timeoutMs: this.options.perSourceTimeoutMs ?? 300_000,
           costGuard: this.costGuard,
           circuitBreaker: this.circuitBreaker,
         });

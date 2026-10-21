@@ -9,6 +9,7 @@ describe("discover soft-fail honesty", () => {
     expect(page).toContain("Could not load discovery right now");
     expect(page).toContain("not running a live market scan");
     expect(page).toContain("Checking saved listings");
+    expect(page).toContain("fetchDiscoverFeed<DiscoverResponse>");
     expect(page).not.toMatch(/live results/i);
     expect(page).toContain("marketListingsContext");
     expect(page).toContain("{marketContext}");

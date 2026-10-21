@@ -93,7 +93,7 @@ export class RealtimeOrchestrator extends BaseScraperOrchestrator {
           abortSignal: this.abortController?.signal,
           dryRun: this.options.dryRun,
           maxRetries: this.retries,
-          timeoutMs: 300000,
+          timeoutMs: this.options.perSourceTimeoutMs ?? 300_000,
           costGuard: this.costGuard,
           circuitBreaker: this.circuitBreaker,
         });

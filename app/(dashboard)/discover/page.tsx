@@ -59,6 +59,7 @@ import {
   discoverMatchLabel,
   marketListingsContext,
 } from "@/lib/discovery/count-labels";
+import { fetchDiscoverFeed } from "@/lib/discovery/discover-fetcher";
 
 const LANE_VALUE_TO_LABEL: Record<string, string> = {
   all: "All deals",
@@ -70,12 +71,6 @@ const LANE_VALUE_TO_LABEL: Record<string, string> = {
   parts: "Parts / teardown",
   specialty: "Specialty",
 };
-
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to load discovery feed");
-    return res.json();
-  });
 
 // Research-only framing for branded/damaged supply: no profit claim on the lane itself.
 const SALVAGE_LANE_TITLE = "Salvage & Rebuildable";
@@ -348,7 +343,7 @@ export default function DiscoverPage() {
   const { data, error, isLoading, isValidating, mutate } =
     useSWR<DiscoverResponse>(
       discoverReady ? `/api/discover${scopeQuery}` : null,
-      fetcher,
+      fetchDiscoverFeed<DiscoverResponse>,
       {
         revalidateOnFocus: false,
         revalidateOnReconnect: true,
