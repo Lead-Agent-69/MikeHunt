@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { publicScopedScrapeSummary } from "@/lib/scrapers/job-result";
+import { publicCapacityWait } from "@/lib/scrapers/job-wait";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,11 @@ export async function GET(
         data.status === "failed"
           ? "We couldn't check the selected sources. Please retry or choose another source."
           : null,
-      result: publicScopedScrapeSummary(data.result),
+      waiting: publicCapacityWait(data.status, data.result),
+      result:
+        data.status === "pending"
+          ? null
+          : publicScopedScrapeSummary(data.result),
     },
   });
 }

@@ -1,9 +1,15 @@
 import { hostMatches, hostOf } from "@/lib/net/host-match";
-import { isCustomerInventory } from "@/lib/search/customer-inventory";
+import {
+  customerInventoryExclusion,
+  isCustomerInventory,
+} from "@/lib/search/customer-inventory";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 
 type Row = Omit<Parameters<typeof isCustomerInventory>[0], "options"> & {
-  options?: { photoAudit?: { state?: string }; [key: string]: unknown } | null;
+  options?: {
+    photoAudit?: { state?: string; placeholderUrls?: string[] };
+    [key: string]: unknown;
+  } | null;
   source_url?: string;
   title?: string;
   make?: string;
@@ -29,6 +35,13 @@ export function sourcePublicationAudit(
       recentDeferredCandidates++;
   }
   const rows = stored.filter(matches);
+  const exclusions: Record<string, number> = {};
+  for (const row of rows) {
+    const reason =
+      customerInventoryExclusion(row, now) ||
+      (!isInVehicleScope(row) ? "outside_vehicle_scope" : null);
+    if (reason) exclusions[reason] = (exclusions[reason] || 0) + 1;
+  }
   const newest =
     rows
       .map((row) => row.last_seen_at)
@@ -47,6 +60,9 @@ export function sourcePublicationAudit(
     defaultInventoryCandidates: rows.filter(
       (row) => isCustomerInventory(row, now) && isInVehicleScope(row),
     ).length,
+    // These sum to sampled rows minus candidates, not losses before storage.
+    exclusions,
+    photoReachabilityVerified: false,
     newestStoredObservation: newest,
   };
 }

@@ -34,6 +34,7 @@ import {
 import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import { recoverAbandonedScopedJobs } from "../lib/scrapers/job-recovery";
+import { recordPendingCapacityWait } from "../lib/scrapers/job-capacity-notice";
 import { writeCapacity } from "../lib/scrapers/write-capacity";
 import {
   isAutomationAllowedSource,
@@ -715,7 +716,22 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   let claimFailures = 0;
   let nextAuctionExpiryAt = 0;
   let nextQueueRecoveryAt = 0;
+  let nextCapacityNoticeAt = 0;
   while (!stopRequested) {
+    if (
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      Date.now() >= nextCapacityNoticeAt
+    ) {
+      nextCapacityNoticeAt = Date.now() + 5 * 60_000;
+      try {
+        await recordPendingCapacityWait(supabase, cache.getQuota());
+      } catch {
+        console.warn(
+          "[scrape-queue] waiting status unavailable; queue unchanged",
+        );
+      }
+    }
     if (
       !manualPaused &&
       !currentStatus.cacheOnly &&
