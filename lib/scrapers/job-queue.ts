@@ -4,6 +4,11 @@ import type { OrchestratorType } from "./runner";
 
 export type ScrapeJobStatus = "pending" | "running" | "completed" | "failed";
 
+/** Operator-only queue hint. Public buyer-scope normalization never sets this flag. */
+export interface ScopedScrapeScope extends BuyerScope {
+  refreshExisting?: boolean;
+}
+
 /** Idle health must distinguish a live process from permission to collect/store more rows. */
 export function scopedWorkerIdleState(
   manualPaused: boolean,
@@ -15,7 +20,7 @@ export function scopedWorkerIdleState(
 export interface ScopedScrapeJobInput {
   requestedBy?: string | null;
   sourceIds: string[];
-  scope: BuyerScope;
+  scope: ScopedScrapeScope;
   orchestrator: OrchestratorType;
   concurrency: number;
   dryRun?: boolean;
@@ -25,7 +30,7 @@ export interface ScopedScrapeJob {
   id: string;
   status: ScrapeJobStatus;
   source_ids: string[];
-  scope: BuyerScope;
+  scope: ScopedScrapeScope;
   orchestrator: OrchestratorType;
   concurrency: number;
   dry_run: boolean;
@@ -38,6 +43,7 @@ export interface ScopedScrapeJob {
   created_at: string;
   started_at?: string | null;
   completed_at?: string | null;
+  attempts?: number;
 }
 
 /** Queue and hybrid both hand buyer-scoped jobs to the Docker worker. */
@@ -110,12 +116,60 @@ export async function claimNextScopedScrapeJob(
     null) as ScopedScrapeJob | null;
 }
 
+/**
+ * Claim an explicitly marked refresh while full insert capacity is reserved.
+ *
+ * The ordinary RPC remains the queue's default atomic claim path. This narrower
+ * path exists so a known source can renew already-stored rows through the
+ * independent update/touch budgets without letting normal search jobs bypass the
+ * new-row guard. The status predicate makes a concurrent claim lose cleanly.
+ */
+export async function claimNextRefreshScopedScrapeJob(
+  supabase: SupabaseClient,
+  workerId: string,
+): Promise<ScopedScrapeJob | null> {
+  const { data: candidate, error: candidateError } = await supabase
+    .from("scrape_jobs")
+    .select("*")
+    .eq("status", "pending")
+    .contains("scope", { refreshExisting: true })
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (candidateError)
+    throw new Error(
+      `Could not inspect refresh queue: ${candidateError.message}`,
+    );
+  if (!candidate) return null;
+
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("scrape_jobs")
+    .update({
+      status: "running",
+      worker_id: workerId,
+      started_at: now,
+      heartbeat_at: now,
+      attempts: Math.max(0, Number(candidate.attempts) || 0) + 1,
+      error_message: null,
+    })
+    .eq("id", candidate.id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle();
+  if (error) throw new Error(`Could not claim refresh job: ${error.message}`);
+  return (data || null) as ScopedScrapeJob | null;
+}
+
 /** Clear a recovered connection error without hiding a failed collection task. */
 export function recoveredClaimError(
   lastError: string | undefined,
   failures: number,
 ) {
-  return failures > 0 && lastError?.startsWith("Could not claim scrape job:")
-    ? undefined
-    : lastError;
+  const isQueueClaimError = [
+    "Could not claim scrape job:",
+    "Could not inspect refresh queue:",
+    "Could not claim refresh job:",
+  ].some((prefix) => lastError?.startsWith(prefix));
+  return failures > 0 && isQueueClaimError ? undefined : lastError;
 }

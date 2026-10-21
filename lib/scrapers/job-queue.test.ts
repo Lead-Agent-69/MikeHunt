@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
+  claimNextRefreshScopedScrapeJob,
   claimNextScopedScrapeJob,
   enqueueScopedScrapeJob,
   isRemoteScrapeQueueEnabled,
@@ -16,11 +17,17 @@ function chain(terminal: Record<string, unknown>) {
     "order",
     "limit",
     "insert",
+    "update",
     "contains",
   ]) {
     api[method] = vi.fn(() => api);
   }
-  api.maybeSingle = vi.fn(async () => terminal.maybeSingle);
+  let maybeSingleCall = 0;
+  api.maybeSingle = vi.fn(async () =>
+    Array.isArray(terminal.maybeSingle)
+      ? terminal.maybeSingle[maybeSingleCall++]
+      : terminal.maybeSingle,
+  );
   api.single = vi.fn(async () => terminal.single);
   return api;
 }
@@ -29,6 +36,18 @@ describe("buyer-scoped scrape queue", () => {
   it("clears a connection error only after a failed claim has recovered", () => {
     const error = "Could not claim scrape job: TypeError: fetch failed";
     expect(recoveredClaimError(error, 2)).toBeUndefined();
+    expect(
+      recoveredClaimError(
+        "Could not inspect refresh queue: TypeError: fetch failed",
+        2,
+      ),
+    ).toBeUndefined();
+    expect(
+      recoveredClaimError(
+        "Could not claim refresh job: TypeError: fetch failed",
+        2,
+      ),
+    ).toBeUndefined();
     expect(recoveredClaimError(error, 0)).toBe(error);
     expect(
       recoveredClaimError("None of the selected sources could be checked.", 2),
@@ -124,5 +143,45 @@ describe("buyer-scoped scrape queue", () => {
       p_worker_id: "worker-1",
     });
     expect(result).toEqual(job);
+  });
+
+  it("claims only an explicitly marked refresh when insert capacity is reserved", async () => {
+    const candidate = {
+      id: "refresh-1",
+      status: "pending",
+      attempts: 2,
+      scope: { dealerSourceIds: ["dg-auto"], refreshExisting: true },
+    };
+    const claimed = {
+      ...candidate,
+      status: "running",
+      worker_id: "worker-1",
+      attempts: 3,
+    };
+    const query = chain({
+      maybeSingle: [
+        { data: candidate, error: null },
+        { data: claimed, error: null },
+      ],
+    });
+
+    const result = await claimNextRefreshScopedScrapeJob(
+      { from: vi.fn(() => query) } as any,
+      "worker-1",
+    );
+
+    expect(result).toEqual(claimed);
+    expect(query.contains).toHaveBeenCalledWith("scope", {
+      refreshExisting: true,
+    });
+    expect(query.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "running",
+        worker_id: "worker-1",
+        attempts: 3,
+      }),
+    );
+    expect(query.eq).toHaveBeenCalledWith("id", "refresh-1");
+    expect(query.eq).toHaveBeenCalledWith("status", "pending");
   });
 });
