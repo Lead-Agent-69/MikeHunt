@@ -1,4 +1,83 @@
-import type { CheerioAPI } from "cheerio";
+import { load, type CheerioAPI } from "cheerio";
+import type { Deal } from "@/types";
+import {
+  disclosedPriceEvidence,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
+import { extractVin, isValidVin, normalizeVin } from "@/lib/vehicle/vin";
+
+/** Read explicit price terms only after matching the detail page to this vehicle. */
+export function dealerDetailPriceEvidence(
+  $: CheerioAPI,
+  deal: Partial<Deal>,
+  car: Record<string, any>,
+  observedAt?: string,
+): PriceEvidence | undefined {
+  if (!observedAt || !Number.isFinite(Date.parse(observedAt))) return undefined;
+  const normalize = (value: unknown) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
+  const expectedVin =
+    extractVin(deal.vin || "") || extractVin(deal.source_url || "");
+  const pageVin =
+    car.vehicleIdentificationNumber || dealerDetailField($, "VIN");
+  const identity =
+    deal.year && deal.make && deal.model
+      ? `${deal.year} ${deal.make} ${deal.model}`
+      : deal.title;
+  const identityKey = normalize(identity);
+  if (expectedVin) {
+    if (!isValidVin(pageVin) || normalizeVin(pageVin) !== expectedVin)
+      return undefined;
+  } else if (
+    !identityKey ||
+    !normalize($("h1").first().text()).includes(identityKey)
+  ) {
+    return undefined;
+  }
+  // Ignore other cars, calculators, scripts and site-wide finance advertisements.
+  const primary = $.root().clone();
+  primary
+    .find(
+      "script,style,nav,footer,aside,[class*='related'],[id*='related'],[class*='recommend'],[id*='recommend']",
+    )
+    .remove();
+  const clean = load(primary.html() || "");
+  const descriptions = primary.find(".vehicle-description");
+  const text = [
+    expectedVin || (identityKey && normalize(car.name).includes(identityKey))
+      ? car.description
+      : "",
+    descriptions.length === 1 ? descriptions.text() : "",
+    ...["Cash Price", "Sale Price", "Full Price", "All In Price"].map(
+      (label) => {
+        const value = dealerDetailField(clean, label);
+        return value ? `${label}: ${value}` : "";
+      },
+    ),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ");
+  const classifiedText = text.replace(
+    /\ball[\s-]+in\s+price\b/gi,
+    "full price",
+  );
+  const evidence = disclosedPriceEvidence(classifiedText, deal.ask_price);
+  // Missing detail terms do not invalidate a price established on the inventory card.
+  // Keep that card's own observation time, rather than dating it as a detail check.
+  if (!evidence && deal.options?.priceEvidence?.kind === "asking")
+    return undefined;
+  return {
+    ...(evidence || {
+      kind: "unknown",
+      listedAmount: Number(deal.ask_price) || undefined,
+      evidenceText: "Source detail did not establish a full purchase price.",
+    }),
+    checkedAt: observedAt,
+  };
+}
 
 export function dealerDetailField(
   $: CheerioAPI,

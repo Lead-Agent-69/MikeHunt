@@ -129,6 +129,39 @@ describe("owner outcome writes", () => {
     expect(state.writes[0]).toMatchObject({ year: 2020, make: "Ford" });
     expect(state.writes[0]).not.toHaveProperty("predicted_sell");
   });
+  it.each(["2026-09-01", null])(
+    "does not capture today's prediction for an older or undated purchase (%s)",
+    async (purchased_at) => {
+      state.results.push({ data: { ...saved(), deal_id: deal }, error: null });
+      expect(
+        (
+          await POST(
+            request({ purchase_price: 10000, purchased_at, deal_id: deal }),
+          )
+        ).status,
+      ).toBe(200);
+      expect(state.writes[0]).toMatchObject({ year: 2020, make: "Ford" });
+      expect(state.writes[0]).not.toHaveProperty("predicted_sell");
+    },
+  );
+  it("captures a supported prediction for a purchase recorded today before sale", async () => {
+    state.results.push({ data: { ...saved(), deal_id: deal }, error: null });
+    expect(
+      (
+        await POST(
+          request({
+            purchase_price: 10000,
+            purchased_at: new Date().toISOString().slice(0, 10),
+            deal_id: deal,
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    expect(state.writes[0]).toMatchObject({
+      prediction_basis: "market_supported",
+      predicted_sell: 15000,
+    });
+  });
   it("scopes edits to the signed-in owner and expected revision", async () => {
     state.results.push(
       { data: saved(), error: null },

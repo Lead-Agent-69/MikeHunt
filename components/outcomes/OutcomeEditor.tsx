@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { outcomeReviewItems } from "@/lib/outcomes/review";
 import {
   ACTUAL_COST_FIELDS,
   LEDGER_MONEY_FIELDS,
@@ -80,6 +81,7 @@ export function OutcomeEditor({
   };
   const validated = validateOutcome(input);
   const totals = ledgerTotals(validated.row);
+  const reviewItems = outcomeReviewItems(validated.row);
   const set = (key: string, value: string) => {
     setFields((f) => ({ ...f, [key]: value }));
     setConfirmed(false);
@@ -257,8 +259,34 @@ export function OutcomeEditor({
         </div>
       </fieldset>
       {field("notes", "Notes / receipt reference")}
+      {reviewItems.length > 0 && (
+        <section
+          aria-label="Remaining outcome details"
+          className="rounded-lg border border-[var(--b2)] p-3"
+        >
+          <h3 className="text-sm font-semibold">
+            Still needed for a complete sale record
+          </h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {reviewItems.map(({ field, label }) => (
+              <button
+                key={field}
+                type="button"
+                disabled={saving}
+                className="min-h-11 rounded-lg border border-[var(--b2)] px-3 text-left text-xs text-[var(--t2)]"
+                onClick={() =>
+                  document.getElementById(`${id}-${field}`)?.focus()
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       <label className="flex min-h-11 items-start gap-3 rounded-lg border border-[var(--b2)] p-3 text-sm">
         <input
+          id={`${id}-costs_complete`}
           type="checkbox"
           className="mt-1 h-5 w-5 shrink-0 accent-[var(--accent)]"
           checked={confirmed}

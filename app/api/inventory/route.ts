@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
+import { canCapturePurchasePrediction } from "@/lib/outcomes/prediction-timing";
 import { actualAmount } from "@/lib/outcomes/ledger";
 import { internalError } from "@/lib/api/http-error";
 import { InventoryService } from "@/lib/data/inventory-service";
@@ -264,9 +265,7 @@ export async function POST(request: NextRequest) {
           { status: 409 },
         );
       // Fail before recording if the before-purchase prediction cannot be read.
-      if (
-        input.purchasedAt.slice(0, 10) === new Date().toISOString().slice(0, 10)
-      )
+      if (canCapturePurchasePrediction(input.purchasedAt))
         snapshot = await outcomePredictionSnapshot(supabase, input.dealId);
     }
     const t = input.texts;

@@ -16,6 +16,7 @@ import {
 import { upsertDeals } from "../pipeline";
 import {
   dealerDetailMileage,
+  dealerDetailPriceEvidence,
   parseDealerOdometer,
 } from "../platforms/dealer-detail";
 import {
@@ -1920,6 +1921,19 @@ async function enrichCdgDetail(
       car.vehicleIdentificationNumber ||
       text.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ||
       undefined;
+    if (
+      deal.vin &&
+      isValidVin(deal.vin) &&
+      isValidVin(vin) &&
+      normalizeVin(deal.vin) !== normalizeVin(vin)
+    )
+      return deal;
+    const priceEvidence = dealerDetailPriceEvidence(
+      $,
+      deal,
+      car,
+      res.observedAt,
+    );
     const mileage = dealerDetailMileage($, car.mileageFromOdometer);
     const titleText =
       car.additionalProperty?.find?.((entry: any) =>
@@ -1933,6 +1947,7 @@ async function enrichCdgDetail(
       textClean($(".vehicle-description, .icon-bx-wraper").first().text());
     return {
       ...deal,
+      ...(priceEvidence ? { options: { ...deal.options, priceEvidence } } : {}),
       vin: isValidVin(vin) ? normalizeVin(vin) : deal.vin,
       mileage: mileage ?? deal.mileage,
       // A title the detail page states wins; else keep what the card gave us (stated or default).
@@ -1972,8 +1987,8 @@ export async function scrapeDealerCms(
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
   });
-  // Detail pages carry VIN, miles and title brand. Paced by politeFetch and cached for a day, so
-  // a re-sweep only costs requests for cars we haven't seen.
+  // Details carry VIN, mileage, title and explicit price terms. Cached responses retain
+  // their original observation time; another sweep never makes old price evidence fresh.
   const targeted = scope?.dealerSourceIds?.includes(site.sourceId);
   const configuredDetailLimit = Number(
     process.env.CDG_DETAIL_LIMIT ?? (targeted ? deals.length : 12),
@@ -2009,6 +2024,8 @@ export async function scrapeDealerCms(
       (next.vin && next.vin !== deals[index].vin) ||
       (next.images?.length || 0) > (deals[index].images?.length || 0) ||
       next.mileage !== deals[index].mileage ||
+      next.options?.priceEvidence?.checkedAt !==
+        deals[index].options?.priceEvidence?.checkedAt ||
       next.condition !== deals[index].condition
     )
       enriched += 1;

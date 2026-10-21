@@ -40,6 +40,7 @@ export function disclosedPriceEvidence(
   const cashLabels =
     /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
   let rejectedCashLabel: string | undefined;
+  const disclosedCash: PriceEvidence[] = [];
   for (const cash of Array.from(text.matchAll(cashLabels))) {
     const before = text.slice(Math.max(0, cash.index - 60), cash.index);
     const after = text.slice(
@@ -58,13 +59,20 @@ export function disclosedPriceEvidence(
       rejectedCashLabel = cash[0].slice(0, 180);
       continue;
     }
-    return {
+    disclosedCash.push({
       kind: "asking",
       askingPrice: positivePrice(cash[1].replace(/,/g, "")),
       listedAmount: amount,
       evidenceText: cash[0].slice(0, 180),
-    };
+    });
   }
+  if (new Set(disclosedCash.map((entry) => entry.askingPrice)).size > 1)
+    return {
+      kind: "unknown",
+      listedAmount: amount,
+      evidenceText: "Source listing discloses conflicting purchase prices.",
+    };
+  if (disclosedCash.length) return disclosedCash[0];
   const disclaimer =
     /(?:(?:price|amount)\s+(?:listed|shown|advertised)|(?:listed|shown|advertised)\s+(?:price|amount))\s+(?:may\s+be|is|represents)\s+(?:a\s+|the\s+)?down[\s-]*payment(?:\s+and\s+not\s+(?:the\s+)?full\s+price)?|not\s+(?:the\s+)?full\s+(?:cash\s+)?(?:purchase\s+)?price/i.exec(
       text,

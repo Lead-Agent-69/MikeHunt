@@ -8,6 +8,7 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
+import { canCapturePurchasePrediction } from "@/lib/outcomes/prediction-timing";
 import {
   sameOutcomeActuals,
   publicOutcome,
@@ -162,9 +163,10 @@ async function write(req: NextRequest, updating: boolean) {
           { error: "Listing not found." },
           { status: 404 },
         );
-      // A historical sale is useful for cost history, but is not an out-of-sample prediction.
+      // Historical entries add actual history without reconstructing a purchase forecast.
       snapshot =
-        payload.sell_price != null
+        payload.sell_price != null ||
+        !canCapturePurchasePrediction(payload.purchased_at)
           ? { year: captured.year, make: captured.make, model: captured.model }
           : { ...snapshot, ...captured };
     } catch (error) {

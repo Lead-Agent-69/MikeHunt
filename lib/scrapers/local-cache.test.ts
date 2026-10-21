@@ -1139,6 +1139,38 @@ describe("LocalScraperCache", () => {
     expect(dataChange.priceChangedKeys.size).toBe(0);
     expect(listingHash(row("a"))).not.toBe(listingHash(row("a", 9500)));
   });
+  it("saves the exact source check time once per day for an unchanged price", async () => {
+    const { cache } = await makeCache();
+    const db = fakeSupabase();
+    const observed = (checkedAt: string) => ({
+      ...row("price-observation"),
+      options: {
+        priceEvidence: { kind: "asking", askingPrice: 10000, checkedAt },
+      },
+    });
+    const first = await cache.persistRows(
+      [observed("2026-10-21T01:00:00Z")],
+      db.client,
+      "id,source,source_deal_id,ask_price,options",
+    );
+    expect(first.inserts).toBe(1);
+    const repeated = await cache.persistRows(
+      [observed("2026-10-21T20:00:00Z")],
+      db.client,
+      "id,source,source_deal_id,ask_price,options",
+    );
+    expect(repeated.saved).toBe(0);
+    const nextDay = await cache.persistRows(
+      [observed("2026-10-22T01:00:00Z")],
+      db.client,
+      "id,source,source_deal_id,ask_price,options",
+    );
+    expect(nextDay.updates).toBe(1);
+    expect(nextDay.rows[0].options.priceEvidence.checkedAt).toBe(
+      "2026-10-22T01:00:00Z",
+    );
+    expect(db.writes).toHaveLength(2);
+  });
 
   it("writes in batches of at most 50 with a persisted local cache", async () => {
     const { cache, dir } = await makeCache({ batchSize: 50 });

@@ -6,6 +6,7 @@ import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import { useDealerId } from "@/hooks/useDealerId";
 import { OutcomeEditor } from "@/components/outcomes/OutcomeEditor";
+import { outcomeReviewItems } from "@/lib/outcomes/review";
 import {
   completeOutcomeRows,
   ledgerTotals,
@@ -43,14 +44,26 @@ export default function InsightsPage() {
     undefined,
   );
   const [message, setMessage] = React.useState("");
+  const [reviewOnly, setReviewOnly] = React.useState(false);
   const currentOwner = React.useRef(dealerId);
   currentOwner.current = dealerId;
   React.useEffect(() => {
     setEditing(undefined);
     setMessage("");
+    setReviewOnly(false);
   }, [dealerId]);
+  React.useEffect(() => {
+    if (editing !== undefined)
+      document
+        .querySelector('[data-testid="outcome-editor"]')
+        ?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [editing]);
   const outcomes: LedgerRow[] = data?.outcomes ?? [];
   const complete = completeOutcomeRows(outcomes);
+  const needsReview = outcomes.filter(
+    (row) => row.sell_price != null && !ledgerTotals(row).complete,
+  );
+  const visibleOutcomes = reviewOnly ? needsReview : outcomes;
   const cal = calData?.calibration;
   if (loading)
     return <LoadingState label="Checking your account..." variant="block" />;
@@ -181,21 +194,32 @@ export default function InsightsPage() {
             ) : (
               <p className="mt-3 text-sm text-[var(--t3)]">
                 Each model adjustment needs at least 5 complete sales with
-                matched, dated predictions. Recording an already completed sale
-                adds useful history without reconstructing a forecast after the
-                fact.
+                matched predictions recorded by the purchase day. Recording an
+                already completed sale adds useful history without
+                reconstructing a forecast after the fact.
               </p>
             )}
           </section>
-          <SourceROI />
           <section aria-label="Your outcome records" className="space-y-3">
-            <h2 className="font-bold">Latest records</h2>
-            {!outcomes.length ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="font-bold">Latest records</h2>
+              <button
+                type="button"
+                aria-pressed={reviewOnly}
+                onClick={() => setReviewOnly((value) => !value)}
+                className={`min-h-11 rounded-lg border px-3 text-sm font-semibold ${reviewOnly ? "border-[var(--accent)] bg-[var(--s1)] text-[var(--accent)]" : "border-[var(--b2)]"}`}
+              >
+                Sales needing review ({needsReview.length})
+              </button>
+            </div>
+            {!visibleOutcomes.length ? (
               <p className="rounded-lg border border-[var(--b2)] p-5 text-sm text-[var(--t3)]">
-                No purchases or sales recorded yet.
+                {reviewOnly
+                  ? "No reported sales need review in these latest records."
+                  : "No purchases or sales recorded yet."}
               </p>
             ) : (
-              outcomes.map((row) => {
+              visibleOutcomes.map((row) => {
                 const totals = ledgerTotals(row);
                 return (
                   <article
@@ -221,6 +245,14 @@ export default function InsightsPage() {
                             ? "Sale reported · dates or costs need review"
                             : "Purchase recorded · sale not reported"}
                       </p>
+                      {row.sell_price != null && !totals.complete && (
+                        <p className="mt-2 text-xs text-[var(--t3)]">
+                          Still needed:{" "}
+                          {outcomeReviewItems(row)
+                            .map((item) => item.label)
+                            .join(" · ")}
+                        </p>
+                      )}
                       {totals.profit != null && (
                         <p
                           className={`mt-2 font-mono font-bold ${totals.profit < 0 ? "text-[var(--red)]" : "text-[var(--t1)]"}`}
@@ -242,11 +274,11 @@ export default function InsightsPage() {
               })
             )}
             <p className="text-xs text-[var(--t3)]">
-              Showing up to 200 most recently updated records. Historic entries
-              remain available for review; incomplete cost records do not
-              contribute net profit to learning.
+              Showing up to 200 most recently updated records. Incomplete cost
+              records do not contribute net profit to learning.
             </p>
           </section>
+          <SourceROI />
         </>
       )}
       <MarketPulse />

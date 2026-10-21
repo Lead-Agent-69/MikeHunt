@@ -741,6 +741,7 @@ export function pageUrlFor(site: DealerCmsSite, n: number) {
 export function cardToDeal(
   card: ParsedCard,
   site: DealerCmsSite,
+  observedAt?: string,
 ): Partial<Deal> | null {
   if (card.sold || !card.price || !card.title) return null;
   return {
@@ -759,6 +760,7 @@ export function cardToDeal(
               kind: "asking" as const,
               askingPrice: card.price,
               evidenceText: `${site.name} inventory card price $${card.price}`,
+              ...(observedAt ? { checkedAt: observedAt } : {}),
             },
           },
         }
@@ -855,9 +857,13 @@ export function dealerCmsSiteFor(url: string): DealerCmsSite | undefined {
 }
 
 export interface DealerCmsDeps {
-  fetchHtml: (
-    url: string,
-  ) => Promise<{ ok: boolean; status: number; body: string; skipped?: string }>;
+  fetchHtml: (url: string) => Promise<{
+    ok: boolean;
+    status: number;
+    body: string;
+    skipped?: string;
+    observedAt?: string;
+  }>;
   load: (html: string) => CheerioAPI;
   log?: (msg: string) => void;
 }
@@ -964,7 +970,7 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
         offSite++;
         continue;
       }
-      const deal = cardToDeal(card, site);
+      const deal = cardToDeal(card, site, res.observedAt);
       if (!deal) {
         if (card.sold) sold++;
         continue;
