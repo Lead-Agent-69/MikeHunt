@@ -505,6 +505,9 @@ type SourceHealthRow = {
     sellerContactPct?: number;
     auctionDatePct?: number;
     sourceLinkPct?: number;
+    applicableRows?: {
+      auctionDate?: number;
+    };
   };
 };
 
@@ -670,25 +673,24 @@ function weakestDetailProof(source: SourceHealthRow) {
 function weightedCompleteness(
   sources: SourceHealthRow[],
   key: Exclude<keyof NonNullable<SourceHealthRow["completeness"]>, "counts">,
-  applies: (source: SourceHealthRow) => boolean = () => true,
+  weight: (source: SourceHealthRow) => number = (source) =>
+    Number(source.activeRows) || 0,
 ) {
-  const rowsWithCompleteness = sources.filter(
-    (source) =>
-      Number(source.activeRows || 0) > 0 &&
-      source.completeness &&
-      applies(source),
-  );
+  const rowsWithCompleteness = sources
+    .map((source) => ({
+      source,
+      weight: Math.max(0, Number(weight(source)) || 0),
+    }))
+    .filter(({ source, weight }) => weight > 0 && source.completeness);
   const totalRows = rowsWithCompleteness.reduce(
-    (sum, source) => sum + (Number(source.activeRows) || 0),
+    (sum, item) => sum + item.weight,
     0,
   );
-  if (!totalRows) return 0;
+  if (!totalRows) return null;
   return Math.round(
     rowsWithCompleteness.reduce(
-      (sum, source) =>
-        sum +
-        Number(source.completeness?.[key] || 0) *
-          (Number(source.activeRows) || 0),
+      (sum, item) =>
+        sum + Number(item.source.completeness?.[key] || 0) * item.weight,
       0,
     ) / totalRows,
   );
@@ -846,16 +848,27 @@ function SourceProofPanel({
     },
     {
       label: "Auction timing",
-      value: weightedCompleteness(allReadySources, "auctionDatePct", (source) =>
-        auctionDateApplies({
-          source: source.id,
-          sourceType: source.type,
-        }),
+      value: weightedCompleteness(
+        allReadySources,
+        "auctionDatePct",
+        (source) =>
+          Number(
+            source.completeness?.applicableRows?.auctionDate ??
+              (auctionDateApplies({
+                source: source.id,
+                sourceType: source.type,
+              })
+                ? source.activeRows
+                : 0),
+          ) || 0,
       ),
     },
   ];
   const weakestAggregateProof = aggregateProof
-    .filter((item) => item.value < 70)
+    .filter(
+      (item): item is { label: string; value: number } =>
+        item.value != null && item.value < 70,
+    )
     .sort((a, b) => a.value - b.value)
     .slice(0, 3);
   const proofFilterCounts: Record<
@@ -1065,12 +1078,14 @@ function SourceProofPanel({
                 key={item.label}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[10px] font-black",
-                  item.value >= 70
-                    ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
-                    : "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
+                  item.value == null
+                    ? "border-[var(--b1)] bg-[var(--s0)] text-[var(--t5)]"
+                    : item.value >= 70
+                      ? "border-[var(--gbd)] bg-[var(--glo)] text-[var(--green)]"
+                      : "border-[var(--amber-bd)] bg-[var(--amber-lo)] text-[var(--amber-d)]",
                 )}
               >
-                {item.label} {item.value}%
+                {item.label} {item.value == null ? "N/A" : `${item.value}%`}
               </span>
             ))}
           </div>

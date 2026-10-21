@@ -87,6 +87,9 @@ describe("sources proof scope", () => {
     expect(page).toContain("weightedCompleteness(allReadySources");
     expect(page).toContain('"sellerContactPct"');
     expect(page).toContain("auctionDateApplies");
+    expect(page).toContain("source.completeness?.applicableRows?.auctionDate");
+    expect(page).toContain("if (!totalRows) return null");
+    expect(page).toContain('item.value == null ? "N/A"');
   });
 
   it("uses the API health summary as the authoritative source-proof contract", () => {
