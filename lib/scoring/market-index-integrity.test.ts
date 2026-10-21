@@ -12,6 +12,8 @@ const ask = {
   year: 2018,
   source: "cars_com",
   ask_price: 15000,
+  price_evidence: { kind: "asking", askingPrice: 15000 },
+  source_url: "https://seller.example/car/1",
   condition: "used",
   title: "clean title",
   mileage: 40000,
@@ -49,7 +51,7 @@ describe("market index completeness", () => {
                   ...ask,
                   source: "ebay_motors",
                   ask_price: 3000,
-                  priceEvidence: { kind: "current_bid", currentBid: 3000 },
+                  price_evidence: { kind: "current_bid", currentBid: 3000 },
                 }),
               ]
             : [],
@@ -69,18 +71,20 @@ describe("market index completeness", () => {
                   ...ask,
                   source: "craigslist_dealer",
                   ask_price: 2600,
+                  price_evidence: null,
                 }),
                 ...Array(20).fill({
                   ...ask,
                   source: "craigslist",
-                  sellerType: "dealer",
+                  seller_type: "dealer",
                   ask_price: 2600,
+                  price_evidence: null,
                 }),
                 ...Array(20).fill({
                   ...ask,
                   source: "cars_com",
                   ask_price: 2600,
-                  priceEvidence: { kind: "down_payment", listedAmount: 2600 },
+                  price_evidence: { kind: "down_payment", listedAmount: 2600 },
                 }),
               ]
             : [],
@@ -89,6 +93,38 @@ describe("market index completeness", () => {
     );
     expect(lookupMarketValue("Honda", "Accord", 2018)?.retail).toBe(14250);
   });
+  it("requires usable source evidence and prices the full cash amount rather than a teaser", async () => {
+    const old = new Date(Date.now() - 8 * 86400000).toISOString();
+    const rejected = [
+      { price_evidence: null },
+      { reference_only: "true" },
+      { source_url: null },
+      { source_url: "https://user:password@seller.example/car/1" },
+      { listing_description: "Advertised price is a down payment" },
+      {
+        listing_description: "Cash price: $2,000",
+        price_evidence: { kind: "asking", askingPrice: 2000, checkedAt: old },
+      },
+      { auction_end_at: new Date().toISOString() },
+      { auction_end_at: "invalid" },
+    ].flatMap((fields) =>
+      Array(10).fill({ ...ask, ask_price: 2000, ...fields }),
+    );
+    await loadMarketIndex(
+      client((table) => ({
+        data:
+          table === "deals"
+            ? [...Array(6).fill({ ...ask, ask_price: 99 }), ...rejected]
+            : [],
+        error: null,
+      })),
+    );
+    expect(lookupMarketValue("Honda", "Accord", 2018)).toMatchObject({
+      retail: 14250,
+      nRetail: 6,
+    });
+  });
+
   it("invalidates prior asking values after a rejected refresh", async () => {
     await loadMarketIndex(
       client(() => ({ data: Array(6).fill(ask), error: null })),

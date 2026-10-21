@@ -66,7 +66,7 @@ export function disclosedPriceEvidence(
     };
   }
   const disclaimer =
-    /(?:price|amount)\s+(?:listed|shown|advertised)\s+(?:may\s+be|is|represents)\s+(?:a\s+|the\s+)?down[\s-]*payment(?:\s+and\s+not\s+(?:the\s+)?full\s+price)?|not\s+(?:the\s+)?full\s+(?:cash\s+)?(?:purchase\s+)?price/i.exec(
+    /(?:(?:price|amount)\s+(?:listed|shown|advertised)|(?:listed|shown|advertised)\s+(?:price|amount))\s+(?:may\s+be|is|represents)\s+(?:a\s+|the\s+)?down[\s-]*payment(?:\s+and\s+not\s+(?:the\s+)?full\s+price)?|not\s+(?:the\s+)?full\s+(?:cash\s+)?(?:purchase\s+)?price/i.exec(
       text,
     );
   if (disclaimer)
@@ -127,12 +127,20 @@ export function disclosedPriceEvidence(
 
 export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
   const amount = row.ask_price ?? row.askPrice;
+  const stored = row.options?.priceEvidence;
+  // Reinterpreting saved text is not a new source check. Retain even an invalid
+  // supplied timestamp so comparison gates can reject it instead of refreshing it.
+  const checkedAt =
+    stored?.checkedAt == null
+      ? undefined
+      : typeof stored.checkedAt === "string"
+        ? stored.checkedAt
+        : "";
   const disclosed = disclosedPriceEvidence(
-    `${row.title || ""} ${row.description || ""}`,
+    `${row.title || ""} ${row.options?.listingTitle || ""} ${row.description || ""} ${row.options?.description || ""}`,
     amount,
   );
-  if (disclosed) return disclosed;
-  const stored = row.options?.priceEvidence;
+  if (disclosed) return { ...disclosed, checkedAt };
   if (
     stored &&
     [
@@ -151,7 +159,8 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
         stored.evidenceText,
         positivePrice(stored.askingPrice) || amount,
       );
-      if (inspected && inspected.kind !== "asking") return inspected;
+      if (inspected && inspected.kind !== "asking")
+        return { ...inspected, checkedAt };
     }
     return {
       kind: stored.kind,
@@ -164,8 +173,7 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
         typeof stored.evidenceText === "string"
           ? stored.evidenceText.slice(0, 180)
           : undefined,
-      checkedAt:
-        typeof stored.checkedAt === "string" ? stored.checkedAt : undefined,
+      checkedAt,
     };
   }
   // Old dealer rows have not had their pricing disclaimer inspected. Fail closed on cash math.
@@ -217,7 +225,10 @@ export function reportedAcquisitionPrice(row: PriceRow): number {
     evidence?.kind === "down_payment" ||
     evidence?.kind === "monthly_payment" ||
     evidence?.kind === "finance_teaser" ||
-    row.metadata?.price_is_acv_estimate === true
+    row.metadata?.price_is_acv_estimate === true ||
+    row.metadata?.price_is_acv_estimate === "true" ||
+    row.options?.price_is_acv_estimate === true ||
+    row.options?.price_is_acv_estimate === "true"
   )
     return 0;
   if (evidence?.kind === "current_bid")

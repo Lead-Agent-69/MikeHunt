@@ -13,6 +13,7 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { eligibleAskingPrices } from "@/lib/ai/asking-price-context";
+import { SOURCE_PRICE_FIELDS } from "@/lib/deals/source-price-context";
 import {
   ASK_COMP_WINDOW_DAYS,
   dealCheckMarketValue,
@@ -257,12 +258,11 @@ export async function POST(req: NextRequest) {
       let q = supabase
         .from("deals")
         .select(
-          "id, year, make, model, mileage, ask_price, source, source_deal_id, source_url, vin, location_state, last_seen_at, condition, damage_type, title, auction_end_at",
+          `id, year, make, model, source_deal_id, vin, location_state, ${SOURCE_PRICE_FIELDS}`,
         )
         .eq("active", true)
         .ilike("make", v.make)
         .ilike("model", `%${String(v.model).split(" ")[0]}%`)
-        .gt("ask_price", 0)
         .gte(
           "last_seen_at",
           new Date(

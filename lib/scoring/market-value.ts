@@ -1,18 +1,21 @@
 // lib/scoring/market-value.ts
-// $0 market valuation built from our OWN multi-channel scraped data — the only free path,
-// since every real vehicle-value API (MarketCheck/KBB/Edmunds/Black Book) is paid.
-//
-// We scrape both RETAIL channels (Cars.com, eBay, CarGurus, AutoTrader, Carvana…) and
-// WHOLESALE/PRIVATE channels (Copart, IAA, Craigslist, Facebook…). The retail median is the
-// resale target; the wholesale/private median is the acquisition benchmark. The gap between
-// them is the real arbitrage signal — and it sharpens automatically as coverage grows.
+// Market context from source-supported cash asks and separately recorded sales.
+// Retail asking medians are adjusted estimates, not completed-sale proof or guaranteed profit.
+// Wholesale/private cash observations provide acquisition context; bids stay outside this index.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
+import {
+  SOURCE_PRICE_FIELDS,
+  sourcePriceContext,
+} from "@/lib/deals/source-price-context";
+import {
+  PRICE_COMPARISON_DAYS,
+  hasOpenPriceWindow,
+  isRecentPriceObservation,
+} from "@/lib/deals/price-observation";
 import { estimateBaselineValue } from "./baseline-value";
 import { looksLikePlaceholderPrice } from "./placeholder-price";
 import { looksLikePaymentPrice } from "./payment-price";
-import { isWithinAuctionWindow } from "../search/live-auction-window";
 import { qualityFlags } from "@/lib/data-quality/sanity";
 import { applyRetailSoldScope, withRetailSold } from "./sold-scope";
 
@@ -35,18 +38,15 @@ const ASK_TO_SOLD = 0.95;
 // Minimum comps before we trust the figure.
 const MIN_SAMPLES = 3;
 const TTL_MS = 10 * 60 * 1000;
-export const ASK_COMP_WINDOW_DAYS = 7;
+export const ASK_COMP_WINDOW_DAYS = PRICE_COMPARISON_DAYS;
 
 export function isFreshAskComp(
   row: { last_seen_at?: string | null; auction_end_at?: string | null },
   now = Date.now(),
 ) {
-  const seen = Date.parse(row.last_seen_at || "");
   return (
-    Number.isFinite(seen) &&
-    seen <= now + 60_000 &&
-    seen >= now - ASK_COMP_WINDOW_DAYS * 86400000 &&
-    isWithinAuctionWindow(row, now)
+    isRecentPriceObservation(row.last_seen_at, now) &&
+    hasOpenPriceWindow(row.auction_end_at, now)
   );
 }
 
@@ -61,9 +61,8 @@ export function isRetailCompSource(row: {
   );
 }
 
-// Width of the year band used for grouping comps. Backtest-tuned: a 2-year band beats both 3 (too
-// loose — blends a 2021 and 2023) and 1/exact-year (too thin — fewer comps/bucket, noisier). Measured
-// out-of-sample on held-out retail: band 3 → 11.8% MAPE, band 2 → 11.0%, band 1 → 11.3%. 2 wins.
+// Nearby model years share a two-year bucket to balance cohort size and vehicle age.
+// Asking-price proxy checks do not establish accuracy against completed sales.
 const YEAR_BAND = 2;
 // Payment/lease "prices" are NOT cash market value — a "$2,500 down" or "$399/mo" listing is a
 // financing teaser whose number runs far from the real cash price. Excluding these from the retail
@@ -218,10 +217,8 @@ function key(
   return `${(make || "").toLowerCase().trim()}|${normalizeModel(model)}|${yearBucket(year)}`;
 }
 
-// Trim-level bucket key = model key + normalized trim. Backtested: bucketing by trim cuts prediction
-// error ~30% (model-level 15.5% MAPE → trim-level 10.9% on Ford/Chevy/BMW/Toyota) because a base trim no
-// longer shares a median with a Z06/Raptor. Used as the PRIMARY tier when its bucket is deep enough; the
-// model-level bucket remains the fallback so thin-trim cars keep full coverage.
+// Keep base and performance trims in separate cohorts when enough observations exist.
+// Fall back to model-level context when a trim bucket is too thin.
 function normalizeTrim(trim?: string | null): string {
   return (trim || "")
     .toLowerCase()
@@ -403,15 +400,13 @@ async function loadMarketIndexUnlocked(
     const { data: pageRows, error } = await supabase
       .from("deals")
       .select(
-        "id, source_deal_id, make, model, year, trim, mileage, source, ask_price, condition, damage_type, title, last_seen_at, auction_end_at, priceEvidence:options->priceEvidence, sellerType:options->>sellerType",
+        `id, source_deal_id, make, model, year, trim, ${SOURCE_PRICE_FIELDS}`,
       )
       .eq("active", true) // only live inventory feeds comps — don't price off dead stock
       .gte(
         "last_seen_at",
         new Date(Date.now() - ASK_COMP_WINDOW_DAYS * 86400000).toISOString(),
       )
-      .gt("ask_price", 1000)
-      .lt("ask_price", 200000)
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error || !pageRows) {
@@ -419,18 +414,7 @@ async function loadMarketIndexUnlocked(
       break;
     }
     if (!pageRows || pageRows.length === 0) break;
-    // Sanity-flagged rows (odometer typo, future model year, ...) never feed comps. Same pure check
-    // the ingest pipeline stores in quality_flags, so this works before that column is applied.
-    data.push(
-      ...pageRows.filter(
-        (r: any) =>
-          qualityFlags({
-            ask_price: r.ask_price,
-            mileage: r.mileage,
-            year: r.year,
-          }).length === 0,
-      ),
-    );
+    data.push(...pageRows);
     if (pageRows.length < PAGE) break;
   }
 
@@ -461,14 +445,18 @@ async function loadMarketIndexUnlocked(
   const supply = new Map<string, number>();
   const byModel = new Map<string, { year: number; price: number }[]>();
   for (const r of data || []) {
-    if (r.priceEvidence?.kind === "current_bid") continue;
-    const cashPrice = reportedAcquisitionPrice({
-      ...r,
-      options: { priceEvidence: r.priceEvidence },
-    });
-    if (!cashPrice) continue;
+    const price = sourcePriceContext(r);
+    // Bids, payments, references and unchecked amounts are observations, not cash comps.
+    if (!price.comparisonEligible || price.kind === "current_bid") continue;
+    const cashPrice = price.cashPrice;
+    if (cashPrice == null || cashPrice <= 1000 || cashPrice >= 200000) continue;
+    // Check the confirmed cash amount, not a different advertised teaser.
+    if (
+      qualityFlags({ ask_price: cashPrice, mileage: r.mileage, year: r.year })
+        .length
+    )
+      continue;
     r.ask_price = cashPrice;
-    if (!isFreshAskComp(r)) continue;
     const k = key(r.make, r.model, r.year);
     // Require make + model present (year may be 'na'); skip empty rows.
     if (!(r.make && r.model && Number.isFinite(r.ask_price) && r.ask_price > 0))

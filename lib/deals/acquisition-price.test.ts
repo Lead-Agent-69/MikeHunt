@@ -209,3 +209,46 @@ describe("reported acquisition price", () => {
     expect(reportedAcquisitionPrice({ ask_price: "18000" })).toBe(18000);
   });
 });
+
+it("uses stored source descriptions when checking cash meaning and retains the original check date", () => {
+  expect(
+    listingPriceEvidence({
+      ask_price: 299,
+      options: {
+        description: "Cash price: $15,995",
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: 15995,
+          checkedAt: "2026-01-01",
+        },
+      },
+    }),
+  ).toMatchObject({
+    kind: "asking",
+    askingPrice: 15995,
+    checkedAt: "2026-01-01",
+  });
+  expect(
+    reportedAcquisitionPrice({
+      ask_price: 299,
+      options: {
+        description: "Advertised price is a down payment",
+        priceEvidence: { kind: "asking", askingPrice: 15995 },
+      },
+    }),
+  ).toBe(0);
+});
+it.each([true, "true"])(
+  "honors reference-only flags stored in options: %s",
+  (price_is_acv_estimate) => {
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 24000,
+        options: {
+          price_is_acv_estimate,
+          priceEvidence: { kind: "asking", askingPrice: 24000 },
+        },
+      }),
+    ).toBe(0);
+  },
+);

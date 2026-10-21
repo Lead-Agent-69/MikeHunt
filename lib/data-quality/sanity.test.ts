@@ -172,10 +172,51 @@ describe("pipeline wiring", () => {
       'columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)',
     );
   });
-  it("valuation comps skip flagged rows", () => {
-    const mv = readFileSync("lib/scoring/market-value.ts", "utf8");
-    expect(mv.replace(/\s+/g, "")).toContain(
-      "qualityFlags({ask_price:r.ask_price,mileage:r.mileage,year:r.year",
-    );
+  it("valuation comps skip flagged rows while retaining supported cash amounts", async () => {
+    const market = await import("../scoring/market-value");
+    market.__resetMarketIndexForTest();
+    const cash = {
+      source: "cars_com",
+      source_url: "https://seller.example/car/1",
+      make: "Honda",
+      model: "Accord",
+      year: 2020,
+      title: "Honda Accord",
+      mileage: 50000,
+      condition: "used",
+      ask_price: 99,
+      price_evidence: { kind: "asking", askingPrice: 16000 },
+      last_seen_at: new Date().toISOString(),
+    };
+    const rows = [
+      ...Array(3).fill(cash),
+      ...Array(10).fill({
+        ...cash,
+        mileage: 999999,
+        price_evidence: { kind: "asking", askingPrice: 180000 },
+      }),
+    ];
+    const client = {
+      from(table: string) {
+        const query: any = {};
+        for (const method of ["select", "eq", "gt", "lt", "gte", "order"])
+          query[method] = () => query;
+        query.range = async () => ({
+          data: table === "deals" ? rows : [],
+          error: null,
+        });
+        return query;
+      },
+    };
+    try {
+      await market.loadMarketIndex(client as any);
+      expect(market.lookupMarketValue("Honda", "Accord", 2020)).toMatchObject({
+        retail: 15200,
+        nRetail: 3,
+        nWholesale: 0,
+      });
+    } finally {
+      market.__resetMarketIndexForTest();
+    }
   });
 });

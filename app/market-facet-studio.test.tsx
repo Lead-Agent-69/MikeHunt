@@ -190,6 +190,7 @@ describe("smart market exploration", () => {
         cashPrice: 24_500,
         buyNowPrice: null,
         comparisonEligible: true,
+        evidenceCurrent: true,
         observationCurrent: true,
         canCompareToAskingCurve: true,
       },

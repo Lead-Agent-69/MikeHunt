@@ -152,3 +152,80 @@ describe("cross-source price meaning", () => {
     },
   );
 });
+
+describe("price observation integrity", () => {
+  it.each(["", "invalid", "2026-01-01", "2027-01-01", 123])(
+    "does not refresh a saved check date by reparsing cash terms: %s",
+    (checkedAt) => {
+      expect(
+        sourcePriceContext(
+          row({
+            listing_description: "Cash price: $15,000",
+            price_evidence: { kind: "asking", askingPrice: 15000, checkedAt },
+          }),
+          now,
+        ),
+      ).toMatchObject({ cashPrice: 15000, comparisonEligible: false });
+    },
+  );
+  it("retains an old timestamp when reclassifying misleading stored cash evidence", () => {
+    expect(
+      sourcePriceContext(
+        row({
+          price_evidence: {
+            kind: "asking",
+            askingPrice: 299,
+            checkedAt: "2026-01-01",
+            evidenceText: "Sale price: $299/month",
+          },
+        }),
+        now,
+      ),
+    ).toMatchObject({ kind: "monthly_payment", comparisonEligible: false });
+  });
+  it.each(["2026-10-12T23:59:59Z", "2026-10-13T00:00:00Z", "invalid"])(
+    "retains an unavailable auction amount without including it in comparisons: %s",
+    (auction_end_at) => {
+      expect(
+        sourcePriceContext(
+          row({
+            source: "copart",
+            auction_end_at,
+            buy_now_price: 18000,
+            price_evidence: { kind: "current_bid", currentBid: 500 },
+          }),
+          now,
+        ),
+      ).toMatchObject({
+        amount: 500,
+        cashPrice: 18000,
+        comparisonEligible: false,
+        observationCurrent: false,
+      });
+    },
+  );
+  it("excludes week-old snapshots from current comparisons without hiding the amount", () => {
+    expect(
+      sourcePriceContext(
+        row({ last_seen_at: new Date(now - 8 * 86400000).toISOString() }),
+        now,
+      ),
+    ).toMatchObject({
+      amount: 15000,
+      comparisonEligible: false,
+      observationCurrent: false,
+    });
+  });
+  it("does not call a stale observation live just because it can supply recent comparison context", () => {
+    expect(
+      sourcePriceContext(
+        row({ last_seen_at: new Date(now - 4 * 86400000).toISOString() }),
+        now,
+      ),
+    ).toMatchObject({
+      amount: 15000,
+      comparisonEligible: true,
+      observationCurrent: false,
+    });
+  });
+});
