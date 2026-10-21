@@ -1,5 +1,6 @@
 import { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { positivePrice } from "@/lib/deals/acquisition-price";
 
 function parseTitle(title: string): Partial<Deal> {
   const m = title.match(/^(\d{4})\s+(\w+)\s+(.+)/);
@@ -70,8 +71,16 @@ export async function enrichAndStore(raw: any) {
       vin: raw.vin,
       mileage: raw.odometer,
       condition: raw.title_type || raw.condition || "unknown",
-      ask_price: raw.asking_price || raw.current_bid || raw.price || 0,
-      buy_now_price: raw.current_bid,
+      title_source: raw.title_source,
+      ask_price: raw.asking_price ?? raw.current_bid ?? raw.price ?? 0,
+      // A bid is not an immediately available purchase price.
+      buy_now_price:
+        positivePrice(raw.buy_now_price) || positivePrice(raw.buy_now),
+      options: {
+        ...(raw.options || {}),
+        ...(raw.priceEvidence ? { priceEvidence: raw.priceEvidence } : {}),
+      },
+      metadata: raw.metadata,
       mmr_value: marketValue,
       location_city: raw.location_city,
       location_state: raw.location_state,
@@ -86,7 +95,7 @@ export async function enrichAndStore(raw: any) {
       transport_cost: raw.transport_cost,
       repair_estimate: raw.repair_estimate,
       is_arbitrage_opportunity: raw.is_arbitrage_opportunity,
-      scraped_at: new Date().toISOString(),
+      scraped_at: raw.scraped_at || new Date().toISOString(),
     };
 
     // Scoring/analysis happens authoritatively in upsertDeals (lib/scoring/deal-analyzer).

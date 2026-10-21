@@ -133,7 +133,6 @@ export async function scrapeBringATrailer(
             model,
             ask_price: currentBid || 0, // Current bid as price
             mileage: extractMileage(mileageText),
-            condition: "clean", // BAT mostly clean title classics
             location_city: locationText.split(",")[0]?.trim() || locationText,
             location_state: locationText.split(",")[1]?.trim() || "",
             images: imgSrc ? [imgSrc] : [],

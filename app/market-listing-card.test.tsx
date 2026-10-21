@@ -109,6 +109,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("shows an ended auction as a last observed bid", async () => {
+  const row = { ...listing([]), auctionEndAt: "2020-01-01T12:00:00Z" };
+  await act(async () =>
+    root.render(<MarketListingCard row={row} flipDesk={false} />),
+  );
+  expect(host.textContent).toContain("Last observed bid; auction has ended.");
+  expect(host.textContent).not.toContain("Bidding is open");
+});
+
 it("uses photo halves to browse while retaining the separate detail and save actions", async () => {
   const row = listing([
     "https://images.test/front.jpg",

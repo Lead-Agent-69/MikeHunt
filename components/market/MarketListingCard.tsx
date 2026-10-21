@@ -21,6 +21,7 @@ import { PhotoPreview } from "@/components/shared/PhotoPreview";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
+import { bidStatusNote } from "@/lib/deals/price-observation";
 
 export function MarketListingCard(props: {
   row: MarketListing;
@@ -279,7 +280,7 @@ function ListingCard({
         {price && !["asking", "buy_now"].includes(price.kind) && (
           <p className="text-[11px] text-[var(--t3)]">
             {price.kind === "current_bid"
-              ? "Bidding is open; final purchase amount and fees can change."
+              ? bidStatusNote(row.auctionEndAt)
               : "Full purchase price needs confirmation at the source."}
           </p>
         )}

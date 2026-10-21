@@ -8,6 +8,7 @@ import { upsertDeals } from "../pipeline";
 import { getScrapeRunScope } from "../run-scope-context";
 import { buyerListingSearchText } from "../buyer-scope";
 import { buyerSearchCenters } from "../search-centers";
+import { retailMileage, retailMoney } from "./retail-evidence";
 
 // TrueCar is a Next.js + Apollo SPA — the DOM selectors rot, but every listing sits in the
 // __NEXT_DATA__ Apollo cache as a `ConsumerSummaryListing:` entry with normalized refs to the vehicle,
@@ -48,7 +49,8 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
     const L = apollo[key];
     const veh = deref(L.vehicle);
     const pr = deref(L.pricing);
-    if (!veh?.vin || !pr?.listPrice) continue;
+    const price = retailMoney(pr?.listPrice);
+    if (!veh?.vin || !price) continue;
     const dl = deref(L.dealership);
     const loc = deref(dl?.location) || {};
     const imgKey = Object.keys(L).find((k) => k.startsWith("galleryImages"));
@@ -87,19 +89,18 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
       make,
       model,
       vin: veh.vin,
-      ask_price: Number(pr.listPrice),
-      mileage: Number(veh.mileage) || 0,
-      // Non-CPO "clean" is the marketplace default, not a stated title; CPO is not a title at all.
-      condition: veh.certifiedPreOwned ? "certified" : "clean",
-      ...(veh.certifiedPreOwned
-        ? {}
-        : { title_source: "source_default" as const }),
+      ask_price: price,
+      mileage: retailMileage(veh.mileage),
+      condition: veh.certifiedPreOwned === true ? "certified" : undefined,
       location_city: loc.city || "",
       location_state: loc.state || loc.stateCode || loc.stateAbbreviation || "",
       images,
       seller_type: "dealer",
       seller: dl?.name || "TrueCar",
-      options: priceRating ? { priceRating } : undefined,
+      options: {
+        ...(priceRating ? { priceRating } : {}),
+        vehicleCondition: veh.certifiedPreOwned === true ? "cpo" : "used",
+      },
       scraped_at: new Date().toISOString(),
     } as any);
   }
