@@ -9,7 +9,7 @@ describe("scoped worker quota pause", () => {
     expect(scopedWorkerIdleState(true, false)).toBe("paused");
     expect(scopedWorkerIdleState(true, true)).toBe("paused");
   });
-  it("checks write capacity before claiming another buyer job without changing quota limits", () => {
+  it("reserves insert capacity for buyer jobs while allowing marked refreshes to use touch capacity", () => {
     const source = readFileSync("scripts/scrape-local.ts", "utf8");
     const loop = source.slice(
       source.indexOf("async function runQueuedJobLoop"),
@@ -19,8 +19,13 @@ describe("scoped worker quota pause", () => {
     );
     expect(loop).toContain("scopedWorkerIdleState(manualPaused, true)");
     expect(source).toContain("writeCapacity(cache.getQuota()).paused");
-    expect(source).toContain(
-      "writeCapacity(cache.getQuota()).insertsRemaining > 0",
+    expect(loop).toContain("capacity.insertsRemaining > 0");
+    expect(loop).toContain("claimNextScopedScrapeJob(supabase, WORKER_ID)");
+    expect(loop).toContain(
+      "claimNextRefreshScopedScrapeJob(supabase, WORKER_ID)",
+    );
+    expect(loop).toContain(
+      "capacity.updatesRemaining + capacity.touchesRemaining > 0",
     );
   });
 });

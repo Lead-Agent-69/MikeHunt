@@ -21,6 +21,7 @@ import {
 import { withLocalWriteContext } from "../lib/scrapers/local-write-context";
 import { curatedRingStates } from "../lib/scrapers/curated-rotation";
 import {
+  claimNextRefreshScopedScrapeJob,
   claimNextScopedScrapeJob,
   recoveredClaimError,
   scopedWorkerIdleState,
@@ -752,12 +753,16 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     quotaPaused = false;
     let job: Awaited<ReturnType<typeof claimNextScopedScrapeJob>>;
     try {
-      // Keep new buyer searches queued until inserts can actually add their matches.
-      // The idle sweep may still refresh existing inventory within its separate budgets.
+      // Keep ordinary buyer searches queued until inserts can add their matches. An
+      // operator-marked refresh may still renew known inventory through the separate
+      // update/touch budgets, so a busy intake day cannot make a proven source stale.
+      const capacity = writeCapacity(cache.getQuota());
       job =
-        writeCapacity(cache.getQuota()).insertsRemaining > 0
+        capacity.insertsRemaining > 0
           ? await claimNextScopedScrapeJob(supabase, WORKER_ID)
-          : null;
+          : capacity.updatesRemaining + capacity.touchesRemaining > 0
+            ? await claimNextRefreshScopedScrapeJob(supabase, WORKER_ID)
+            : null;
       currentStatus.lastError = recoveredClaimError(
         currentStatus.lastError,
         claimFailures,
