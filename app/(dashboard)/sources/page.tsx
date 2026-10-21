@@ -1922,7 +1922,7 @@ export default function SourcesPage() {
             </div>
             <Link
               href="/discover"
-              className="px-4 py-2 rounded-xl bg-[var(--grad)] text-white text-sm font-bold"
+              className="btn btn-primary inline-flex min-h-11 shrink-0 items-center rounded-lg px-4 py-2 text-sm"
             >
               Find vehicles
             </Link>
@@ -1979,8 +1979,9 @@ export default function SourcesPage() {
                 </button>
               )}
             </div>
-            <div className="grid gap-2 lg:grid-cols-9">
+            <div className="grid grid-cols-1 gap-2 [&>*]:min-w-0 [&>*]:w-full lg:grid-cols-9">
               <select
+                aria-label="Vehicle market"
                 value={healthScope.lane || ""}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -1997,6 +1998,7 @@ export default function SourcesPage() {
                 ))}
               </select>
               <select
+                aria-label="Seller type"
                 value={healthScope.sellerType || ""}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -2013,6 +2015,7 @@ export default function SourcesPage() {
                 ))}
               </select>
               <select
+                aria-label="Title status"
                 value={healthScope.titleType || ""}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -2114,6 +2117,7 @@ export default function SourcesPage() {
                 <option value="50000">Up to $50k</option>
               </select>
               <select
+                aria-label="Dealer"
                 value={(healthScope.dealerSourceIds || []).join(",")}
                 onChange={(event) =>
                   setHealthScope((current) => ({
@@ -2182,11 +2186,13 @@ export default function SourcesPage() {
             {categories.map((cat) => (
               <button
                 key={cat.id}
+                type="button"
+                aria-pressed={selectedCategory === cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 className={cn(
                   "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
                   selectedCategory === cat.id
-                    ? "bg-[var(--grad-amber)] text-[#0A0A0F]"
+                    ? "bg-[var(--accent)] text-[var(--on-accent)]"
                     : "bg-[var(--s0)] text-[var(--t3)] border border-[var(--b1)] hover:border-[var(--amber)]",
                 )}
               >
