@@ -2,6 +2,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("sources proof scope", () => {
+  it("connects refresh to the current scope and rechecks coverage without an admin runner", () => {
+    const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
+    expect(page).toContain("<SourceRefreshAction");
+    expect(page).toContain("scope={healthScope}");
+    expect(page).toContain("void refreshHealth()");
+    expect(page).toContain("Retry coverage check");
+    expect(page).toContain("<details");
+    expect(page).toContain("<summary");
+    expect(page).toContain('sourceId !== "curated_dealers"');
+    expect(page).toContain("href={scopedScanHrefForSource(source)}");
+    expect(page).not.toContain("href={scanHrefForSource(source)}");
+  });
   it("does not offer an unbounded dealer shortcut that the API would truncate", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).not.toContain("All featured dealers");

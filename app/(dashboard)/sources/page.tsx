@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
 import {
   Activity,
   BarChart3,
@@ -37,6 +38,7 @@ import {
   Circle,
   ClipboardList,
   Gauge,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -690,9 +692,11 @@ function weightedCompleteness(
 function SourceProofPanel({
   health,
   onFocusSource,
+  refreshAction,
 }: {
   health: any & { scope?: HealthScope; scopeFiltered?: boolean };
   onFocusSource: (sourceId: string) => void;
+  refreshAction: React.ReactNode;
 }) {
   const loading = !health;
   const [filter, setFilter] =
@@ -893,7 +897,8 @@ function SourceProofPanel({
     );
     const sourceId = source.id || "";
     const sourceIsDealer =
-      source.type === "dealer" || FEATURED_DEALER_IDS.has(sourceId);
+      sourceId !== "curated_dealers" &&
+      (source.type === "dealer" || FEATURED_DEALER_IDS.has(sourceId));
     const scopedLane =
       health?.scope?.lane ||
       (sourceIsDealer ? "private" : fallback.get("lane") || undefined);
@@ -920,6 +925,14 @@ function SourceProofPanel({
       params.set("dealerSourceIds", sourceId);
     } else if (sourceId) {
       params.set("source", sourceId);
+      if (sourceId === "curated_dealers") {
+        if (health?.scope?.dealerSourceIds?.length) {
+          params.set("dealerSourceIds", health.scope.dealerSourceIds.join(","));
+        }
+        if (health?.scope?.dealerHosts?.length) {
+          params.set("dealers", health.scope.dealerHosts.join(","));
+        }
+      }
     }
     params.set("sort", "score");
     return `/scan?${params.toString()}`;
@@ -956,6 +969,7 @@ function SourceProofPanel({
                 : ""}
             </div>
           ) : null}
+          {refreshAction}
         </div>
         <div className="grid grid-cols-5 gap-2 text-center text-xs">
           <div className="rounded-[var(--r3)] border border-[var(--green)]/30 bg-[var(--green)]/10 px-3 py-2">
@@ -1121,20 +1135,18 @@ function SourceProofPanel({
           {actionSources.length ? (
             <div className="mt-2 grid gap-2 md:grid-cols-2">
               {actionSources.map((source) => (
-                <button
+                <details
                   key={source.id}
-                  type="button"
-                  onClick={() => onFocusSource(source.id)}
                   className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--s0)] px-3 py-2 text-left text-xs"
                 >
-                  <div className="flex items-center justify-between gap-2">
+                  <summary className="min-h-11 cursor-pointer content-center font-black text-[var(--t1)]">
                     <span className="truncate font-black text-[var(--t1)]">
                       {source.name}
                     </span>
-                    <span className="shrink-0 text-[10px] font-black uppercase text-[var(--amber-d)]">
+                    <span className="ml-2 text-[10px] font-black uppercase text-[var(--amber-d)]">
                       {readinessLabel(source.readiness)}
                     </span>
-                  </div>
+                  </summary>
                   <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-[var(--t4)]">
                     {source.lastError
                       ? userFacingErrorMessage(
@@ -1148,7 +1160,17 @@ function SourceProofPanel({
                           )
                         : sourceNextAction(source, configured)}
                   </p>
-                </button>
+                  <p className="mt-2 text-[var(--t4)]">
+                    {source.activeRows || 0} current listings ·{" "}
+                    {source.rowsWithPhotos || 0} with photos ·{" "}
+                    {source.freshnessHours != null
+                      ? lastSeenLabel(source.freshnessHours)
+                      : "Last seen unknown"}
+                  </p>
+                  <p className="mt-1 text-[var(--t4)]">
+                    {weakestDetailProof(source)}
+                  </p>
+                </details>
               ))}
             </div>
           ) : (
@@ -1262,18 +1284,20 @@ function SourceProofPanel({
                 </div>
                 <div className="flex items-center gap-2">
                   <Link
-                    href={scanHrefForSource(source)}
+                    href={scopedScanHrefForSource(source)}
                     className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s0)] px-2 py-1 text-[10px] font-bold text-[var(--t2)] hover:border-[var(--amber-bd)]"
                   >
-                    Scan
+                    View matches
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => onFocusSource(source.id)}
-                    className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s0)] px-2 py-1 text-[10px] font-bold text-[var(--t4)] hover:text-[var(--t1)]"
-                  >
-                    Card
-                  </button>
+                  {ALL_SOURCES.some((entry) => entry.id === source.id) && (
+                    <button
+                      type="button"
+                      onClick={() => onFocusSource(source.id)}
+                      className="rounded-[var(--r1)] border border-[var(--b1)] bg-[var(--s0)] px-2 py-1 text-[10px] font-bold text-[var(--t4)] hover:text-[var(--t1)]"
+                    >
+                      Source details
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1707,7 +1731,11 @@ export default function SourcesPage() {
     const query = params.toString();
     return `/api/scrape/health${query ? `?${query}` : ""}`;
   }, [healthScope]);
-  const { data: health } = useSWR(healthUrl, fetcher, {
+  const {
+    data: health,
+    error: healthError,
+    mutate: refreshHealth,
+  } = useSWR(healthUrl, fetcher, {
     revalidateOnFocus: false,
   });
 
@@ -2171,8 +2199,36 @@ export default function SourcesPage() {
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <IndependentDealerCoverage />
+        {healthError && (
+          <div
+            role="alert"
+            className="mb-4 rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4 text-sm text-[var(--t1)]"
+          >
+            <p>
+              We couldn't check current coverage. Existing inventory has not
+              been removed.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                void refreshHealth();
+              }}
+              className="mt-2 inline-flex min-h-11 items-center gap-2 font-bold"
+            >
+              <RefreshCw size={16} aria-hidden="true" /> Retry coverage check
+            </button>
+          </div>
+        )}
         <SourceProofPanel
           health={health}
+          refreshAction={
+            <SourceRefreshAction
+              scope={healthScope}
+              onSettled={() => {
+                void refreshHealth();
+              }}
+            />
+          }
           onFocusSource={(sourceId) => {
             setSelectedCategory("all");
             setSearchQuery(sourceId);
