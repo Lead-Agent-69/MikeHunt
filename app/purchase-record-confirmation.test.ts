@@ -17,13 +17,20 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   account.owner = "owner";
   account.loading = false;
-  request = vi.fn().mockResolvedValue({
+  sessionStorage.clear();
+  request = vi.fn().mockImplementation(async (_url, options) => ({
     ok: true,
     json: async () => ({
       ownerId: "owner",
-      item: { id: "inventory-one", dealerId: "owner", stage: "acquired" },
+      item: {
+        id: JSON.parse(options.body).id,
+        dealerId: "owner",
+        stage: "acquired",
+        purchasePrice: JSON.parse(options.body).purchasePrice,
+        floorDate: JSON.parse(options.body).purchaseDate,
+      },
     }),
-  });
+  }));
   vi.stubGlobal("fetch", request);
   Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
     configurable: true,
@@ -142,8 +149,67 @@ describe("purchase recording confirmation", () => {
       await submit();
       expect(host.querySelector("dialog")?.open).toBe(true);
       expect(host.querySelector<HTMLInputElement>("input")?.value).toBe("8750");
-      expect(host.textContent).toContain("Check Pipeline before retrying");
+      expect(host.textContent).toMatch(
+        /Reload your vehicles|Reload your vehicles before continuing/,
+      );
       expect(host.textContent).not.toContain("Purchase recorded");
+    },
+  );
+  it("reuses the purchase id after a lost response, cancellation and remount", async () => {
+    request.mockRejectedValueOnce(new Error("Connection lost"));
+    await open();
+    await fill("8750");
+    await submit();
+    const original = JSON.parse(request.mock.calls[0][1].body).id;
+    await act(async () =>
+      host
+        .querySelector<HTMLButtonElement>(
+          'button[aria-label="Close purchase form"]',
+        )!
+        .click(),
+    );
+    await act(async () => root.render(null));
+    await open();
+    await fill("8750");
+    await submit();
+    expect(JSON.parse(request.mock.calls[1][1].body).id).toBe(original);
+    expect(host.textContent).toContain("Purchase recorded");
+  });
+  it("shows confirmed purchase success with a separate outcome-tracking warning", async () => {
+    request.mockImplementation(async (_url, options) => ({
+      ok: true,
+      json: async () => ({
+        ownerId: "owner",
+        item: {
+          id: JSON.parse(options.body).id,
+          dealerId: "owner",
+          stage: "acquired",
+          purchasePrice: 8750,
+          floorDate: JSON.parse(options.body).purchaseDate,
+        },
+        outcomeReview: {
+          synced: false,
+          message:
+            "Purchase recorded. Outcome tracking needs review in Pipeline. Do not record the purchase again.",
+        },
+      }),
+    }));
+    await open();
+    await fill("8750");
+    await submit();
+    expect(host.querySelector("dialog")).toBeNull();
+    expect(host.textContent).toContain(
+      "Outcome tracking needs review in Pipeline",
+    );
+    expect(host.querySelector('a[href="/fleet"]')).not.toBeNull();
+  });
+  it.each(["1.234", "100000001"])(
+    "rejects unsupported actual amounts %s",
+    async (amount) => {
+      await open();
+      await fill(amount);
+      await submit();
+      expect(request).not.toHaveBeenCalled();
     },
   );
   it("does not repeat acquisition when the follow-up saved status update fails", async () => {

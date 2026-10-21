@@ -13,6 +13,7 @@ export interface InventoryResult {
 interface InventoryConfirmation {
   ownerId: string;
   item: InventoryItem;
+  replayed?: boolean;
   outcomeReview?: { synced: boolean; message: string };
 }
 
@@ -87,10 +88,21 @@ export async function writeInventory(
   if (
     result.ownerId !== ownerId ||
     !result.item?.id ||
-    result.item.dealerId !== ownerId ||
-    (body.id && result.item.id !== body.id) ||
-    (body.stage && result.item.stage !== body.stage)
+    result.item.dealerId !== ownerId
   )
     throw accountChanged();
+  if (
+    (body.id && result.item.id !== body.id) ||
+    (body.stage &&
+      result.item.stage !== body.stage &&
+      !(method === "POST" && result.replayed === true)) ||
+    (method === "POST" &&
+      (result.item.purchasePrice !== body.purchasePrice ||
+        (body.purchaseDate &&
+          String(result.item.floorDate).slice(0, 10) !== body.purchaseDate)))
+  )
+    throw new Error(
+      "Saved vehicle details were not confirmed. Review Pipeline before retrying.",
+    );
   return result;
 }

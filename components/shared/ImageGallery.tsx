@@ -200,7 +200,7 @@ function ListingGallery({
                       className="opacity-20 mb-3 text-[var(--red)]"
                     />
                     <span className="text-sm font-bold uppercase tracking-widest">
-                      Image Failed
+                      Photo unavailable
                     </span>
                   </div>
                 )

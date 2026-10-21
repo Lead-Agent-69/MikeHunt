@@ -164,8 +164,8 @@ export function CapitalVelocityTracker({
 
   const burnPct =
     metrics.capitalDeployed > 0
-      ? Math.min(1, metrics.totalCarry / metrics.capitalDeployed)
-      : 0;
+      ? metrics.totalCarry / metrics.capitalDeployed
+      : null;
 
   return (
     <motion.div
@@ -287,10 +287,10 @@ export function CapitalVelocityTracker({
           <span
             className="font-mono font-bold"
             style={{
-              color: burnPct > 0.6 ? "var(--red)" : "var(--amber)",
+              color: (burnPct ?? 0) > 0.6 ? "var(--red)" : "var(--amber)",
             }}
           >
-            {Math.round(burnPct * 100)}%
+            {burnPct === null ? "—" : `${Math.round(burnPct * 100)}%`}
           </span>
         </div>
         <div
@@ -300,9 +300,9 @@ export function CapitalVelocityTracker({
           <div
             className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
             style={{
-              width: `${burnPct * 100}%`,
+              width: `${Math.min(1, burnPct ?? 0) * 100}%`,
               background:
-                burnPct > 0.6
+                (burnPct ?? 0) > 0.6
                   ? "linear-gradient(90deg, var(--amber), var(--red))"
                   : "linear-gradient(90deg, var(--green), var(--amber))",
             }}

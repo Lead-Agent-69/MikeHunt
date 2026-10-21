@@ -118,7 +118,7 @@ test.describe("Pipeline financial evidence", () => {
     await dialog.getByRole("button", { name: "Confirm Sale" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(
-      page.getByText("0 active units", { exact: false }),
+      page.getByText("0 active units · $0/day modeled carry", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByText("Modeled holding to date:", { exact: false }),

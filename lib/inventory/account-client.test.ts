@@ -104,6 +104,32 @@ describe("inventory account confirmation", () => {
     expect(value).toBeUndefined();
     expect(options.revalidate).toBe(true);
   });
+  it("accepts the same purchase after a later stage change and checks the actual paid amount", async () => {
+    const saved = {
+      ...item,
+      purchasePrice: 1000.25,
+      floorDate: "2026-01-15T00:00:00Z",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ ownerId: "one", item: saved, replayed: true }),
+      ),
+    );
+    const input = {
+      id: "unit",
+      purchasePrice: 1000.25,
+      purchaseDate: "2026-01-15",
+      stage: "acquired",
+    };
+    expect((await writeInventory("one", "POST", input)).item).toEqual(saved);
+    await expect(
+      writeInventory("one", "POST", { ...input, purchasePrice: 2000 }),
+    ).rejects.toThrow();
+    await expect(
+      writeInventory("one", "POST", { ...input, purchaseDate: "2026-01-14" }),
+    ).rejects.toThrow();
+  });
   it("invalidates every inventory view after a purchase so the new unit appears on client navigation", () => {
     invalidateInventoryViews("one");
     const matches = cache.mutate.mock.calls[0][0] as unknown as (

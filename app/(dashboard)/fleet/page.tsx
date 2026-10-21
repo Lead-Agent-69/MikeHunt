@@ -21,6 +21,7 @@ import { useDealerId } from "@/hooks/useDealerId";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { Clock3, X } from "lucide-react";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { ImageGallery } from "@/components/shared/ImageGallery";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const DAILY_FLOOR_RATE = 35;
@@ -402,7 +403,7 @@ function ExpenseModal({
               Log Expense
             </h3>
             <p className="text-xs mt-0.5" style={{ color: "var(--t4)" }}>
-              {item.year} {item.make} {item.model}
+              {item.year || ""} {item.make} {item.model}
             </p>
           </div>
           <button
@@ -826,7 +827,9 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
               className="text-xs mt-0.5 font-mono"
               style={{ color: "var(--t4)" }}
             >
-              {item.vin.slice(0, 8)}…{item.vin.slice(-4)}
+              {item.vin
+                ? `${item.vin.slice(0, 8)}…${item.vin.slice(-4)}`
+                : "VIN not recorded"}
             </p>
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -852,6 +855,23 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
             )}
           </div>
         </div>
+
+        {item.photos?.length > 0 && (
+          <ImageGallery
+            images={item.photos}
+            title={[item.year || "", item.make, item.model]
+              .filter(Boolean)
+              .join(" ")}
+          />
+        )}
+        {item.vehicleId && (
+          <Link
+            href={`/deal/${item.vehicleId}`}
+            className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--blue)]"
+          >
+            Review source listing →
+          </Link>
+        )}
 
         {/* Carrying Cost Clock */}
         {isOpen && <CarryingClock item={item} now={now} />}
@@ -898,7 +918,8 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
                 >
                   $
                   {row.val.toLocaleString(undefined, {
-                    maximumFractionDigits: 0,
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
                   })}
                 </Mono>
               </div>
@@ -916,7 +937,10 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
               style={{ color: "var(--t1)" } as React.CSSProperties}
             >
               $
-              {totalAll.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              {totalAll.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
             </Mono>
           </div>
           {isOpen && (
@@ -1217,28 +1241,28 @@ function FleetWorkspace({
       (f) => f.stage !== "sold" && f.stage !== "wholesale",
     );
     const totalInvested = fleet.reduce((a, f) => a + f.totalCost, 0);
-    const totalCarry = active.reduce((a, f) => {
-      const d = Math.max(
-        0,
-        Math.floor((now - new Date(f.floorDate).getTime()) / 86_400_000),
-      );
-      const r = f.dailyFloorRate > 0 ? f.dailyFloorRate : DAILY_FLOOR_RATE;
-      return a + d * r;
-    }, 0);
-    const estProfit = active.reduce((a, f) => {
-      const mv = f.marketValue ?? f.listPrice ?? 0;
-      return mv > 0 ? a + mv - f.totalCost : a;
-    }, 0);
+    const referenced = active.filter(
+      (f) =>
+        Number.isFinite(f.marketValue ?? f.listPrice) &&
+        (f.marketValue ?? f.listPrice ?? 0) > 0,
+    );
+    const referenceSpread = referenced.length
+      ? referenced.reduce(
+          (sum, f) => sum + (f.marketValue ?? f.listPrice)! - f.totalCost,
+          0,
+        )
+      : null;
     return {
       total: fleet.length,
       recon: fleet.filter((f) => f.stage === "recon").length,
       listed: fleet.filter((f) => f.stage === "listed" || f.stage === "offer")
         .length,
       totalInvested,
-      totalCarry,
-      estProfit,
+      referenceSpread,
+      referenceCount: referenced.length,
+      activeCount: active.length,
     };
-  }, [fleet, now]);
+  }, [fleet]);
 
   const FILTER_TABS: Array<{ key: "all" | Stage; label: string }> = [
     { key: "all", label: "All" },
@@ -1290,16 +1314,18 @@ function FleetWorkspace({
               fmt: "num",
             },
             {
-              label: "Total Invested",
-              value: stats.totalInvested + stats.totalCarry,
-              color: "var(--red)",
+              label: "Recorded costs",
+              value: stats.totalInvested,
+              color: "var(--t1)",
               fmt: "money",
+              detail: "Excludes unrecorded expenses",
             },
             {
-              label: "Est. Profit",
-              value: stats.estProfit,
-              color: stats.estProfit >= 0 ? "var(--green)" : "var(--red)",
+              label: "Reference spread",
+              value: stats.referenceSpread,
+              color: "var(--t1)",
               fmt: "money",
+              detail: `${stats.referenceCount} of ${stats.activeCount} active units · before unrecorded costs`,
             },
           ].map((s) => (
             <Panel key={s.label} padding="sm" className="text-center">
@@ -1313,10 +1339,15 @@ function FleetWorkspace({
                 className="text-lg font-black"
                 style={{ color: s.color } as React.CSSProperties}
               >
-                {s.fmt === "money"
-                  ? `${s.value < 0 ? "-" : ""}$${Math.abs(s.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                  : s.value}
+                {s.value === null
+                  ? "—"
+                  : s.fmt === "money"
+                    ? `${s.value < 0 ? "-" : ""}$${Math.abs(s.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : s.value}
               </Mono>
+              {s.detail && (
+                <p className="mt-1 text-[10px] text-[var(--t4)]">{s.detail}</p>
+              )}
             </Panel>
           ))}
         </div>
