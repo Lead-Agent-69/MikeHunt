@@ -109,7 +109,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it("uses photo halves to browse while retaining the separate detail and save actions", async () => {
+it("keeps the photo's detail-link action and provides explicit photo arrows", async () => {
   const row = listing([
     "https://images.test/front.jpg",
     "https://images.test/rear.jpg",
@@ -123,6 +123,9 @@ it("uses photo halves to browse while retaining the separate detail and save act
   vi.spyOn(link, "getBoundingClientRect").mockReturnValue(
     new DOMRect(0, 0, 400, 300),
   );
+  expect(link.getAttribute("href")).toBe(`/deal/${row.id}`);
+  // jsdom cannot follow app routes; retain a native link action without navigation noise.
+  link.href = "#vehicle-details";
   const click = new MouseEvent("click", {
     bubbles: true,
     cancelable: true,
@@ -130,7 +133,13 @@ it("uses photo halves to browse while retaining the separate detail and save act
     clientX: 350,
   });
   await act(async () => link.dispatchEvent(click));
-  expect(click.defaultPrevented).toBe(true);
+  expect(click.defaultPrevented).toBe(false);
+  expect(host.querySelector("img")!.src).toBe(row.images![0]);
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('button[aria-label^="Next photo"]')!
+      .click(),
+  );
   expect(host.querySelector("img")!.src).toBe(row.images![1]);
   await act(async () =>
     host

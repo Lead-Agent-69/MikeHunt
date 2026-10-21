@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PhotoPreview } from "@/components/shared/PhotoPreview";
 import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 
 let host: HTMLDivElement;
 let root: Root;
@@ -83,6 +84,46 @@ const visiblePhoto = () =>
   document.querySelector('[role="dialog"] img')?.getAttribute("alt");
 
 describe("photo browsing gestures", () => {
+  it("keeps normal link taps with tap disabled while suppressing navigation after swipes and scrolling", () => {
+    const move = vi.fn();
+    function Harness() {
+      const navigation = usePhotoNavigation(move, {
+        enabled: true,
+        swipe: true,
+        tap: false,
+      });
+      return (
+        <a href="#vehicle" {...navigation}>
+          Vehicle
+        </a>
+      );
+    }
+    act(() => root.render(<Harness />));
+    const area = host.querySelector("a")!;
+    const dispatchClick = () => {
+      const event = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+      });
+      act(() => area.dispatchEvent(event));
+      return event.defaultPrevented;
+    };
+    pointer(area, "pointerdown", 100, 100);
+    pointer(area, "pointerup", 100, 100);
+    expect(dispatchClick()).toBe(false);
+    expect(move).not.toHaveBeenCalled();
+    pointer(area, "pointerdown", 200, 100);
+    pointer(area, "pointermove", 100, 100);
+    pointer(area, "pointerup", 100, 100);
+    expect(move).toHaveBeenCalledExactlyOnceWith(1);
+    expect(dispatchClick()).toBe(true);
+    pointer(area, "pointerdown", 100, 100);
+    pointer(area, "pointermove", 100, 200);
+    pointer(area, "pointerup", 100, 200);
+    expect(dispatchClick()).toBe(true);
+    expect(move).toHaveBeenCalledTimes(1);
+  });
   it("moves once on right/left taps, wraps both ends, and retains working arrows", () => {
     const area = open();
     tap(area, 450);

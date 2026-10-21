@@ -1,5 +1,6 @@
 import { load } from "cheerio";
 import { genericExtract } from "./generic-extractor";
+import { isPlaceholderPhotoUrl } from "@/lib/images/photo-evidence";
 
 /** Read only the listing's gallery, never page-wide images or related inventory. */
 export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
@@ -10,6 +11,7 @@ export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
     try {
       const url = new URL(raw, listingUrl);
       if (!["https:", "http:"].includes(url.protocol)) return;
+      if (isPlaceholderPhotoUrl(url.toString())) return;
       photos.add(url.toString());
     } catch {
       /* Malformed source images cannot break a listing. */

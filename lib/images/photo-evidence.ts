@@ -16,7 +16,7 @@ export function isPlaceholderPhotoUrl(value: string): boolean {
       KNOWN_PLACEHOLDER_PATHS.has(url.pathname)
     )
       return true;
-    return /(?:^|\/)(?:no[-_]?image|no[-_]?photo|car-placeholder|placeholder)(?:[-_]?\d+)?\.(?:jpe?g|png|webp|gif)$/i.test(
+    return /(?:^|\/)(?:no[-_]?image|no[-_]?photo|car-placeholder|placeholder|(?:dealer[-_]|site[-_])?logo|favicon|spacer|loading)(?:[-_]?\d+|[-_](?:dark|light|white|black|small|large))*\.(?:jpe?g|png|webp|gif|svg|ico)$/i.test(
       url.pathname,
     );
   } catch {
