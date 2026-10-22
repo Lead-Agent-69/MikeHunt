@@ -115,7 +115,7 @@ describe("personal buyer workflows", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleComparison, { ids: ["one", "two"] }),
     );
-    expect(html).toContain("Current bid");
+    expect(html).toContain("Last observed bid");
     expect(html).toContain("Unverified advertised amount");
     expect(html).toContain("Dallas, TX");
     expect(html).toContain("Reported no");

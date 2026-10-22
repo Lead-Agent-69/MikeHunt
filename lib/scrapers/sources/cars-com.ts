@@ -7,6 +7,12 @@ import { getScrapeRunScope } from "../run-scope-context";
 import { getSweepPlan, type SweepPlan } from "../sweep-plan";
 import { STATE_METRO_ZIPS, metroZipsForState } from "@/lib/geo/metro-zips";
 import { buyerListingSearchText } from "../buyer-scope";
+import {
+  retailCardPriceEvidence,
+  retailMileage,
+  retailMoney,
+  retailTitleCondition,
+} from "./retail-evidence";
 
 // cars.com is a web-component SPA: the old `.vehicle-card`/`.price` selectors rotted. But every
 // <fuse-card> carries a `data-vehicle-details="{JSON}"` attribute with clean structured data
@@ -126,7 +132,11 @@ export function carsComZipsForState(
 }
 
 /** Parse cars.com SRP HTML. Rows without a listing state are dropped. */
-export function parseCarsComHtml(html: string, searchState = ""): any[] {
+export function parseCarsComHtml(
+  html: string,
+  searchState = "",
+  observedAt?: string,
+): any[] {
   // The search seed is the query center, not the car. Never copy it onto the row.
   void searchState;
   const items: any[] = [];
@@ -143,7 +153,7 @@ export function parseCarsComHtml(html: string, searchState = ""): any[] {
     } catch {
       continue;
     }
-    const price = parseInt(String(v.price || "").replace(/[^0-9]/g, ""), 10);
+    const price = retailMoney(v.price);
     const stock = String(v.stockType || "").toLowerCase();
     if (!v.vin || !price || stock === "new") continue;
     const fromVehicle = placeFromVehicle(v);
@@ -152,8 +162,9 @@ export function parseCarsComHtml(html: string, searchState = ""): any[] {
     if (!state) continue;
     const seller =
       v.seller && typeof v.seller === "object" ? v.seller.name : v.seller;
-    const condition =
-      stock === "certified" || v.cpoIndicator ? "certified" : "clean";
+    // Used inventory and CPO eligibility do not establish a vehicle's title brand.
+    const certified = stock === "certified" || v.cpoIndicator === true;
+    const statedCondition = retailTitleCondition(body);
     items.push({
       source: "cars_com",
       source_category: "retail",
@@ -170,9 +181,13 @@ export function parseCarsComHtml(html: string, searchState = ""): any[] {
       trim: v.trim || undefined,
       vin: v.vin || undefined,
       asking_price: price,
-      odometer:
-        parseInt(String(v.mileage || "0").replace(/[^0-9]/g, ""), 10) || 0,
-      condition,
+      odometer: retailMileage(v.mileage),
+      condition: statedCondition || (certified ? "certified" : undefined),
+      ...(statedCondition ? { title_source: "listing" as const } : {}),
+      options: {
+        vehicleCondition: certified ? "cpo" : "used",
+        priceEvidence: retailCardPriceEvidence(body, price, observedAt),
+      },
       body_class: v.bodyStyle || undefined,
       images: v.primaryThumbnail ? [v.primaryThumbnail] : [],
       seller: seller || undefined,
@@ -215,7 +230,7 @@ export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
         ? `&searchTerm=${encodeURIComponent(searchTerm)}`
         : "";
       const url = `https://www.cars.com/shopping/results/?page=${page}${q}&stockType=used&maximum_distance=100&zip=${zip}&sort=best_match_desc`;
-      const { html, blocked } = await smartFetch(url, {
+      const { html, blocked, observedAt } = await smartFetch(url, {
         // A page can be real even when every card lacks a listing state. Do not treat that as a block.
         validate: (h) => /data-vehicle-details="/.test(h),
       });
@@ -223,7 +238,7 @@ export async function scrapeCarsCom(searchTerm = "", state = "", maxPages = 5) {
         console.warn(`[Cars.com] ${code} ${zip} blocked (no tier passed)`);
         break;
       }
-      const items = parseCarsComHtml(html, code);
+      const items = parseCarsComHtml(html, code, observedAt);
       if (!items.length) break;
       for (const v of items) {
         const key = String(v.external_id || v.vin || "");

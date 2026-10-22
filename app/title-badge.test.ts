@@ -3,10 +3,22 @@ import { titleBadgeModel } from "@/lib/deals/title-badge-model";
 import { titleClass } from "@/lib/discovery/categorize";
 
 describe("TitleBadge model (Amy's title-category helper underneath)", () => {
+  it.each([undefined, null, "source_default", "invalid"])(
+    "keeps historical clean labels unconfirmed when provenance is %s",
+    (titleSource) => {
+      const badge = titleBadgeModel({ condition: "clean_title", titleSource });
+      expect(badge.unconfirmed).toBe(true);
+      expect(badge.label).toContain("Title unconfirmed");
+      expect(badge.tone).toBe("amber");
+      expect(badge.category).toBe("clean");
+      expect(badge.hint).toContain("No listing-level evidence");
+    },
+  );
   it("maps the five buckets from deals.condition only", () => {
-    expect(titleBadgeModel({ condition: "clean_title" }).label).toBe(
-      "Clean title",
-    );
+    expect(
+      titleBadgeModel({ condition: "clean_title", titleSource: "listing" })
+        .label,
+    ).toBe("Clean title");
     expect(titleBadgeModel({ condition: "rebuilt_title" }).category).toBe(
       "rebuilt",
     );
@@ -54,8 +66,8 @@ describe("TitleBadge model (Amy's title-category helper underneath)", () => {
       titleSource: "source_default",
     });
     expect(model.label).toBe("Title unconfirmed");
-    expect(model.tone).toBe("muted");
-    expect(model.hint).toContain("does not establish its title");
+    expect(model.tone).toBe("amber");
+    expect(model.hint).toContain("No listing-level evidence");
   });
 
   it("keeps #195's rule: clean claim + repair evidence reads Title unconfirmed", () => {

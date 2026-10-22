@@ -188,7 +188,7 @@ describe("shortlist comparison", () => {
       },
     ];
     const html = render();
-    expect(html).toContain("Current bid");
+    expect(html).toContain("Last observed bid");
     expect(html).toContain("Buy-now price");
     expect(
       html.slice(

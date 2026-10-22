@@ -23,3 +23,15 @@ export function hasOpenPriceWindow(
   const endsAt = Date.parse(auctionEndAt);
   return Number.isFinite(endsAt) && endsAt > now;
 }
+
+export function bidStatusNote(
+  auctionEndAt: string | null | undefined,
+  now = Date.now(),
+): string {
+  const endsAt = Date.parse(auctionEndAt || "");
+  if (!Number.isFinite(endsAt))
+    return "Last observed bid; auction timing is unconfirmed. Final price and fees can change.";
+  if (endsAt <= now)
+    return "Last observed bid; auction has ended. Confirm the result at the source.";
+  return "Current bid; final purchase amount and fees can change.";
+}

@@ -445,7 +445,7 @@ export async function scrapeAutotempest(
       )
         break;
     }
-    const scopedDeals = Array.from(byId.values());
+    const scopedDeals = Array.from(byId.values()).slice(0, control.maxResults);
     return scopedDeals.length ? upsertDeals(scopedDeals) : 0;
   }
 

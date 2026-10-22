@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseCargurusListings } from "./cargurus";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 // Verifies the PARSE LOGIC (field mapping + defensive fallbacks). The live field names still need a
 // one-time verification against a real FlareSolverr fetch, but this locks in the mapping + safety.
@@ -57,6 +58,30 @@ describe("parseCargurusListings", () => {
     expect(items[0].ask_price).toBe(24000);
     expect(items[0].mileage).toBe(45000);
     expect(items[0].vin).toBe("1HGCV1F30LA000000");
+    expect(items[0].options?.priceEvidence.kind).toBe("reference");
+    expect(reportedAcquisitionPrice(items[0])).toBe(0);
+  });
+
+  it("does not fabricate clean title or zero mileage from missing fields", () => {
+    const [row] = parseCargurusListings(
+      JSON.stringify([{ id: 3, price: "$28,000.00" }]),
+    );
+    expect(row.ask_price).toBe(28000);
+    expect(row.condition).toBeUndefined();
+    expect(row.title_source).toBeUndefined();
+    expect(row.mileage).toBeUndefined();
+    expect(row.options?.priceEvidence.kind).toBe("unknown");
+  });
+
+  it("prefers a reported amount over a different expected-price estimate and preserves actual zero mileage", () => {
+    const [row] = parseCargurusListings(
+      JSON.stringify([
+        { id: 4, price: 28000, expectedPrice: 24000, mileage: 0 },
+      ]),
+    );
+    expect(row.ask_price).toBe(28000);
+    expect(row.mileage).toBe(0);
+    expect(row.options?.priceEvidence.kind).toBe("unknown");
   });
 
   it("extracts listings from embedded HTML JSON", () => {

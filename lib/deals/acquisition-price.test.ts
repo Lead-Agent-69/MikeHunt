@@ -268,3 +268,42 @@ it.each([true, "true"])(
     ).toBe(0);
   },
 );
+it.each([
+  "Cash price $18,000 - $20,000",
+  "Cash price $18,000–$20,000",
+  "Cash price $18,000 to $20,000",
+  "Cash price $18,000 / $20,000",
+  "Cash price $18,000 or $20,000",
+  "Cash price $18,00",
+  "Cash price $18,000.5",
+  "Cash price $314-521-4400",
+  "Cash price $1.8m",
+  "Cash price $18k",
+  "Cash price $-18,000",
+])("does not accept a partial amount from %s", (description) => {
+  expect(reportedAcquisitionPrice({ ask_price: 18000, description })).toBe(0);
+  expect(
+    reportedAcquisitionPrice({
+      ask_price: 18000,
+      options: {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: 18000,
+          evidenceText: description,
+        },
+      },
+    }),
+  ).toBe(0);
+});
+it.each([
+  "Cash price $18,000, financing available.",
+  "Cash price $18,000. Call for details.",
+  "Full cash price $18,000.00",
+])(
+  "retains a complete cash amount with normal punctuation (%s)",
+  (description) => {
+    expect(reportedAcquisitionPrice({ ask_price: 18000, description })).toBe(
+      18000,
+    );
+  },
+);

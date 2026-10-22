@@ -8,6 +8,11 @@ import type { Deal } from "@/types";
 import { extractYear, type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
+import {
+  retailMileage,
+  retailMoney,
+  retailTitleCondition,
+} from "./retail-evidence";
 
 export const OFFERUP_CONFIG: ScraperConfig = {
   name: "OfferUp",
@@ -37,7 +42,7 @@ export function parseOfferUpHtml(html: string): Partial<Deal>[] {
   for (const t of tiles) {
     if (t?.tileType !== "LISTING" || !t.listing) continue; // skip ad tiles
     const L = t.listing;
-    const price = Number(L.price);
+    const price = retailMoney(L.price);
     const title: string = L.title || "";
     const year = extractYear(title);
     // Vehicles only: a real year + a sane price (filters parts/junk).
@@ -46,6 +51,7 @@ export function parseOfferUpHtml(html: string): Partial<Deal>[] {
     const parts = title.split(/\s+/);
     const yearIdx = parts.findIndex((p: string) => p === String(year));
     const loc = String(L.locationName || "").split(",");
+    const statedCondition = retailTitleCondition(title);
     items.push({
       source: "offerup",
       source_deal_id: String(L.listingId),
@@ -55,10 +61,9 @@ export function parseOfferUpHtml(html: string): Partial<Deal>[] {
       make: parts[yearIdx + 1] || "",
       model: parts.slice(yearIdx + 2, yearIdx + 4).join(" ") || "",
       ask_price: price,
-      mileage: Number(L.vehicleMiles) || 0,
-      condition: /salvage|rebuilt|parts only|not running/i.test(title)
-        ? "salvage"
-        : "clean",
+      mileage: retailMileage(L.vehicleMiles),
+      condition: statedCondition,
+      ...(statedCondition ? { title_source: "listing" as const } : {}),
       location_city: loc[0]?.trim() || "",
       location_state: loc[1]?.trim() || "",
       images: L.image?.url ? [String(L.image.url)] : [],

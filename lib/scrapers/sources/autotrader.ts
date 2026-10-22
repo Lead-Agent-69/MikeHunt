@@ -12,6 +12,7 @@ import { zipToState } from "@/lib/geo/zip-state";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 import { getScrapeRunScope } from "../run-scope-context";
 import { buyerSearchCenters } from "../search-centers";
+import { retailMileage, retailMoney } from "./retail-evidence";
 
 const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
 
@@ -64,7 +65,7 @@ export function parseAutotraderNextData(
     const o = inv[id] || {};
     const listingType = String(o.listingType || "").toUpperCase();
     if (listingType === "NEW") continue; // used/CPO only — resale comps
-    const price = Number(
+    const price = retailMoney(
       o.pricingDetail?.displayPrice ??
         o.pricingDetail?.dealerDiscountedPrice ??
         0,
@@ -78,8 +79,7 @@ export function parseAutotraderNextData(
       (typeof o.atTrim === "string" && o.atTrim) ||
       (typeof o.trim === "string" && o.trim) ||
       undefined;
-    const mileage =
-      parseInt(String(o.mileage?.value ?? "0").replace(/[^0-9]/g, ""), 10) || 0;
+    const mileage = retailMileage(o.mileage?.value);
     const images = Array.isArray(o.images?.sources)
       ? o.images.sources
           .map((s: any) => s?.src)
@@ -121,11 +121,8 @@ export function parseAutotraderNextData(
       vin,
       ask_price: price,
       mileage,
-      // Non-CPO "clean" is the marketplace default, not a stated title; CPO is not a title at all.
-      condition: listingType === "CERTIFIED" ? "certified" : "clean",
-      ...(listingType === "CERTIFIED"
-        ? {}
-        : { title_source: "source_default" as const }),
+      // A used listing or CPO program is not proof of a clean title.
+      condition: listingType === "CERTIFIED" ? "certified" : undefined,
       images,
       location_city: locCity,
       location_state: locState,
@@ -134,6 +131,7 @@ export function parseAutotraderNextData(
       // Free KBB market value — a Manheim-MMR-equivalent benchmark we already had in hand.
       mmr_value: kbbFpp,
       options: {
+        vehicleCondition: listingType === "CERTIFIED" ? "cpo" : "used",
         priceRating: pd.dealIndicator || undefined, // Great / Good / Fair / High
         kbbFppLow: Number(pd.kbbFppLowAmount) || undefined,
         kbbFppHigh: Number(pd.kbbFppHighAmount) || undefined,

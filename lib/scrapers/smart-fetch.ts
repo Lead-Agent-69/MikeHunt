@@ -34,6 +34,8 @@ export interface SmartFetchResult {
   html: string;
   tier: FetchTier;
   blocked: boolean;
+  /** Original body observation time, including cache hits and conditional revalidation. */
+  observedAt?: string;
   /** Reached the page, but the data the caller asked for (validate()) never materialized — even after
    *  the full arsenal. The HTML is returned best-effort, but the caller should treat it as "no data,"
    *  not silently assume success. Awareness, not a wall. */
@@ -335,6 +337,7 @@ export async function smartFetch(
       html: res.body,
       tier: "static",
       blocked: false,
+      observedAt: res.observedAt,
       ...(valid ? {} : { unverified: true }),
     };
   }

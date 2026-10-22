@@ -43,7 +43,8 @@ describe("parseCarsComHtml", () => {
     expect(d.vin).toBe("1FTEW1EP5JFA00000");
     expect(d.asking_price).toBe(28000);
     expect(d.odometer).toBe(60000);
-    expect(d.condition).toBe("clean");
+    expect(d.condition).toBeUndefined();
+    expect(d.options.vehicleCondition).toBe("used");
     expect(d.images).toEqual(["https://images.cars.com/x.jpg"]);
     expect(d.location_city).toBe("Libertyville");
     expect(d.location_state).toBe("IL");
@@ -109,6 +110,37 @@ describe("parseCarsComHtml", () => {
     });
     expect(parseCarsComHtml(html)[0].condition).toBe("certified");
     expect(parseCarsComHtml(html)[0].location_state).toBe("CA");
+  });
+
+  it("keeps decimals intact and records explicit terms with the response's original date", () => {
+    const observed = "2026-10-19T13:00:00Z";
+    const rows = parseCarsComHtml(
+      card(
+        { ...used, price: "$28,000.00", mileage: null, dealerState: "MO" },
+        "<span>Sale price: $28,000</span>",
+      ),
+      "IL",
+      observed,
+    );
+    expect(rows[0].asking_price).toBe(28000);
+    expect(rows[0].odometer).toBeUndefined();
+    expect(rows[0].options.priceEvidence).toMatchObject({
+      kind: "asking",
+      askingPrice: 28000,
+      checkedAt: observed,
+    });
+  });
+
+  it("does not infer purchase terms from an unlabelled structured amount or a script", () => {
+    const rows = parseCarsComHtml(
+      card(
+        { ...used, dealerState: "MO" },
+        '<script>{"description":"Cash price: $28,000"}</script><span>$28,000</span>',
+      ),
+      "MO",
+      "2026-10-19T13:00:00Z",
+    );
+    expect(rows[0].options.priceEvidence.kind).toBe("unknown");
   });
 });
 

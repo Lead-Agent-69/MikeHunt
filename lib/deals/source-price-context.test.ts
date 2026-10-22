@@ -16,6 +16,29 @@ const row = (fields: Partial<SourcePriceRow> = {}): SourcePriceRow => ({
   ...fields,
 });
 describe("cross-source price meaning", () => {
+  it.each([undefined, "invalid", "2026-10-12T12:00:00Z"])(
+    "qualifies a bid whose closing time is %s",
+    (auction_end_at) => {
+      expect(
+        sourcePriceContext(
+          { source: "copart", ask_price: 5000, auction_end_at },
+          now,
+        ).label,
+      ).toBe("Last observed bid");
+    },
+  );
+  it("retains the current-bid label when a future closing time is reported", () => {
+    expect(
+      sourcePriceContext(
+        {
+          source: "copart",
+          ask_price: 5000,
+          auction_end_at: "2026-10-14T12:00:00Z",
+        },
+        now,
+      ).label,
+    ).toBe("Current bid");
+  });
   it("uses the stated cash price instead of a teaser", () => {
     expect(sourcePriceContext(row({ ask_price: 999 }), now)).toMatchObject({
       amount: 15000,

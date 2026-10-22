@@ -82,7 +82,6 @@ describe("CarGurus location scope", () => {
     expect(rows[0]).toMatchObject({
       location_city: "St. Louis",
       location_state: "MO",
-      title_source: "source_default",
     });
     expect(rows[1]).toMatchObject({
       location_city: "Chicago",
@@ -90,5 +89,7 @@ describe("CarGurus location scope", () => {
     });
     expect(rows[2].location_state).toBeUndefined();
     expect(rows[2].location_city).toBeUndefined();
+    expect(rows[0].condition).toBeUndefined();
+    expect(rows[0].title_source).toBeUndefined();
   });
 });

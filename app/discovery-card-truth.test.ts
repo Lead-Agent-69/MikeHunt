@@ -48,7 +48,7 @@ it("renders conflicting sale terms honestly and keeps title separate from operab
   expect(html).not.toContain("Private channel");
   expect(html).not.toContain("Auction watch");
   expect(html).not.toContain("Running status not reported");
-  expect(html).toContain("Clean title");
+  expect(html).toContain("Title unconfirmed");
 });
 
 it("keeps ordinary dealer cards concise without asserting verified operability", () => {
@@ -60,7 +60,7 @@ it("keeps ordinary dealer cards concise without asserting verified operability",
   expect(html).not.toContain("Running status not reported");
   expect(html).not.toContain("Operability unconfirmed");
   expect(html).not.toContain("Runs &amp; drives");
-  expect(html).toContain("Clean title");
+  expect(html).toContain("Title unconfirmed");
 });
 
 it.each(["salvage_title", "rebuilt_title"])(
@@ -97,25 +97,48 @@ it("keeps unknown running status relevant on actual auction title-only records",
     }),
   );
   expect(html).toContain("Running status not reported");
-  expect(html).toContain("Clean title");
+  expect(html).toContain("Title unconfirmed");
 });
 
-it("retains current-bid wording and auction warnings for actual auction inventory", () => {
+it("retains listing-reported clean titles without asserting verified operability", () => {
   const html = renderToStaticMarkup(
     React.createElement(DiscoveryCard, {
-      deal: {
-        ...listing,
-        source: "copart",
-        lane: "auction",
-        condition: "hail",
-      },
+      deal: { ...listing, titleSource: "listing", sellerType: "dealer" },
     }),
   );
-  expect(html).toContain("Current bid");
-  expect(html).toContain("Repairable auction watch");
-  expect(html).toContain("Hail reported");
+  expect(html).toContain("Clean title");
+  expect(html).not.toContain("Title unconfirmed");
   expect(html).not.toContain("Runs &amp; drives");
 });
+
+it.each([
+  [undefined, "Last observed bid"],
+  ["invalid", "Last observed bid"],
+  ["2020-01-01T00:00:00Z", "Last observed bid"],
+  ["2099-01-01T00:00:00Z", "Current bid"],
+])(
+  "qualifies auction timing %s while retaining the reported bid",
+  (auctionEndAt, label) => {
+    const html = renderToStaticMarkup(
+      React.createElement(DiscoveryCard, {
+        deal: {
+          ...listing,
+          source: "copart",
+          lane: "auction",
+          condition: "hail",
+          askPrice: 0,
+          priceEvidence: { kind: "current_bid", currentBid: 5900 },
+          auctionEndAt,
+        },
+      }),
+    );
+    expect(html).toContain(label);
+    expect(html).toContain("$5,900");
+    expect(html).toContain("Repairable auction watch");
+    expect(html).toContain("Hail reported");
+    expect(html).not.toContain("Runs &amp; drives");
+  },
+);
 
 it("makes the photo, title and primary action link to the same vehicle", () => {
   const html = renderToStaticMarkup(

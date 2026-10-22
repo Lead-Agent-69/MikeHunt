@@ -313,7 +313,7 @@ export function normalizeDeal(deal: Partial<Deal>): Partial<Deal> {
       normalized.model ||
       extractModel(normalized.title, normalized.make, normalized.year);
   }
-  normalized.mileage = normalized.mileage || extractMileage(normalized.title);
+  normalized.mileage = normalized.mileage ?? extractMileage(normalized.title);
   if (identityRepair) {
     normalized.model = identityRepair.model;
     normalized.trim = identityRepair.trim || undefined;
