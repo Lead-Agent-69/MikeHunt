@@ -6,6 +6,7 @@ import {
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
+import { listingIdentityWarning } from "@/lib/vehicle/listing-identity";
 
 type ListingFacts = {
   title?: string;
@@ -71,6 +72,7 @@ export function VehicleSummary({
     ask_price: deal.askPrice,
     price_evidence: deal.priceEvidence,
   });
+  const identityWarning = listingIdentityWarning(deal);
   return (
     <section aria-label="Vehicle summary" className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -90,6 +92,14 @@ export function VehicleSummary({
           </p>
         </div>
       </div>
+      {identityWarning && (
+        <p
+          role="status"
+          className="text-sm font-semibold text-[var(--amber-d)]"
+        >
+          {identityWarning}
+        </p>
+      )}
       {nonCashPriceLabel(deal.priceEvidence) && (
         <p className="text-sm text-[var(--amber-d)]">
           Full cash price unconfirmed. {deal.priceEvidence?.evidenceText} Ask
@@ -131,7 +141,14 @@ export function VehicleFacts({
       (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
     ],
     ...(auctionFacts || deal.damageType
-      ? [["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"]]
+      ? [
+          [
+            deal.damageType?.trim().toLowerCase() === "repairable"
+              ? "Source category"
+              : "Damage",
+            deal.damageType?.replace(/_/g, " ") || "Not reported",
+          ],
+        ]
       : []),
     ...(auctionFacts || typeof deal.runAndDrive === "boolean"
       ? [["Run and drive", reportedStatus(deal.runAndDrive)]]

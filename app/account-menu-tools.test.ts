@@ -23,7 +23,8 @@ describe("account menu", () => {
       for (const entry of all(mode)) expect(hrefs).toContain(entry.href);
       expect(new Set(hrefs).size).toBe(hrefs.length);
       expect(hrefs).not.toContain("/admin");
-      expect(hrefs).not.toContain("/sources");
+      expect(hrefs).toContain("/sources");
+      expect(hrefs).not.toContain("/orchestrator");
       expect(hrefs.includes("/insights")).toBe(
         mode === "dealer" || mode === "reseller",
       );
@@ -46,6 +47,7 @@ describe("account menu", () => {
     expect(menu.tools[0].href).toBe("/market");
     expect(names(menu.secondary)).toEqual([
       "Settings",
+      "Sources",
       "Upgrade",
       "Help & updates",
     ]);

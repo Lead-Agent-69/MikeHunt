@@ -5,6 +5,7 @@ import {
 import { sellerContact } from "@/lib/data/deal-contact";
 import { applyCustomerInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { withholdConflictingEconomics } from "@/lib/vehicle/listing-identity";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
@@ -200,7 +201,7 @@ export class DealsService {
     const photos = photoEvidence(row.images, options.photoAudit);
     // deals has no bid_count / seller / seller_type columns: these live in options (pipeline.ts).
     const bidCount = options.auction?.bidCount;
-    return {
+    return withholdConflictingEconomics({
       id: row.id,
       source: row.source,
       title: row.title,
@@ -304,7 +305,7 @@ export class DealsService {
           : undefined,
       priceDropDays:
         row.price_drop_days != null ? Number(row.price_drop_days) : undefined,
-    };
+    });
   }
 
   private buildQuery(filters: DealFilters = {}) {

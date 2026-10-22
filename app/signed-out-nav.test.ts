@@ -7,6 +7,18 @@ import {
 } from "@/components/layout/nav-items";
 
 describe("signed-out nav", () => {
+  it("requires sign-in for buyer source coverage and preserves the destination", () => {
+    const item = {
+      name: "Sources",
+      href: "/sources",
+      icon: primaryNavForMode("personal")[0].icon,
+    };
+    expect(navItemForViewer(item, true)).toMatchObject({
+      href: "/login?next=%2Fsources",
+      signInRequired: true,
+    });
+    expect(navItemForViewer(item, false)).toBe(item);
+  });
   it("sends Saved and Pipeline straight to sign-in with a return path", () => {
     const desktop = primaryNavForMode("personal").map((item) =>
       navItemForViewer(item, true),

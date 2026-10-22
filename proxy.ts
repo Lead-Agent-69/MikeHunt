@@ -43,6 +43,7 @@ const protectedRoutes = [
   "/searches",
   "/alerts",
   "/settings",
+  "/sources",
   // User-scoped APIs.
   "/api/inventory",
   "/api/alerts",

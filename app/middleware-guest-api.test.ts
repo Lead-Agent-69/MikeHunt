@@ -2,10 +2,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
+const auth = vi.hoisted(() => ({
+  claims: null as null | { sub: string; email: string },
+  onboarded: true,
+}));
+
 vi.mock("@supabase/ssr", () => ({
   createServerClient: () => ({
-    auth: { getClaims: async () => ({ data: { claims: null } }) },
-    from: () => ({}),
+    auth: { getClaims: async () => ({ data: { claims: auth.claims } }) },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: { onboarded: auth.onboarded },
+            error: null,
+          }),
+        }),
+      }),
+    }),
   }),
 }));
 
@@ -19,6 +33,11 @@ async function run(path: string, cookie?: string) {
   });
   return proxy(req);
 }
+
+beforeEach(() => {
+  auth.claims = null;
+  auth.onboarded = true;
+});
 
 describe("proxy: signed-out API calls get JSON, not a login redirect", () => {
   describe("production configuration failure", () => {
@@ -84,6 +103,36 @@ describe("proxy: signed-out API calls get JSON, not a login redirect", () => {
       const res = await run("/saved");
       expect(res.status).toBe(307);
       expect(res.headers.get("location")).toContain("/login");
+    });
+
+    it("requires sign-in for Sources while preserving its selected filters", async () => {
+      const res = await run("/sources?state=MO");
+      expect(res.status).toBe(307);
+      const destination = new URL(res.headers.get("location")!);
+      expect(destination.pathname).toBe("/login");
+      expect(destination.searchParams.get("next")).toBe("/sources?state=MO");
+    });
+
+    it("lets an onboarded buyer view Sources without opening admin pages", async () => {
+      auth.claims = { sub: "buyer-id", email: "buyer@example.test" };
+      process.env.ADMIN_EMAIL = "admin@example.test";
+      const res = await run("/sources");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("location")).toBeNull();
+      for (const path of ["/admin", "/status", "/developer", "/orchestrator"]) {
+        expect(
+          new URL((await run(path)).headers.get("location")!).pathname,
+        ).toBe("/market");
+      }
+    });
+
+    it("keeps unfinished source-coverage visitors in onboarding", async () => {
+      auth.claims = { sub: "buyer-id", email: "buyer@example.test" };
+      auth.onboarded = false;
+      const res = await run("/sources");
+      expect(new URL(res.headers.get("location")!).pathname).toBe(
+        "/onboarding",
+      );
     });
 
     it("cron endpoints stay outside the session gate", async () => {

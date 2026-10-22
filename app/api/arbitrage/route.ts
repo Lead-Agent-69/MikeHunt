@@ -495,6 +495,9 @@ export async function GET(request: NextRequest) {
           if (deal.dealVerdict === "pass") continue;
           const decisionEvidence = assessDecisionEvidence({
             title: deal.title,
+            year: deal.year,
+            make: deal.make,
+            model: deal.model,
             source: deal.source,
             condition: deal.condition,
             damageType: deal.damageType,

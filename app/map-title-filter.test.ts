@@ -10,7 +10,7 @@ describe("Map title filter + pin popup badge", () => {
         titleSource: "source_default",
       }),
     );
-    expect(html).toContain("Salvage title (reported by source)");
+    expect(html).toContain("Title unconfirmed");
     expect(html).toContain("Parts only");
     expect(titleBadgeHtml(titleBadgeModel({ condition: "flood" }))).toContain(
       "Flood damage",

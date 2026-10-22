@@ -111,6 +111,7 @@ export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
   "/deal",
   "/searches",
   "/settings",
+  "/sources",
   "/saved",
   "/alerts",
   "/fleet",
@@ -579,6 +580,7 @@ export function accountMenuForMode(buyerMode: unknown): {
     tools,
     secondary: [
       { name: "Settings", href: "/settings" },
+      { name: "Sources", href: "/sources" },
       { name: "Upgrade", href: "/upgrade" },
       { name: "Help & updates", href: "/changelog" },
     ],

@@ -32,6 +32,7 @@ import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Activity,
   BarChart3,
@@ -39,6 +40,7 @@ import {
   Circle,
   ClipboardList,
   Gauge,
+  ChevronDown,
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
@@ -1726,6 +1728,8 @@ function StatsCard({
 
 // ── Main Page ──
 export default function SourcesPage() {
+  const { isAdmin } = useIsAdmin();
+  const [showDirectory, setShowDirectory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [healthScope, setHealthScope] = useState<HealthScope>({});
   const [selectedCategory, setSelectedCategory] = useState<
@@ -1733,6 +1737,9 @@ export default function SourcesPage() {
   >("all");
   const [selectedPriority, setSelectedPriority] = useState<string>("all");
   const [selectedStatus, setSelectedStatus] = useState<string>("all");
+  React.useEffect(() => {
+    if (searchQuery || selectedCategory !== "all") setShowDirectory(true);
+  }, [searchQuery, selectedCategory]);
   const healthUrl = useMemo(() => {
     const params = new URLSearchParams();
     if (healthScope.lane) params.set("lane", healthScope.lane);
@@ -2266,115 +2273,146 @@ export default function SourcesPage() {
           }}
         />
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-          <StatsCard
-            label="Total"
-            value={SOURCE_STATS.total}
-            Icon={BarChart3}
-          />
-          <StatsCard
-            label="Active"
-            value={SOURCE_STATS.active}
-            Icon={CheckCircle2}
-            tone="var(--green)"
-          />
-          <StatsCard
-            label="Planned"
-            value={SOURCE_STATS.planned}
-            Icon={ClipboardList}
-            tone="var(--amber)"
-          />
-          <StatsCard
-            label="P0"
-            value={SOURCE_STATS.p0}
-            Icon={Activity}
-            tone="var(--red)"
-          />
-          <StatsCard
-            label="P1"
-            value={SOURCE_STATS.p1}
-            Icon={Gauge}
-            tone="var(--amber)"
-          />
-          <StatsCard
-            label="P2"
-            value={SOURCE_STATS.p2}
-            Icon={Circle}
-            tone="var(--blue, #5b9bef)"
-          />
-          <StatsCard label="P3" value={SOURCE_STATS.p3} Icon={Circle} />
-        </div>
-
-        {/* Category Breakdown */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
-          {Object.entries(SOURCE_STATS.byCategory).map(([category, count]) => (
-            <div key={category} className="glass-panel p-3 text-center">
-              <div className="text-lg font-bold text-[var(--t1)]">{count}</div>
-              <div className="text-[10px] text-[var(--t4)] capitalize">
-                {category.replace("-", " ")}
-              </div>
+        {isAdmin && (
+          <section aria-label="Source operations metrics">
+            {/* Operational catalog totals are not buyer inventory or coverage. */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+              <StatsCard
+                label="Total"
+                value={SOURCE_STATS.total}
+                Icon={BarChart3}
+              />
+              <StatsCard
+                label="Active"
+                value={SOURCE_STATS.active}
+                Icon={CheckCircle2}
+                tone="var(--green)"
+              />
+              <StatsCard
+                label="Planned"
+                value={SOURCE_STATS.planned}
+                Icon={ClipboardList}
+                tone="var(--amber)"
+              />
+              <StatsCard
+                label="P0"
+                value={SOURCE_STATS.p0}
+                Icon={Activity}
+                tone="var(--red)"
+              />
+              <StatsCard
+                label="P1"
+                value={SOURCE_STATS.p1}
+                Icon={Gauge}
+                tone="var(--amber)"
+              />
+              <StatsCard
+                label="P2"
+                value={SOURCE_STATS.p2}
+                Icon={Circle}
+                tone="var(--blue, #5b9bef)"
+              />
+              <StatsCard label="P3" value={SOURCE_STATS.p3} Icon={Circle} />
             </div>
-          ))}
-        </div>
 
-        {/* Scraper coverage: catalogued vs actually wired into the runner */}
-        <div className="glass-panel p-4 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <h2 className="text-sm font-bold text-[var(--t1)]">
-                Available market coverage
-              </h2>
-              <p className="text-xs text-[var(--t4)]">
-                {COVERAGE.implemented} active markets •{" "}
-                {COVERAGE.sharedImported} selectable dealer markets •{" "}
-                {COVERAGE.catalogOnly} awaiting availability
-              </p>
-              {healthScope.state && (
-                <p className="mt-1 text-[10px] font-semibold text-[var(--blue)]">
-                  {scopedResearchCandidates} researched dealer option
-                  {scopedResearchCandidates === 1 ? "" : "s"} for{" "}
-                  {healthScope.state} are included below alongside national
-                  markets.
-                </p>
+            {/* Category Breakdown */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
+              {Object.entries(SOURCE_STATS.byCategory).map(
+                ([category, count]) => (
+                  <div key={category} className="glass-panel p-3 text-center">
+                    <div className="text-lg font-bold text-[var(--t1)]">
+                      {count}
+                    </div>
+                    <div className="text-[10px] text-[var(--t4)] capitalize">
+                      {category.replace("-", " ")}
+                    </div>
+                  </div>
+                ),
               )}
             </div>
-            <span className="text-lg font-black text-[var(--amber)]">
-              {Math.round(COVERAGE.ratio * 100)}%
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-[var(--s3)] overflow-hidden">
-            <div
-              className="h-full rounded-full bg-[var(--grad-amber)] transition-[width] duration-700"
-              style={{
-                width: `${Math.max(2, Math.round(COVERAGE.ratio * 100))}%`,
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-[var(--t5)] mt-2">
-            Coverage shows the markets you can include in a search. Open a
-            market to confirm current matching inventory and listing proof.
-          </p>
-        </div>
 
-        {/* Sources Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence mode="popLayout">
-            {filteredSources.map((source) => (
-              <SourceCard
-                key={source.id}
-                source={source}
-                health={healthBySourceId.get(normalizeSourceId(source.id))}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
+            {/* Scraper coverage: catalogued vs actually wired into the runner */}
+            <div className="glass-panel p-4 mb-6">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <h2 className="text-sm font-bold text-[var(--t1)]">
+                    Available market coverage
+                  </h2>
+                  <p className="text-xs text-[var(--t4)]">
+                    {COVERAGE.implemented} active markets •{" "}
+                    {COVERAGE.sharedImported} selectable dealer markets •{" "}
+                    {COVERAGE.catalogOnly} awaiting availability
+                  </p>
+                  {healthScope.state && (
+                    <p className="mt-1 text-[10px] font-semibold text-[var(--blue)]">
+                      {scopedResearchCandidates} researched dealer option
+                      {scopedResearchCandidates === 1 ? "" : "s"} for{" "}
+                      {healthScope.state} are included below alongside national
+                      markets.
+                    </p>
+                  )}
+                </div>
+                <span className="text-lg font-black text-[var(--amber)]">
+                  {Math.round(COVERAGE.ratio * 100)}%
+                </span>
+              </div>
+              <div className="h-2 rounded-full bg-[var(--s3)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-[var(--grad-amber)] transition-[width] duration-700"
+                  style={{
+                    width: `${Math.max(2, Math.round(COVERAGE.ratio * 100))}%`,
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-[var(--t5)] mt-2">
+                Coverage shows the markets you can include in a search. Open a
+                market to confirm current matching inventory and listing proof.
+              </p>
+            </div>
+          </section>
+        )}
+        <button
+          type="button"
+          aria-expanded={showDirectory}
+          aria-controls="source-directory"
+          onClick={() => setShowDirectory((shown) => !shown)}
+          className="mb-4 flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-4 text-sm font-semibold text-[var(--t1)]"
+        >
+          Browse source directory
+          <ChevronDown
+            aria-hidden="true"
+            className={`h-4 w-4 transition-transform motion-reduce:transition-none ${showDirectory ? "rotate-180" : ""}`}
+          />
+        </button>
+        {showDirectory && (
+          <section id="source-directory" aria-label="Source directory">
+            <p className="mb-4 text-xs text-[var(--t3)]">
+              Directory entries describe source markets, not vehicles currently
+              available in your results. Use matching listings above to browse
+              verified inventory on file.
+            </p>
+            {/* Sources Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <AnimatePresence mode="popLayout">
+                {filteredSources.map((source) => (
+                  <SourceCard
+                    key={source.id}
+                    source={source}
+                    health={healthBySourceId.get(normalizeSourceId(source.id))}
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
 
-        {filteredSources.length === 0 && (
-          <div className="text-center py-12">
-            <div className="text-4xl mb-2">🔍</div>
-            <p className="text-[var(--t4)]">No sources match your filters</p>
-          </div>
+            {filteredSources.length === 0 && (
+              <div className="text-center py-12">
+                <div className="text-4xl mb-2">🔍</div>
+                <p className="text-[var(--t4)]">
+                  No sources match your filters
+                </p>
+              </div>
+            )}
+          </section>
         )}
       </div>
     </div>

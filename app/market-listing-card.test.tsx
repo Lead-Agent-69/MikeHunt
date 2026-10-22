@@ -41,6 +41,46 @@ const listing = (images: string[]): MarketListing => ({
   profitEstimate: 0,
   profitScore: 0,
 });
+it("does not describe asking-price comparisons as sold resale evidence", async () => {
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{
+          ...listing([]),
+          sellEstimate: 15000,
+          valuationEvidence: {
+            supported: true,
+            label: "6 asking-price comparisons · low confidence",
+          },
+        }}
+        flipDesk
+      />,
+    ),
+  );
+  expect(host.textContent).toContain("Comparable asking estimate:");
+  expect(host.textContent).not.toContain("Estimated resale:");
+});
+it("does not present a generic repairable source category as a specific damage report", async () => {
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{ ...listing([]), damageType: "repairable" }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.textContent).toContain("Source category");
+  expect(host.textContent).not.toContain("Reported damage");
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{ ...listing([]), damageType: "Front end" }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.textContent).toContain("Reported damage");
+});
 beforeEach(() => {
   sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -119,7 +159,7 @@ it("shows an ended auction as a last observed bid", async () => {
 });
 it.each([
   [undefined, "Title unconfirmed"],
-  ["source_default", "Title unconfirmed (reported by source)"],
+  ["source_default", "Title unconfirmed"],
   ["listing", "Clean title"],
 ] as const)(
   "renders a clean-title claim with provenance %s",
@@ -129,6 +169,12 @@ it.each([
       root.render(<MarketListingCard row={row} flipDesk={false} />),
     );
     expect(host.textContent).toContain(label);
+    if (titleSource === "source_default") {
+      expect(host.textContent).not.toContain("reported by source");
+      expect(host.querySelector("dd[title]")?.getAttribute("title")).toContain(
+        "No listing-level evidence",
+      );
+    }
   },
 );
 

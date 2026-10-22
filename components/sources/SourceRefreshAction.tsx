@@ -124,6 +124,16 @@ export function SourceRefreshAction({
         <RefreshCw size={16} aria-hidden="true" />
         {busy ? "Checking selected sources" : "Check for new matches"}
       </button>
+      {!busy && message && (
+        <button
+          type="button"
+          onClick={onSettled}
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-4 py-2 text-sm font-semibold text-[var(--t1)]"
+        >
+          <RefreshCw size={16} aria-hidden="true" />
+          Refresh available matches
+        </button>
+      )}
       <p
         role="status"
         aria-live="polite"

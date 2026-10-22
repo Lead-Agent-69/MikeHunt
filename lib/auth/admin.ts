@@ -32,11 +32,10 @@ export function isAdminConfigured(): boolean {
 
 // Admin-only pages, enforced server-side in middleware. APIs keep their own
 // secret/key auth so CI and cron callers without a user session continue to work.
-// Source operations and system diagnostics are intentionally kept off customer pages.
+// Buyer source coverage is separate from these operational and diagnostic pages.
 export const ADMIN_ROUTES = [
   "/admin",
   "/developer",
   "/orchestrator",
-  "/sources",
   "/status",
 ];

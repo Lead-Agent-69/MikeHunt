@@ -50,7 +50,8 @@ describe("TitleBadge model (Amy's title-category helper underneath)", () => {
       titleSource: "source_default",
     });
     expect(weak.weak).toBe(true);
-    expect(weak.label).toBe("Salvage title (reported by source)");
+    expect(weak.label).toBe("Title unconfirmed");
+    expect(weak.hint).toContain("catalog defaults to salvage title");
     expect(weak.tone).toBe("muted");
     const strong = titleBadgeModel({
       condition: "salvage_title",
@@ -58,6 +59,15 @@ describe("TitleBadge model (Amy's title-category helper underneath)", () => {
     });
     expect(strong.weak).toBe(false);
     expect(strong.tone).toBe("red");
+  });
+  it("does not present a catalog-wide clean default as a vehicle title report", () => {
+    const model = titleBadgeModel({
+      condition: "clean_title",
+      titleSource: "source_default",
+    });
+    expect(model.label).toBe("Title unconfirmed");
+    expect(model.tone).toBe("amber");
+    expect(model.hint).toContain("No listing-level evidence");
   });
 
   it("keeps #195's rule: clean claim + repair evidence reads Title unconfirmed", () => {

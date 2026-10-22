@@ -1,4 +1,8 @@
 import { hasRecentSoldEvidence } from "@/lib/valuation/evidence-confidence";
+import {
+  listingIdentityWarning,
+  type ListingIdentity,
+} from "@/lib/vehicle/listing-identity";
 
 export type MarketValuation = {
   label: string;
@@ -9,7 +13,10 @@ export type MarketValuation = {
 export function marketValuation(
   raw: unknown,
   estimate: unknown,
+  identity?: ListingIdentity,
 ): MarketValuation {
+  if (identity && listingIdentityWarning(identity))
+    return { label: "Vehicle identity needs verification", supported: false };
   const unavailable = {
     label: "Resale needs comparable evidence",
     supported: false,

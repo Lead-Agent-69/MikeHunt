@@ -83,6 +83,7 @@ describe("Account navigation", () => {
       Array.from(host.querySelectorAll("nav a"), (a) => a.textContent?.trim()),
     ).toEqual([
       "Settings",
+      "Sources",
       "Upgrade",
       "Help & updates",
       "Buying preferences",

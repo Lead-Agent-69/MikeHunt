@@ -309,7 +309,11 @@ function ListingCard({
           </div>
           {row.damageType && (
             <div>
-              <dt className="text-[var(--t3)]">Reported damage</dt>
+              <dt className="text-[var(--t3)]">
+                {row.damageType.trim().toLowerCase() === "repairable"
+                  ? "Source category"
+                  : "Reported damage"}
+              </dt>
               <dd className="capitalize">
                 {row.damageType.replace(/_/g, " ")}
               </dd>
@@ -329,9 +333,16 @@ function ListingCard({
             </div>
           )}
         </dl>
+        {row.identityWarning && (
+          <p className="text-xs font-semibold text-[var(--amber-d)]">
+            {row.identityWarning}
+          </p>
+        )}
         {flipDesk && row.sellEstimate != null && (
           <p className="text-xs text-[var(--t3)]">
-            Estimated resale:{" "}
+            {row.valuationEvidence?.label.includes("asking-price")
+              ? "Comparable asking estimate: "
+              : "Estimated resale: "}
             <span className="font-semibold">
               {reportedPrice(row.sellEstimate)}
             </span>{" "}

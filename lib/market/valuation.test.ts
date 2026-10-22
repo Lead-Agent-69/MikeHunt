@@ -10,6 +10,19 @@ const asking = {
 };
 
 describe("Market valuation evidence", () => {
+  it("withholds even otherwise supported estimates when the listing identity conflicts", () => {
+    expect(
+      marketValuation(asking, 15000, {
+        title: "2024 Buick Allure Sport Touring",
+        year: 2024,
+        make: "Buick",
+        model: "Envista",
+      }),
+    ).toEqual({
+      label: "Vehicle identity needs verification",
+      supported: false,
+    });
+  });
   it.each([
     undefined,
     { source: "baseline" },
