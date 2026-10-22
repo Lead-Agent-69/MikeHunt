@@ -12,6 +12,7 @@ import { withScrapeRunScope } from "../run-scope-context";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.clearAllMocks();
 });
 describe("buyer-scoped aggregator searches", () => {
@@ -133,5 +134,59 @@ describe("buyer-scoped aggregator searches", () => {
         expect.objectContaining({ location_state: "MO" }),
       ]),
     );
+  });
+  it("caps a scoped response page before persistence", async () => {
+    vi.stubEnv("AUTOTEMPEST_MAX_RESULTS_PER_RUN", "2");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          results: [
+            {
+              id: "one",
+              price: 18000,
+              make: "Ford",
+              model: "Explorer",
+              year: 2020,
+              location: "St. Louis, MO",
+              url: "https://dealer.test/one",
+            },
+            {
+              id: "two",
+              price: 19000,
+              make: "Ford",
+              model: "Explorer",
+              year: 2021,
+              location: "St. Louis, MO",
+              url: "https://dealer.test/two",
+            },
+            {
+              id: "three",
+              price: 20000,
+              make: "Ford",
+              model: "Explorer",
+              year: 2022,
+              location: "St. Louis, MO",
+              url: "https://dealer.test/three",
+            },
+          ],
+        }),
+      }),
+    );
+    mocks.upsert.mockImplementation(async (rows: unknown[]) => rows.length);
+
+    expect(
+      await withScrapeRunScope({ state: "MO", make: "Ford" }, () =>
+        scrapeAutotempest(),
+      ),
+    ).toBe(2);
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ source_deal_id: "at-one" }),
+        expect.objectContaining({ source_deal_id: "at-two" }),
+      ]),
+    );
+    expect(mocks.upsert.mock.calls[0]?.[0]).toHaveLength(2);
   });
 });
