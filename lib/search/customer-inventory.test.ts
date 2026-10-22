@@ -6,7 +6,7 @@ import {
 } from "./customer-inventory";
 
 describe("customer inventory eligibility", () => {
-  it.each([1, 7, 30])(
+  it.each([1, 3, 7, 30])(
     "honors an explicit %i-day research window without accepting future rows",
     (days) => {
       const query: any = {};

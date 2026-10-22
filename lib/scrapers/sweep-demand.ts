@@ -18,7 +18,8 @@ import { orderSourcesByTier, sourceTier } from "./sweep-schedule";
  * See docs/USER-DRIVEN-SCRAPING.md §5.
  *
  *   score(state) = 10·ln(1 + D) + 2·min(H/24, 4) + 1/(1 + A/100)
- *     D = demand weight from scrape_demand (home 3·r, search 2·r, recent 1·e^(−age/3)),
+ *     D = demand weight from scrape_demand (saved/watchlist 8·r, saved search 5·r,
+ *         home 3·r, search 2·r, recent 1·e^(−age/3)),
  *         expanded through nearbyStates rings with weight · 1/(1+ring)
  *     H = hours since the state was last planned into a sweep (never = capped term)
  *     A = active listings in the state (thin states get a small bump)

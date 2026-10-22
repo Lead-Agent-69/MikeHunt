@@ -1,4 +1,5 @@
 import { parseTitleTypes } from "@/lib/deals/title-category";
+import { inventoryObservedDays } from "@/lib/search/inventory-freshness";
 import { VEHICLE_SPEC_OPTIONS } from "@/lib/vehicle/spec-filters";
 
 export type InventoryFilterField = {
@@ -162,6 +163,7 @@ export const INVENTORY_DETAIL_GROUPS: {
         label: "Last observed",
         options: [
           { value: "1", label: "Past 24 hours" },
+          { value: "3", label: "Past 3 days" },
           { value: "7", label: "Past 7 days" },
           { value: "30", label: "Past 30 days" },
         ],
@@ -315,8 +317,8 @@ export function applyExtendedFilters(
     q = q.or(
       "images.is.null,images.eq.{},options->photoAudit->>state.in.(placeholder,unavailable)",
     );
-  const days = Number(params.get("seenWithin"));
-  if ([1, 7, 30].includes(days))
+  const days = inventoryObservedDays(params.get("seenWithin"));
+  if (days)
     q = q.gte("last_seen_at", new Date(now - days * 86400000).toISOString());
   return q;
 }

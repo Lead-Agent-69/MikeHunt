@@ -110,6 +110,9 @@ describe("shared extended inventory filters", () => {
       "%2.0%",
     ]);
     expect(
+      record("seenWithin=3", Date.parse("2026-10-07T12:00:00Z")),
+    ).toContainEqual(["gte", "last_seen_at", "2026-10-04T12:00:00.000Z"]);
+    expect(
       record("availability=on_lot&assemblyCountry=United%20States"),
     ).toEqual([
       ["ilike", "assembly_country", "%United States%"],
