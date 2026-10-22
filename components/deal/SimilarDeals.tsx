@@ -10,6 +10,7 @@ import { sourceMeta } from "@/lib/sources/source-meta";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { reportedPrice } from "@/lib/deals/reported-price";
 import { ChevronDown } from "lucide-react";
+import { titleBadgeModel } from "@/lib/deals/title-badge-model";
 
 const fetcher = async (url: string) => {
   const response = await fetch(url);
@@ -109,9 +110,7 @@ export function SimilarDeals({ dealId }: { dealId: string }) {
                 ))}
               </ul>
               <p className="mt-2 text-[11px] text-[var(--t3)]">
-                {d.condition
-                  ? `${d.condition.replace(/_/g, " ")} reported`
-                  : "Condition unconfirmed"}
+                {titleBadgeModel(d).label}
               </p>
               {d.damageType && d.damageType !== "none" && (
                 <p className="text-[11px] text-[var(--t3)]">

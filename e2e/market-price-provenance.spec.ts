@@ -56,12 +56,10 @@ test.describe("Market title and bid provenance", () => {
       cards.nth(0).getByText(/Last observed bid; auction has ended/),
     ).toBeVisible();
     await expect(
-      cards
-        .nth(1)
-        .getByText("Title unconfirmed (reported by source)", { exact: true }),
+      cards.nth(1).getByText("Title unconfirmed", { exact: true }),
     ).toBeVisible();
     await expect(
-      cards.nth(2).getByText("Clean title", { exact: true }),
+      cards.nth(2).getByText("Reported clean title", { exact: true }),
     ).toBeVisible();
     await expect(cards.getByText(/Bidding is open/)).toHaveCount(0);
     expect(

@@ -40,11 +40,14 @@ export function AIBrief({ dealId }: { dealId: string }) {
     data?.deterministic ||
     data?.provider === "none",
   );
-  const providerLabel = deterministic
-    ? "Math fallback"
-    : data?.provider
-      ? `${String(data.provider).toUpperCase()} AI`
-      : "Provider AI";
+  const researchOnly = data?.evidenceReady === false;
+  const providerLabel = researchOnly
+    ? "Needs evidence"
+    : deterministic
+      ? "Math fallback"
+      : data?.provider
+        ? `${String(data.provider).toUpperCase()} AI`
+        : "Provider AI";
   const title = deterministic ? "Decision Brief" : "AI Brief";
 
   return (
@@ -75,13 +78,15 @@ export function AIBrief({ dealId }: { dealId: string }) {
             >
               {providerLabel}
             </span>
-            <button
-              onClick={generate}
-              disabled={generating}
-              className="text-[11px] font-semibold text-[var(--t4)] hover:text-[var(--amber)] disabled:opacity-50"
-            >
-              {generating ? "Refreshing…" : "Refresh"}
-            </button>
+            {data?.canGenerate !== false && (
+              <button
+                onClick={generate}
+                disabled={generating}
+                className="text-[11px] font-semibold text-[var(--t4)] hover:text-[var(--amber)] disabled:opacity-50"
+              >
+                {generating ? "Refreshing…" : "Refresh"}
+              </button>
+            )}
           </div>
         )}
       </div>

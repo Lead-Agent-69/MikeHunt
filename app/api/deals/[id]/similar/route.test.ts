@@ -119,6 +119,20 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     baseRow.value = true;
   });
 
+  it("carries only title provenance into alternative cards", async () => {
+    queryRows.rows = [{ ...ROW, title_source: "source_default" }];
+    const card = await load("personal");
+    expect(card.titleSource).toBe("source_default");
+    expect(card.options).toBeUndefined();
+    expect(
+      queryRows.filters.some(
+        (call) =>
+          call.method === "select" &&
+          call.args[0].includes("title_source:options->>titleSource"),
+      ),
+    ).toBe(true);
+  });
+
   it("hydrates reported truck identity before ranking without exposing raw title or trim", async () => {
     getServerUser.mockResolvedValue({
       data: { user: { id: "user-1" } },

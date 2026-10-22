@@ -160,7 +160,7 @@ it("shows an ended auction as a last observed bid", async () => {
 it.each([
   [undefined, "Title unconfirmed"],
   ["source_default", "Title unconfirmed"],
-  ["listing", "Clean title"],
+  ["listing", "Reported clean title"],
 ] as const)(
   "renders a clean-title claim with provenance %s",
   async (titleSource, label) => {

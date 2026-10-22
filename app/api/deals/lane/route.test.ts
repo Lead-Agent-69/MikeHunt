@@ -83,6 +83,7 @@ describe("GET /api/deals/lane", () => {
     const cols = calls.select.split(",").map((c) => c.trim());
     expect(calls.select).not.toContain("*");
     expect(cols).toContain("reference_only:options->>price_is_acv_estimate");
+    expect(cols).toContain("title_source:options->>titleSource");
     for (const c of [
       "embedding",
       "lat",

@@ -37,6 +37,8 @@ vi.mock("@/lib/supabase", () => ({
 }));
 
 import { GET } from "./route";
+import { briefCandidate } from "@/lib/deals/__fixtures__/brief-candidate";
+import { dealBriefEvidence } from "@/lib/deals/deal-brief-evidence";
 
 function request(userId: string, search: string) {
   getServerUser.mockResolvedValue({
@@ -98,10 +100,7 @@ describe("aiBrief overwrite ownership", () => {
   it("binds a new brief to the session user id", async () => {
     maybeSingle.mockResolvedValue({
       data: {
-        id: "deal-1",
-        deal_verdict: "hold",
-        ask_price: 10000,
-        deal_analysis: { costs: {} },
+        ...briefCandidate(),
       },
       error: null,
     });
@@ -113,16 +112,34 @@ describe("aiBrief overwrite ownership", () => {
     expect(update.mock.calls[0][0].deal_analysis.aiBrief).toBe(
       "replacement brief",
     );
+    expect(update.mock.calls[0][0].deal_analysis.aiBriefEvidenceKey).toMatch(
+      /^[a-f0-9]{64}$/,
+    );
+    expect(update.mock.calls[0][0].deal_analysis.aiBriefProvider).toBe(
+      "anthropic",
+    );
+    const prompt = generateText.mock.calls[0][0].prompt;
+    expect(prompt).toContain("Mileage reported: 0");
+    expect(prompt).toContain("Reported clean title");
+    expect(prompt).toContain(
+      "Holding cost per day and days to sell are not established",
+    );
+    expect(prompt).not.toContain("$30/day");
   });
 
   it("lets the owner refresh their own brief", async () => {
     maybeSingle.mockResolvedValue({
-      data: {
-        id: "deal-1",
-        deal_verdict: "go",
-        ask_price: 10000,
-        deal_analysis: { aiBrief: "old", aiBriefUserId: "user-a", costs: {} },
-      },
+      data: (() => {
+        const d = briefCandidate();
+        return {
+          ...d,
+          deal_analysis: {
+            ...d.deal_analysis,
+            aiBrief: "old",
+            aiBriefUserId: "user-a",
+          },
+        };
+      })(),
       error: null,
     });
 
@@ -146,12 +163,50 @@ describe("aiBrief overwrite ownership", () => {
       error: null,
     };
 
-    it("serves the cached brief to a saved dealer desk", async () => {
+    it("replaces unsupported cached profit claims with a current research checklist", async () => {
       maybeSingle.mockResolvedValue(cachedDeal);
       const res = await request("user-a", "");
       const body = await res.json();
       expect(res.status).toBe(200);
-      expect(body.brief).toContain("Net profit");
+      expect(body.brief).toContain("Needs evidence");
+      expect(body.brief).not.toContain("$4,100");
+      expect(body.canGenerate).toBe(false);
+      expect(generateText).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it("serves a matching evidence-qualified cache, but invalidates it when facts change", async () => {
+      const d = briefCandidate();
+      Object.assign(d.deal_analysis, {
+        aiBrief: "qualified estimate",
+        aiBriefUserId: "user-a",
+        aiBriefEvidenceKey: dealBriefEvidence(d).key,
+      });
+      maybeSingle.mockResolvedValue({ data: d, error: null });
+      const cached = await (await request("user-a", "")).json();
+      expect(cached.brief).toBe("qualified estimate");
+      expect(cached.cached).toBe(true);
+      d.ask_price = 11000;
+      const changed = await (await request("user-a", "")).json();
+      expect(changed.brief).not.toBe("qualified estimate");
+      expect(generateText).not.toHaveBeenCalled();
+    });
+
+    it("returns incomplete evidence on an explicit generate without spending tokens or writing", async () => {
+      maybeSingle.mockResolvedValue({
+        data: { id: "deal-1", deal_verdict: "go", true_net_profit: 4100 },
+        error: null,
+      });
+      const res = await request("user-b", "?generate=1");
+      const body = await res.json();
+      expect(res.status).toBe(200);
+      expect(body).toMatchObject({
+        evidenceReady: false,
+        canGenerate: false,
+        cached: false,
+      });
+      expect(generateText).not.toHaveBeenCalled();
+      expect(update).not.toHaveBeenCalled();
     });
 
     it.each([

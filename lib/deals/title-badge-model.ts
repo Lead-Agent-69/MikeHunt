@@ -133,7 +133,11 @@ export function titleBadgeModel(input: {
   const base = unconfirmed
     ? TITLE_UNCONFIRMED_LABEL
     : TITLE_CATEGORY_LABELS[detail.category];
-  const label = weak ? TITLE_UNCONFIRMED_LABEL : base;
+  const label = weak
+    ? TITLE_UNCONFIRMED_LABEL
+    : !unconfirmed && ["clean", "rebuilt", "salvage"].includes(detail.category)
+      ? `Reported ${base.toLowerCase()}`
+      : base;
   const tone: TitleBadgeTone = unconfirmed
     ? "amber"
     : weak

@@ -37,6 +37,7 @@ const LANE_COLUMNS = [
   "vin",
   "mileage",
   "condition",
+  "title_source:options->>titleSource",
   "damage_type",
   "ask_price",
   "buy_now_price",

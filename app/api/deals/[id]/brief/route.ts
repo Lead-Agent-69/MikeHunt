@@ -13,8 +13,20 @@ import {
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import {
+  buildResearchDealBrief,
+  dealBriefEvidence,
+} from "@/lib/deals/deal-brief-evidence";
+import { SOURCE_PRICE_FIELDS } from "@/lib/deals/source-price-context";
 
-// GET /api/deals/[id]/brief — a short, plain-English dealer brief for a deal: why the verdict, the
+// Desk-specific brief content must never enter a shared response cache.
+function briefJson(body: unknown, init?: ResponseInit) {
+  const headers = new Headers(init?.headers);
+  headers.set("Cache-Control", "private, no-store");
+  return NextResponse.json(body, { ...init, headers });
+}
+
+// GET /api/deals/[id]/brief â€” a short, plain-English dealer brief for a deal: why the verdict, the
 // real risks, and what to verify before bidding. Generated from the deal's own structured numbers
 // (no hallucinated specs), cached in deal_analysis.aiBrief so it's generated once per deal.
 //   ?refresh=1 regenerates.
@@ -62,6 +74,8 @@ export function aiBriefWriteDecision(
 }
 
 export function buildDeterministicDealBrief(d: any) {
+  const evidence = dealBriefEvidence(d);
+  if (!evidence.ready) return buildResearchDealBrief(d);
   const costs = d.deal_analysis?.costs || {};
   const verdict = String(d.deal_verdict || "hold")
     .replace(/_/g, " ")
@@ -72,9 +86,7 @@ export function buildDeterministicDealBrief(d: any) {
   const repair = Number(costs.repair || 0);
   const transport = Number(costs.transport || 0);
   const selling = Number(costs.selling || 0);
-  const title = d.condition
-    ? String(d.condition).replace(/_/g, " ")
-    : "unknown title";
+  const title = evidence.title.label;
   const damage = d.damage_type
     ? `${d.damage_type} damage`
     : "damage not specified";
@@ -88,7 +100,9 @@ export function buildDeterministicDealBrief(d: any) {
     repair || transport || selling
       ? `- Cost stack includes repair ${fmt(repair)}, transport ${fmt(transport)}, and selling ${fmt(selling)}; stale or low quotes can flip the math.`
       : "- Repair, transport, or selling costs are thin; treat profit as unproven until those quotes are real.",
-    d.mileage
+    typeof d.mileage === "number" &&
+    Number.isFinite(d.mileage) &&
+    d.mileage >= 0
       ? `- Mileage is ${Number(d.mileage).toLocaleString()} mi; compare against same-trim comps, not clean-title averages.`
       : "- Mileage is missing; resale estimate and max bid need verification before action.",
   ];
@@ -132,12 +146,12 @@ export async function GET(
   // dealer desk gets it; everyone else gets a hidden widget and generation is refused (fail closed).
   if (!(await resolveCallerFlipDesk())) {
     if (wantGenerate) {
-      return NextResponse.json(
+      return briefJson(
         { error: "The deal brief is part of the dealer desk." },
         { status: 403 },
       );
     }
-    return NextResponse.json({
+    return briefJson({
       brief: null,
       canGenerate: false,
       deskAccess: "personal",
@@ -148,23 +162,51 @@ export async function GET(
   const { data: d, error } = await supabase
     .from("deals")
     .select(
-      "id, year, make, model, trim, mileage, condition, damage_type, ask_price, sell_estimate, mmr_value, true_net_profit, recommended_max_bid, deal_verdict, profit_score, location_state, source, deal_analysis",
+      `id,year,make,model,trim,vin,active,title_source:options->>titleSource,sell_estimate,mmr_value,true_net_profit,recommended_max_bid,deal_verdict,profit_score,location_state,deal_analysis,${SOURCE_PRICE_FIELDS}`,
     )
     .eq("id", id)
     .maybeSingle();
 
   if (error || !d)
-    return NextResponse.json({ error: "Deal not found" }, { status: 404 });
+    return briefJson({ error: "Deal not found" }, { status: 404 });
 
-  // Serve cache unless refresh requested.
+  // Preserve ownership even when an obsolete brief is no longer eligible for display.
+  if (
+    wantGenerate &&
+    aiBriefWriteDecision(d.deal_analysis, callerUserId) === "reject"
+  ) {
+    return briefJson(
+      { error: "Only the brief owner can write this brief." },
+      { status: 403 },
+    );
+  }
+
+  const evidence = dealBriefEvidence(d);
+  if (!evidence.ready) {
+    return briefJson({
+      brief: buildResearchDealBrief(d),
+      cached: false,
+      canGenerate: false,
+      evidenceReady: false,
+      ...buildBriefModeMetadata({ hasProvider: false, provider: "none" }),
+      reason:
+        "Purchase evidence is incomplete. This checklist uses current listing facts; no AI generation or profit recommendation is available yet.",
+    });
+  }
+
+  // Reuse only a brief generated from the same evidence and economics.
   const cached = d.deal_analysis?.aiBrief;
-  if (cached && !refresh) {
-    return NextResponse.json({
+  if (
+    cached &&
+    d.deal_analysis?.aiBriefEvidenceKey === evidence.key &&
+    !refresh
+  ) {
+    return briefJson({
       brief: cached,
       cached: true,
       ...buildBriefModeMetadata({
-        hasProvider: hasTextModel(),
-        provider: activeProvider(),
+        hasProvider: true,
+        provider: d.deal_analysis.aiBriefProvider || "unknown",
         cached: true,
       }),
     });
@@ -172,7 +214,7 @@ export async function GET(
 
   // Plain view with no cache yet: tell the client a brief is available to generate (no tokens spent).
   if (!wantGenerate) {
-    return NextResponse.json({
+    return briefJson({
       brief: null,
       canGenerate: true,
       ...buildBriefModeMetadata({
@@ -182,18 +224,8 @@ export async function GET(
     });
   }
 
-  // The service-role client can update any deal. Bind the write to the session user
-  // and refuse a cross-user overwrite, including an unowned cached brief.
-  const writeDecision = aiBriefWriteDecision(d.deal_analysis, callerUserId);
-  if (writeDecision === "reject") {
-    return NextResponse.json(
-      { error: "Only the brief owner can write this brief." },
-      { status: 403 },
-    );
-  }
-
   if (!hasTextModel()) {
-    return NextResponse.json({
+    return briefJson({
       brief: buildDeterministicDealBrief(d),
       cached: false,
       ...buildBriefModeMetadata({ hasProvider: false, provider: "none" }),
@@ -203,34 +235,29 @@ export async function GET(
   }
 
   const costs = d.deal_analysis?.costs || {};
-  // Assuming $30/day floor plan/holding cost as a default baseline
-  const floorRate = 30;
-  // Fallback days to sell to 45 if not present
-  const estimatedDaysToSell = 45;
-  const breakEvenDay = Math.floor((d.true_net_profit || 0) / floorRate);
 
   const facts = [
     `Vehicle: ${[d.year, d.make, d.model, d.trim].filter(Boolean).join(" ")}`,
-    `Title/condition: ${d.condition || "unknown"}${d.damage_type ? `, ${d.damage_type} damage` : ""}`,
-    d.mileage ? `Mileage: ${d.mileage.toLocaleString()}` : null,
-    `Ask price: ${fmt(d.ask_price)}`,
+    `Title/condition: ${evidence.title.label}${d.damage_type ? `, ${d.damage_type} damage reported` : ""}`,
+    `Mileage reported: ${d.mileage.toLocaleString()}`,
+    `${evidence.price.label}: ${fmt(evidence.price.cashPrice)}`,
     `Estimated resale: ${fmt(d.sell_estimate ?? d.mmr_value)}`,
     `Engine verdict: ${(d.deal_verdict || "n/a").toUpperCase()} (profit score ${d.profit_score ?? "n/a"}/130)`,
     `Estimated net profit: ${fmt(d.true_net_profit)}`,
     `Recommended max bid: ${fmt(d.recommended_max_bid)}`,
-    `Estimated costs — transport ${fmt(costs.transport)}, recon/repair ${fmt(costs.repair)}, selling ${fmt(costs.selling)}`,
-    `Cash Flow Velocity metrics — Holding cost is ~$${floorRate}/day. Break-even happens at Day ${breakEvenDay}.`,
-    `Location: ${d.location_state || "n/a"} · Source: ${d.source || "n/a"}`,
+    `Estimated costs â€” transport ${fmt(costs.transport)}, recon/repair ${fmt(costs.repair)}, selling ${fmt(costs.selling)}`,
+    "Holding cost per day and days to sell are not established. Do not invent a break-even date or holding-cost rate.",
+    `Location: ${d.location_state || "n/a"} Â· Source: ${d.source || "n/a"}`,
   ]
     .filter(Boolean)
     .join("\n");
 
-  const prompt = `You are a ruthless Chief Financial Officer for a used-car dealership. Using ONLY the figures below (do not invent specs, history, or numbers), write a tight brief deciding whether to buy this vehicle to flip.
+  const prompt = `You are reviewing a used-vehicle purchase candidate. Using ONLY the figures below (do not invent specs, history, numbers or completed verification), write a short evidence-qualified research brief. Estimates are not guaranteed profit or approval to buy.
 
 ${facts}
 
 Respond in 3 short parts, plain text, no markdown headers:
-1) One sentence on why the engine reached its verdict, specifically focusing on cash flow velocity and whether holding costs will eat the margin.
+1) One sentence explaining the recorded estimate and its limitations.
 2) "Risks:" then 2-3 short bullet-style risks specific to this title/damage/price/location.
 3) "Verify:" then 2-3 concrete things to check before bidding.
 Keep it under 110 words. Be direct, financial, and practical.`;
@@ -258,6 +285,8 @@ Keep it under 110 words. Be direct, financial, and practical.`;
             aiBrief: brief,
             aiBriefAt: new Date().toISOString(),
             aiBriefUserId: callerUserId,
+            aiBriefEvidenceKey: evidence.key,
+            aiBriefProvider: activeProvider(),
           },
         })
         .eq("id", id);
@@ -265,7 +294,7 @@ Keep it under 110 words. Be direct, financial, and practical.`;
       // cache write is best-effort
     }
 
-    return NextResponse.json({
+    return briefJson({
       brief,
       cached: false,
       ...buildBriefModeMetadata({
@@ -275,6 +304,6 @@ Keep it under 110 words. Be direct, financial, and practical.`;
     });
   } catch (e: any) {
     console.error("[deal-brief] generation failed", e);
-    return NextResponse.json({ error: "Generation failed" }, { status: 500 });
+    return briefJson({ error: "Generation failed" }, { status: 500 });
   }
 }

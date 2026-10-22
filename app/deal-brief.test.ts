@@ -4,9 +4,10 @@ import {
   buildBriefModeMetadata,
   buildDeterministicDealBrief,
 } from "@/app/api/deals/[id]/brief/route";
+import { briefCandidate } from "@/lib/deals/__fixtures__/brief-candidate";
 
 describe("deterministic deal brief", () => {
-  it("builds a buyer brief from saved deal math when AI is offline", () => {
+  it("keeps unsupported saved math out of the research brief", () => {
     const brief = buildDeterministicDealBrief({
       deal_verdict: "pass",
       true_net_profit: -3473,
@@ -25,11 +26,20 @@ describe("deterministic deal brief", () => {
       },
     });
 
-    expect(brief).toContain("The engine says PASS");
+    expect(brief).toContain("Needs evidence");
     expect(brief).toContain("Risks:");
     expect(brief).toContain("Verify:");
     expect(brief).toContain("Mileage is missing");
-    expect(brief).toContain("Keep buy-in at or below $2,309");
+    expect(brief).not.toContain("$2,309");
+    expect(brief).not.toContain("$3,473");
+  });
+
+  it("uses reviewed current economics and preserves zero mileage", () => {
+    const brief = buildDeterministicDealBrief(briefCandidate());
+    expect(brief).toContain("The engine says GO");
+    expect(brief).toContain("Keep buy-in at or below $10,400");
+    expect(brief).toContain("Mileage is 0 mi");
+    expect(brief).toContain("Reported clean title");
   });
 
   it("labels fallback and provider modes explicitly", () => {

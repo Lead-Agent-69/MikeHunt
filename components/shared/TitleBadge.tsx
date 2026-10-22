@@ -53,10 +53,10 @@ export function TitleBadge({
   if (hideUnknown && m.category === "unknown" && !m.damage) return null;
   const pad =
     size === "md" ? "px-2.5 py-1 text-[11px]" : "px-2 py-0.5 text-[10px]";
-  const chip = `rounded-[var(--r1)] ${pad} font-bold uppercase tracking-wide whitespace-nowrap`;
+  const chip = `max-w-full break-words rounded-[var(--r1)] ${pad} font-bold uppercase tracking-wide`;
   return (
     <span
-      className={`inline-flex flex-wrap items-center gap-1 ${className}`}
+      className={`inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 ${className}`}
       data-title-category={m.category}
     >
       <span
