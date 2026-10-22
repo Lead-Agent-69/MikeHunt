@@ -78,7 +78,9 @@ it.each(["salvage_title", "rebuilt_title"])(
       }),
     );
     expect(html).toContain(
-      condition === "salvage_title" ? "Salvage title" : "Rebuilt title",
+      condition === "salvage_title"
+        ? "Reported salvage title"
+        : "Reported rebuilt title",
     );
     expect(html).not.toContain("Running status not reported");
     expect(html).not.toContain("Runs &amp; drives");
@@ -106,7 +108,7 @@ it("retains listing-reported clean titles without asserting verified operability
       deal: { ...listing, titleSource: "listing", sellerType: "dealer" },
     }),
   );
-  expect(html).toContain("Clean title");
+  expect(html).toContain("Reported clean title");
   expect(html).not.toContain("Title unconfirmed");
   expect(html).not.toContain("Runs &amp; drives");
 });
