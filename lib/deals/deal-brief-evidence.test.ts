@@ -59,5 +59,9 @@ describe("deal brief evidence", () => {
     expect(dealBriefEvidence(d).key).toBe(before);
     d.deal_analysis.costs.repair += 100;
     expect(dealBriefEvidence(d).key).not.toBe(before);
+    const beforeLocation = dealBriefEvidence(d).key;
+    expect(dealBriefEvidence({ ...d, location_state: "TX" }).key).not.toBe(
+      beforeLocation,
+    );
   });
 });

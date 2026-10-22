@@ -44,6 +44,7 @@ export function dealBriefEvidence(d: any) {
     listing: [
       d.source,
       d.source_url,
+      d.location_state,
       d.active,
       d.last_seen_at,
       d.auction_end_at,
