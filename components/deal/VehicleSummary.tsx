@@ -141,7 +141,14 @@ export function VehicleFacts({
       (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
     ],
     ...(auctionFacts || deal.damageType
-      ? [["Damage", deal.damageType?.replace(/_/g, " ") || "Not reported"]]
+      ? [
+          [
+            deal.damageType?.trim().toLowerCase() === "repairable"
+              ? "Source category"
+              : "Damage",
+            deal.damageType?.replace(/_/g, " ") || "Not reported",
+          ],
+        ]
       : []),
     ...(auctionFacts || typeof deal.runAndDrive === "boolean"
       ? [["Run and drive", reportedStatus(deal.runAndDrive)]]

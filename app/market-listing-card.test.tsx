@@ -41,6 +41,27 @@ const listing = (images: string[]): MarketListing => ({
   profitEstimate: 0,
   profitScore: 0,
 });
+it("does not present a generic repairable source category as a specific damage report", async () => {
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{ ...listing([]), damageType: "repairable" }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.textContent).toContain("Source category");
+  expect(host.textContent).not.toContain("Reported damage");
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{ ...listing([]), damageType: "Front end" }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.textContent).toContain("Reported damage");
+});
 beforeEach(() => {
   sessionStorage.clear();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);

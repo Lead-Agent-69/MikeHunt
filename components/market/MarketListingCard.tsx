@@ -295,7 +295,11 @@ function ListingCard({
           </div>
           {row.damageType && (
             <div>
-              <dt className="text-[var(--t3)]">Reported damage</dt>
+              <dt className="text-[var(--t3)]">
+                {row.damageType.trim().toLowerCase() === "repairable"
+                  ? "Source category"
+                  : "Reported damage"}
+              </dt>
               <dd className="capitalize">
                 {row.damageType.replace(/_/g, " ")}
               </dd>
