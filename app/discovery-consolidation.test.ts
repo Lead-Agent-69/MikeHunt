@@ -85,7 +85,12 @@ describe("discovery has one front door and contextual collections", () => {
         }),
       ),
     );
-    expect(host.querySelectorAll("a")).toHaveLength(4);
+    expect(
+      host.querySelectorAll('[aria-label="Inventory views"] a'),
+    ).toHaveLength(4);
+    expect(
+      host.querySelectorAll('[aria-label="Inventory freshness"] a'),
+    ).toHaveLength(3);
     expect(host.querySelectorAll('[aria-current="page"]')).toHaveLength(1);
     expect(host.querySelector('[aria-current="page"]')?.textContent).toContain(
       "Map",
@@ -94,6 +99,24 @@ describe("discovery has one front door and contextual collections", () => {
       expect(link.href).toContain("damage=front");
       expect(link.href).toContain("state=FL");
     }
+    const archive = host.querySelector<HTMLAnchorElement>(
+      '[aria-label="Inventory freshness"] a[href*="seenWithin=30"]',
+    );
+    expect(archive?.href).toContain("/map?");
+  });
+  it("opens older research in Results instead of widening Discover", () => {
+    act(() =>
+      root.render(
+        React.createElement(InventoryViewLinks, {
+          current: "/discover",
+          query: "state=FL",
+        }),
+      ),
+    );
+    const archive = host.querySelector<HTMLAnchorElement>(
+      '[aria-label="Inventory freshness"] a[href*="seenWithin=30"]',
+    );
+    expect(archive?.href).toContain("/market?");
   });
   it("preserves a collection's location and removes even legacy timer values from display", () => {
     state.data = {

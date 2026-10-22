@@ -2,8 +2,21 @@
 
 import React from "react";
 import Link from "next/link";
-import { Film, Layers, ListFilter, Map, ArrowRight } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  Clock3,
+  Film,
+  History,
+  Layers,
+  ListFilter,
+  Map,
+} from "lucide-react";
 import { INVENTORY_DETAIL_FIELDS } from "@/lib/search/extended-inventory-filters";
+import {
+  INVENTORY_FRESHNESS_OPTIONS,
+  inventoryFreshnessOption,
+} from "@/lib/search/inventory-freshness";
 import { inventoryViewParams } from "@/lib/search/inventory-view-scope";
 import { MAX_RADIUS_MI } from "@/lib/search/zip-radius-scope";
 
@@ -13,6 +26,12 @@ const VIEWS = [
   { path: "/feed", label: "Feed", Icon: Film },
   { path: "/swipe", label: "Swipe", Icon: Layers },
 ];
+
+const FRESHNESS_ICONS = {
+  "3": Clock3,
+  "7": History,
+  "30": Archive,
+} as const;
 
 export function InventoryViewNotice({
   title,
@@ -71,6 +90,7 @@ export function InventoryViewLinks({
     (wideRadius ||
       (params.get("hasPhotos") === "no" && ["/feed", "/swipe"].includes(path)));
   params.set("scope", "explicit");
+  const selectedFreshness = inventoryFreshnessOption(params.get("seenWithin"));
   // Empty explicit values prevent saved defaults from silently changing a shared search.
   if (current === "/market") {
     for (const key of [
@@ -120,6 +140,35 @@ export function InventoryViewLinks({
           </Link>
         ))}
       </nav>
+      <nav
+        aria-label="Inventory freshness"
+        className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-1 sm:w-auto"
+      >
+        {INVENTORY_FRESHNESS_OPTIONS.map((option) => {
+          const next = new URLSearchParams(params);
+          next.set("seenWithin", option.value);
+          const active = selectedFreshness.value === option.value;
+          const Icon = FRESHNESS_ICONS[option.value];
+          return (
+            <Link
+              key={option.value}
+              href={`${current === "/discover" ? "/market" : current}?${next.toString()}`}
+              prefetch={false}
+              aria-current={active ? "true" : undefined}
+              title={option.description}
+              className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-center text-[11px] font-semibold ${active ? "bg-[var(--s2)] text-[var(--blue)]" : "text-[var(--t2)] hover:text-[var(--t1)]"}`}
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate">{option.label}</span>
+                <span className="block text-[10px] font-medium text-[var(--t3)]">
+                  {option.shortLabel}
+                </span>
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
       {wideRadius && (
         <p role="status" className="w-full text-xs text-[var(--t2)]">
           Map, Feed and Swipe support up to {MAX_RADIUS_MI} miles. Your wider
@@ -132,10 +181,10 @@ export function InventoryViewLinks({
           Swipe require photos.
         </p>
       )}
-      {["7", "30"].includes(params.get("seenWithin") || "") && (
+      {selectedFreshness.value !== "3" && (
         <p role="status" className="w-full text-xs text-[var(--t2)]">
-          Includes older observations. Confirm current price and availability
-          with the seller.
+          {selectedFreshness.description}. Older observations never count as a
+          current buying recommendation until refreshed.
         </p>
       )}
       {current !== "/discover" && (

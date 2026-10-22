@@ -81,6 +81,25 @@ describe("photo-first inventory previews", () => {
     expect(ready).not.toContain('aria-busy="true"');
     expect(ready).toContain("states=MO");
   });
+  it("makes fresh, recent and archive inventory explicit across views", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query: "states=MO&seenWithin=7",
+        current: "/feed",
+      }),
+    );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    const freshness = host.querySelector('[aria-label="Inventory freshness"]')!;
+    expect(freshness.querySelectorAll("a")).toHaveLength(3);
+    expect(freshness.textContent).toContain("Fresh");
+    expect(freshness.textContent).toContain("Recent");
+    expect(freshness.textContent).toContain("Archive");
+    expect(
+      freshness.querySelector('[aria-current="true"]')?.textContent,
+    ).toContain("Recent");
+    expect(html).toContain("never count as a current buying recommendation");
+  });
   it("swipe shows photo paging and payment meaning without a made-up buy recommendation", () => {
     const html = renderToStaticMarkup(
       createElement(SwipeVehicleFace, {

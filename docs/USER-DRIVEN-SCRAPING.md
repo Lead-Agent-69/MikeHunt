@@ -170,7 +170,7 @@ For each state `s`:
 - `T` = target revisit time, 24h
 
 ```
-score(s) = 10 · ln(1 + D(s))           demand: home > search > recently searched
+score(s) = 10 · ln(1 + D(s))           demand: saved/watchlist > saved search > home > search > recent
          +  2 · min(H(s) / T, 4)       staleness
          +  1 / (1 + A(s) / 100)       thin inventory
 ```
@@ -225,12 +225,12 @@ Sources run in this order, and the daily insert budget is spent in the same orde
 Measured: about 3 KB of JSON per `deals` row (100-row samples per source). Estimated: about 4 KB on disk
 once indexes are included.
 
-| Budget            | Setting                                                    | Effect                         |
-| ----------------- | ---------------------------------------------------------- | ------------------------------ |
-| New rows          | `MAX_DAILY_INSERTS=1250` (pauses at 80% = 1,000/day)       | ≤ 1,000 rows/day               |
-| Changed rows      | `MAX_DAILY_UPDATES=2500` (2,000/day)                       | price and content changes      |
-| Freshness touches | `MAX_DAILY_TOUCHES=20000`, at most once per row per 12h    | `last_seen_at` only, no egress |
-| Retention         | nightly cron: inactive after 30d unseen, deleted after 60d | caps table size                |
+| Budget            | Setting                                                                | Effect                                          |
+| ----------------- | ---------------------------------------------------------------------- | ----------------------------------------------- |
+| New rows          | `MAX_DAILY_INSERTS=1250` (pauses at 80% = 1,000/day)                   | ≤ 1,000 rows/day                                |
+| Changed rows      | `MAX_DAILY_UPDATES=2500` (2,000/day)                                   | price and content changes                       |
+| Freshness touches | `MAX_DAILY_TOUCHES=20000`, at most once per row per 12h                | `last_seen_at` only, no egress                  |
+| Retention         | nightly cron: inactive after 30d unseen, unreferenced delete after 90d | caps table size while protecting saved research |
 
 The measured database-size guard is authoritative over the daily row budget. Below 350 MB the
 worker may use the full configured intake. From 350 MB through 449 MB it automatically falls back to

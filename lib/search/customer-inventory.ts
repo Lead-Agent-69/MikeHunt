@@ -1,5 +1,6 @@
 import { STALE_AFTER_HOURS } from "@/lib/deals/freshness";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { inventoryObservedDays } from "@/lib/search/inventory-freshness";
 
 /** Default to current photo-backed inventory; explicit research may widen to at most 30 days. */
 export function applyCustomerInventory<T>(
@@ -8,6 +9,7 @@ export function applyCustomerInventory<T>(
   options: { includeWithoutPhotos?: boolean; observedDays?: number } = {},
 ): T {
   let scoped = query as any;
+  const observedDays = inventoryObservedDays(options.observedDays);
   if (!options.includeWithoutPhotos)
     scoped = scoped
       .not("images", "is", null)
@@ -20,10 +22,7 @@ export function applyCustomerInventory<T>(
       "last_seen_at",
       new Date(
         now -
-          ([1, 7, 30].includes(options.observedDays ?? 0)
-            ? options.observedDays! * 24
-            : STALE_AFTER_HOURS) *
-            3_600_000,
+          (observedDays ? observedDays * 24 : STALE_AFTER_HOURS) * 3_600_000,
       ).toISOString(),
     )
     .lte("last_seen_at", new Date(now).toISOString());

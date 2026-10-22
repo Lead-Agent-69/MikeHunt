@@ -56,6 +56,10 @@ import {
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { sourceMatchLabel } from "@/lib/search/source-coverage";
 import { parseTitleTypes } from "@/lib/deals/title-category";
+import {
+  INVENTORY_FRESHNESS_OPTIONS,
+  inventoryFreshnessOption,
+} from "@/lib/search/inventory-freshness";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -663,13 +667,6 @@ export default function MarketPage() {
       onToggle: () => setDetail("buyNow", details.buyNow === "1" ? "" : "1"),
     },
     {
-      key: "seen-today",
-      label: "Seen today",
-      active: details.seenWithin === "1",
-      onToggle: () =>
-        setDetail("seenWithin", details.seenWithin === "1" ? "" : "1"),
-    },
-    {
       key: "photos",
       label: "Has photos",
       active: details.hasPhotos === "yes",
@@ -746,7 +743,7 @@ export default function MarketPage() {
       <section
         aria-label="Everyday search filters"
         aria-busy={!ready}
-        className="flex snap-x gap-2 overflow-x-auto border-b border-[var(--b1)] py-1 sm:grid sm:grid-cols-2 sm:overflow-visible sm:py-3 md:grid-cols-3 lg:grid-cols-6"
+        className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-2 sm:py-3 md:grid-cols-3 lg:grid-cols-7"
       >
         {(
           [
@@ -758,7 +755,7 @@ export default function MarketPage() {
         ).map(([key, label, value, placeholder]) => (
           <label
             key={key}
-            className="w-36 shrink-0 snap-start text-xs font-semibold text-[var(--t2)] sm:w-auto sm:min-w-0"
+            className="min-w-0 text-xs font-semibold text-[var(--t2)]"
           >
             {label}
             <input
@@ -782,7 +779,7 @@ export default function MarketPage() {
             />
           </label>
         ))}
-        <label className="w-40 shrink-0 snap-start text-xs font-semibold text-[var(--t2)] sm:w-auto sm:min-w-0">
+        <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
           Source or dealer
           <select
             aria-label="Quick source or dealer"
@@ -822,6 +819,27 @@ export default function MarketPage() {
             ) : null}
           </select>
         </label>
+        <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+          Inventory age
+          <select
+            aria-label="Inventory freshness"
+            disabled={!ready || busy}
+            value={inventoryFreshnessOption(details.seenWithin).value}
+            onChange={(event) =>
+              setDetail(
+                "seenWithin",
+                event.target.value === "3" ? "" : event.target.value,
+              )
+            }
+            className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+          >
+            {INVENTORY_FRESHNESS_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label} - {option.shortLabel}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           onClick={() => {
@@ -829,15 +847,16 @@ export default function MarketPage() {
             setShowInsights(false);
           }}
           disabled={!ready}
-          className="min-h-11 w-32 shrink-0 snap-start self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold sm:w-auto"
+          className="col-span-2 min-h-11 w-full self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold md:col-span-1"
         >
           All filters
         </button>
       </section>
-      {["7", "30"].includes(details.seenWithin) && (
+      {inventoryFreshnessOption(details.seenWithin).value !== "3" && (
         <p role="status" className="text-xs text-[var(--t3)]">
-          Includes older observations. Confirm current price and availability
-          with the seller.
+          {inventoryFreshnessOption(details.seenWithin).description}. Older
+          observations never count as a current buying recommendation until
+          refreshed.
         </p>
       )}
       <nav
