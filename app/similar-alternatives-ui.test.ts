@@ -45,7 +45,7 @@ describe("alternative feedback", () => {
             model: "Camry",
             dealVerdict: "go",
             matchReasons: ["Same year"],
-            condition: "salvage",
+            condition: "salvage_title",
           },
         ],
       },
@@ -53,7 +53,7 @@ describe("alternative feedback", () => {
     const html = render();
     expect(html).toContain("Current bid");
     expect(html).toContain("Same year");
-    expect(html).toContain("salvage reported");
+    expect(html).toContain("Reported salvage title");
     expect(html).not.toContain(">go<");
     expect(html).not.toContain("AI-matched");
   });
@@ -86,7 +86,7 @@ describe("alternative feedback", () => {
             askPrice: 500,
             model: "Camry",
             matchReasons: ["Same year"],
-            condition: "salvage",
+            condition: "salvage_title",
             damageType: "front_end",
             lastSeenAt: "2026-10-12T00:00:00Z",
           },

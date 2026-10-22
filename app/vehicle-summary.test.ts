@@ -5,6 +5,42 @@ import { VehicleSummary } from "@/components/deal/VehicleSummary";
 import { readFileSync } from "node:fs";
 
 describe("first-screen listing facts", () => {
+  it.each([
+    [{ condition: "clean_title" }, "Title unconfirmed"],
+    [
+      { condition: "clean_title", titleSource: "source_default" },
+      "Title unconfirmed",
+    ],
+    [
+      { condition: "clean_title", titleSource: "listing" },
+      "Reported clean title",
+    ],
+    [
+      { condition: "clean_title", titleSource: "listing", damageType: "flood" },
+      "Title unconfirmed",
+    ],
+    [{ titleType: "clean", titleSource: "listing" }, "Reported clean title"],
+    [
+      {
+        condition: "salvage_title",
+        titleType: "clean",
+        titleSource: "listing",
+      },
+      "Reported salvage title",
+    ],
+  ])(
+    "qualifies the displayed title using provenance and condition: %j",
+    (deal, expected) => {
+      const host = document.createElement("div");
+      host.innerHTML = renderToStaticMarkup(
+        React.createElement(VehicleSummary, { deal }),
+      );
+      const titleFact = Array.from(host.querySelectorAll("dt")).find(
+        (dt) => dt.textContent === "Title / condition",
+      );
+      expect(titleFact?.nextElementSibling?.textContent).toBe(expected);
+    },
+  );
   it("never labels an unverified dealer amount as a confirmed asking price", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {

@@ -46,7 +46,7 @@ it("shows sourced claims and specific gaps without presenting quality as accurac
     }),
   );
   // Legacy snapshot titleType "salvage" reads through the shared TitleBadge.
-  expect(html).toContain("Salvage title");
+  expect(html).toContain("Reported salvage title");
   expect(html).toContain("front end");
   expect(html).toContain("Still needed:");
   expect(html).toContain("VIN");

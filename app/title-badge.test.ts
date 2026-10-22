@@ -18,7 +18,7 @@ describe("TitleBadge model (Amy's title-category helper underneath)", () => {
     expect(
       titleBadgeModel({ condition: "clean_title", titleSource: "listing" })
         .label,
-    ).toBe("Clean title");
+    ).toBe("Reported clean title");
     expect(titleBadgeModel({ condition: "rebuilt_title" }).category).toBe(
       "rebuilt",
     );
@@ -58,6 +58,7 @@ describe("TitleBadge model (Amy's title-category helper underneath)", () => {
       titleSource: "listing",
     });
     expect(strong.weak).toBe(false);
+    expect(strong.label).toBe("Reported salvage title");
     expect(strong.tone).toBe("red");
   });
   it("does not present a catalog-wide clean default as a vehicle title report", () => {

@@ -12,6 +12,7 @@ import {
 import { fetchSemanticSimilar } from "@/lib/deals/similar-deals";
 import { similarSegment } from "@/lib/deals/similar-prefilters";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { titleSourceOf } from "@/lib/deals/title-category";
 import {
   sourcePriceContext,
   SOURCE_PRICE_FIELDS,
@@ -35,6 +36,7 @@ function mapRow(d: any) {
     priceContext: sourcePriceContext(d),
     mileage: d.mileage,
     condition: d.condition,
+    titleSource: titleSourceOf(d),
     damageType: d.damage_type,
     dealVerdict: d.deal_verdict,
     trueNetProfit:
@@ -73,7 +75,7 @@ export async function GET(
     return flipDesk ? card : redactListingForNonFlipDesk(card);
   };
 
-  const columns = `id,year,make,model,trim,deal_verdict,true_net_profit,sell_estimate,profit_score,location_state,location_city,images,active,vin,${SOURCE_PRICE_FIELDS}`;
+  const columns = `id,year,make,model,trim,deal_verdict,true_net_profit,sell_estimate,profit_score,location_state,location_city,images,active,vin,title_source:options->>titleSource,${SOURCE_PRICE_FIELDS}`;
   const { data: base, error: baseError } = await supabase
     .from("deals")
     .select(columns)

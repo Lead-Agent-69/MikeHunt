@@ -15,6 +15,7 @@ import { tableHealthCopy } from "@/lib/sources/table-health-copy";
 import type { MarketPrice } from "@/lib/market/explorer";
 import { proxiedImage } from "@/lib/image-url";
 import { reportedPrice } from "@/lib/deals/reported-price";
+import { titleBadgeModel } from "@/lib/deals/title-badge-model";
 
 // Dense, sortable table view — the fastest way to scan many lots (Visor "table view", done better:
 // sticky header, GPU-only hover transitions, and content-visibility so 500+ rows stay 60fps).
@@ -35,6 +36,7 @@ export interface TableRow {
   recommendedMaxBid?: number;
   locationState?: string;
   condition?: string;
+  titleSource?: string | null;
   damageType?: string;
   titleType?: string;
   vin?: string;
@@ -381,7 +383,7 @@ export function DealTable({
                     <span className="truncate text-[11px] text-[var(--t4)]">
                       {[
                         r.trim,
-                        r.condition ? r.condition.replace(/_/g, " ") : null,
+                        titleBadgeModel(r).label,
                         r.locationState,
                         (() => {
                           const fs = (r as any).firstSeenAt;

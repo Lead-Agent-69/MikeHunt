@@ -7,6 +7,10 @@ import { needsOperabilityFacts } from "@/lib/deals/condition-display";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { vehicleLocation } from "@/lib/search/vehicle-location";
 import { listingIdentityWarning } from "@/lib/vehicle/listing-identity";
+import {
+  conditionFromTitleType,
+  titleBadgeModel,
+} from "@/lib/deals/title-badge-model";
 
 type ListingFacts = {
   title?: string;
@@ -21,6 +25,7 @@ type ListingFacts = {
   locationCity?: string;
   locationState?: string;
   titleType?: string;
+  titleSource?: string | null;
   condition?: string;
   damageType?: string;
   vin?: string;
@@ -126,6 +131,10 @@ export function VehicleFacts({
   compact?: boolean;
 }) {
   const auctionFacts = needsOperabilityFacts(deal);
+  const title = titleBadgeModel({
+    ...deal,
+    condition: deal.condition || conditionFromTitleType(deal.titleType),
+  });
   const facts = [
     ["Location", vehicleLocation(deal.locationCity, deal.locationState)],
     [
@@ -136,10 +145,7 @@ export function VehicleFacts({
         ? `${deal.mileage.toLocaleString()} mi`
         : "Not reported",
     ],
-    [
-      "Title / condition",
-      (deal.titleType || deal.condition)?.replace(/_/g, " ") || "Not reported",
-    ],
+    ["Title / condition", title.label],
     ...(auctionFacts || deal.damageType
       ? [
           [

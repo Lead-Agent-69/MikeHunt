@@ -15,6 +15,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import { reportedPrice } from "@/lib/deals/reported-price";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
+import { titleBadgeModel } from "@/lib/deals/title-badge-model";
 
 async function fetchLaneDeals(
   vins: string[] | null,
@@ -368,7 +369,13 @@ export default function LaneModePage() {
                   <span>VIN: {activeDeal.vin}</span>
                   <span>·</span>
                   <span className="capitalize">
-                    {activeDeal.condition?.replace("_", " ")}
+                    {
+                      titleBadgeModel({
+                        condition: activeDeal.condition,
+                        damageType: activeDeal.damage_type,
+                        titleSource: activeDeal.title_source,
+                      }).label
+                    }
                   </span>
                 </div>
               </div>
@@ -412,6 +419,7 @@ export default function LaneModePage() {
             <TitleBadge
               condition={activeDeal.condition}
               damageType={activeDeal.damage_type}
+              titleSource={activeDeal.title_source}
             />
             {economicsEvidenceReady(activeDeal.deal_analysis) ? (
               <>

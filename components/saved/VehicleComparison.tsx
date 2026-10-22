@@ -17,6 +17,7 @@ import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { needsOperabilityFacts } from "@/lib/deals/condition-display";
+import { titleBadgeModel } from "@/lib/deals/title-badge-model";
 
 type Candidate = {
   id: string;
@@ -30,6 +31,7 @@ type Candidate = {
   title?: string;
   mileage?: number;
   condition?: string;
+  titleSource?: string | null;
   lastSeenAt?: string;
   active?: boolean;
   auctionEndAt?: string;
@@ -275,9 +277,8 @@ export function VehicleComparison({
         c.mileage == null ? "Not reported" : `${c.mileage.toLocaleString()} mi`,
     },
     {
-      label: "Condition reported",
-      value: (c) =>
-        c.condition ? c.condition.replace(/_/g, " ") : "Not confirmed",
+      label: "Title / condition",
+      value: (c) => titleBadgeModel(c).label,
     },
     {
       label: "Repair allowance (estimate)",

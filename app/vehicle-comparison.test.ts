@@ -83,6 +83,43 @@ describe("shortlist comparison", () => {
     expect(html).toContain("Incomplete: verify fees");
     expect(html).not.toContain("Best buy");
   });
+  it("agrees on reported and unconfirmed titles in both responsive presentations", () => {
+    swr.result.data.cars = [
+      { ...car, id: "legacy", condition: "clean_title" },
+      {
+        ...car,
+        id: "reported",
+        condition: "clean_title",
+        titleSource: "listing",
+      },
+      {
+        ...car,
+        id: "default",
+        condition: "rebuilt_title",
+        titleSource: "source_default",
+      },
+    ];
+    const host = document.createElement("div");
+    host.innerHTML = render();
+    const desktopRow = Array.from(host.querySelectorAll("tbody tr")).find(
+      (row) => row.querySelector("th")?.textContent === "Title / condition",
+    );
+    const phoneRow = Array.from(host.querySelectorAll("section")).find(
+      (row) => row.querySelector("h2")?.textContent === "Title / condition",
+    );
+    const desktop = Array.from(desktopRow?.querySelectorAll("td") || []).map(
+      (cell) => cell.textContent,
+    );
+    const phone = Array.from(phoneRow?.querySelectorAll("dd") || []).map(
+      (cell) => cell.textContent,
+    );
+    expect(phone).toEqual(desktop);
+    expect(desktop).toEqual([
+      "Title unconfirmed",
+      "Reported clean title",
+      "Title unconfirmed",
+    ]);
+  });
   it("labels ended auctions without removing saved history", () => {
     swr.result.data.cars = [{ ...car, auctionEndAt: "2020-01-01" }];
     expect(render()).toContain("Auction ended");
