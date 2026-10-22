@@ -79,7 +79,7 @@ describe("organized inventory detail controls", () => {
       "Run & drive reported: Not reported",
     );
     expect(groups[3].querySelector("summary")?.textContent).toContain(
-      "Photos: Available",
+      "Photos: Vehicle photos only",
     );
   });
 
