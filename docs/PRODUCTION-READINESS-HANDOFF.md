@@ -11,6 +11,28 @@ It reconciles the agent queue, #367 local collector receipt and #369 payment-pri
 release with the outstanding hosted/device/permission gates. Older snapshots
 below remain historical evidence, not current access or deployment claims.
 
+## October 22 Runtime Closure Update
+
+- Production and the Docker scraper now share one VAPID identity. Both
+  `/api/push/status` and the service-role worker check returned configured, with
+  zero existing push subscriptions at rotation time. The private key remains
+  outside Git; the locked `app_secrets` fallback protects worker recovery. This
+  proves configuration, not delivery to a physical device.
+- The October 22 scraper rollout verified revision
+  `9b94dc3bce1b909c8fdf962888f25c3ede30af1e` in image
+  `sha256:5c21c0ea744a222f49a0bdf1c280a168b496fae257ec8361894c53e9905b8872`.
+  Cache, logs, profiles, source overlays and the 1,000 insert / 2,000 update
+  counters survived recreation. No quota reset or forced collection was used.
+- The live storage meter reports 315,485,331 database bytes. Supabase usage shows
+  0.331 / 0.5 GB database size and 3.209 / 5 GB egress for the current cycle.
+  The worker slows new intake at 350 MB and stops new inserts at 450 MB; protected
+  records remain untouched and permanent listing cleanup remains inactive.
+- The encrypted off-device export and isolated restore proof are complete. The
+  recovery identity still needs independent owner-controlled custody before
+  device-loss recovery or permanent cleanup can be certified.
+- Resend API/webhook credentials and actual email delivered/bounced receipts are
+  still absent. Do not describe email or physical-device push as verified.
+
 ## Latest CLI Verification
 
 October 11 evening update: the user explicitly authorized checking the existing
