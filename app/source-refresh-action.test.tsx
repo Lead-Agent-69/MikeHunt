@@ -170,6 +170,15 @@ it("does not call a monitoring timeout a completed or cancelled search", async (
   await click();
   expect(host.textContent).toContain("may still be running");
   expect(host.textContent).not.toContain("Search finished");
+  const reload = Array.from(
+    host.querySelectorAll<HTMLButtonElement>("button"),
+  ).find((button) => button.textContent?.includes("Refresh available matches"));
+  expect(reload).toBeDefined();
+  settled.mockClear();
+  await act(async () => reload!.click());
+  expect(settled).toHaveBeenCalledOnce();
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(pollScopedScrapeJob).toHaveBeenCalledTimes(1);
 });
 
 it("aborts old monitoring on a scope change and ignores a late response", async () => {
