@@ -2,6 +2,7 @@
 // ─── Facebook Marketplace scraper (requires login / heavy anti-bot) ───────────
 
 import type { Deal } from "@/types";
+import { retailTitleCondition } from "./retail-evidence";
 import * as cheerio from "cheerio";
 import {
   paginate,
@@ -84,6 +85,9 @@ export async function scrapeFacebookMarketplace(
               .attr("src");
             const itemId =
               link?.split("/marketplace/item/")[1]?.split("/")[0] || "";
+            const statedCondition = retailTitleCondition(
+              `${title} ${descriptionText}`,
+            );
 
             items.push({
               source: "facebook_marketplace",
@@ -97,7 +101,8 @@ export async function scrapeFacebookMarketplace(
               model: title.split(" ").slice(2, 4).join(" ") || "",
               ask_price: price,
               mileage: extractMileage(descriptionText),
-              condition: "clean",
+              condition: statedCondition,
+              ...(statedCondition ? { title_source: "listing" as const } : {}),
               location_city: locationText,
               images: imgSrc ? [imgSrc] : [],
               description: descriptionText,

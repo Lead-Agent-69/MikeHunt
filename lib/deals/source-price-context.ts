@@ -109,7 +109,10 @@ export function sourcePriceContext(row: SourcePriceRow, now = Date.now()) {
     ]).length === 1;
   return {
     kind,
-    label: LABELS[kind],
+    label:
+      kind === "current_bid" && (!row.auction_end_at || !open)
+        ? "Last observed bid"
+        : LABELS[kind],
     amount,
     advertisedAmount,
     cashPrice,

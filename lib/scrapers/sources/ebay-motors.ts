@@ -6,6 +6,7 @@
 // pipeline's normalizeDeal re-derives make/model from the title and gates unknown makes.
 
 import type { Deal } from "@/types";
+import { retailTitleCondition } from "./retail-evidence";
 import * as cheerio from "cheerio";
 import {
   paginate,
@@ -95,6 +96,7 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
       .split(/\s+/);
     const make = after[0] || "";
     const model = after.slice(1, 3).join(" ");
+    const statedCondition = retailTitleCondition(title);
 
     items.push({
       source: "ebay_motors",
@@ -108,7 +110,8 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
       model,
       ask_price: price,
       mileage: extractMileage(subtitle),
-      condition: "clean",
+      condition: statedCondition,
+      ...(statedCondition ? { title_source: "listing" as const } : {}),
       images: img ? [img] : [],
       seller_type: "dealer",
       scraped_at: new Date().toISOString(),

@@ -40,7 +40,8 @@ describe("parseAutotraderNextData", () => {
     expect(d.vin).toBe("1HGCV1F30JA000000");
     expect(d.ask_price).toBe(24000);
     expect(d.mileage).toBe(45000);
-    expect(d.condition).toBe("clean");
+    expect(d.condition).toBeUndefined();
+    expect(d.title_source).toBeUndefined();
     expect(d.source_url).toContain("autotrader.com");
   });
 

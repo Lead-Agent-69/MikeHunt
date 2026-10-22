@@ -5,6 +5,7 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { retailMileage } from "./retail-evidence";
 
 const CARVANA_API = "https://apik.carvana.io/merch/search/api/v2/search";
 const UA =
@@ -58,7 +59,7 @@ export function parseCarvanaVehicles(json: any): Partial<Deal>[] {
       trim,
       vin,
       ask_price: price,
-      mileage: Number(v.mileage) || 0,
+      mileage: retailMileage(v.mileage),
       condition: "clean", // Carvana is reconditioned clean-title retail
       images: img ? [img] : [],
       seller_type: "dealer",

@@ -32,7 +32,9 @@ import { SourceBadge } from "@/components/shared/SourceBadge";
 import {
   nonCashPriceLabel,
   priceEvidenceLabel,
+  positivePrice,
 } from "@/lib/deals/acquisition-price";
+import { hasOpenPriceWindow } from "@/lib/deals/price-observation";
 
 // Short, glanceable lane labels ΓÇö the channel/risk a dealer reads instantly (color from the API).
 const LANE_LABELS: Record<string, string> = {
@@ -108,12 +110,19 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const external = href.startsWith("http");
   const isSaved = bookmark.saved;
   const evidence = discoveryEvidence(deal);
-  const priceLabel =
+  const reportedPriceLabel =
     priceEvidenceLabel(deal.priceEvidence) ||
     ("saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel);
+  const priceLabel =
+    reportedPriceLabel === "Current bid" &&
+    (!deal.auctionEndAt || !hasOpenPriceWindow(deal.auctionEndAt))
+      ? "Last observed bid"
+      : reportedPriceLabel;
   const displayAmount = nonCashPriceLabel(deal.priceEvidence)
     ? deal.priceEvidence?.listedAmount || 0
-    : deal.askPrice;
+    : deal.priceEvidence?.kind === "current_bid"
+      ? (positivePrice(deal.priceEvidence.currentBid) ?? deal.askPrice)
+      : deal.askPrice;
   const displayPrice =
     Number.isFinite(displayAmount) && displayAmount > 0
       ? `$${displayAmount.toLocaleString()}`

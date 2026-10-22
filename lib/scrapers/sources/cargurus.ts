@@ -13,6 +13,11 @@ import { getScrapeRunScope } from "../run-scope-context";
 import { buyerListingSearchText } from "../buyer-scope";
 import { buyerSearchCenters } from "../search-centers";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
+import {
+  retailMileage,
+  retailMoney,
+  retailTitleCondition,
+} from "./retail-evidence";
 
 const LISTING_STATES = new Set<string>([...US_STATES, "DC"]);
 
@@ -61,9 +66,8 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
   const items: Partial<Deal>[] = [];
   for (const l of Array.isArray(listings) ? listings : []) {
     if (!l || typeof l !== "object") continue;
-    const price = num(
-      l.price ?? l.expectedPrice ?? l.priceNumber ?? l.listPrice,
-    );
+    const reportedPrice = l.price ?? l.priceNumber ?? l.listPrice;
+    const price = retailMoney(reportedPrice ?? l.expectedPrice);
     const vin = str(l.vin) || str(l.vinNumber);
     const id = String(l.id ?? l.listingId ?? vin ?? "");
     if (!price || !id) continue;
@@ -72,7 +76,9 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
     const model = str(l.modelName) || str(l.model);
     const trim = str(l.trimName) || str(l.trim);
     const year = num(l.carYear ?? l.year);
-    const mileage = num(l.mileage ?? l.localizedExposedMileage ?? l.odometer);
+    const mileage = retailMileage(
+      l.mileage ?? l.localizedExposedMileage ?? l.odometer,
+    );
     const images = Array.isArray(l.originalPhotoUrls)
       ? l.originalPhotoUrls.filter(Boolean).slice(0, 8)
       : str(l.originalPictureUrl)
@@ -82,6 +88,7 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
     const reportedState =
       str(l.sellerState) || str(l.state) || str(l.location?.state);
     const state = reportedState?.toUpperCase();
+    const statedCondition = retailTitleCondition(str(l.listingTitle) || "");
 
     items.push({
       source: "cargurus",
@@ -99,8 +106,26 @@ export function parseCargurusListings(raw: string): Partial<Deal>[] {
       vin,
       ask_price: price,
       mileage,
-      condition: "clean",
-      title_source: "source_default",
+      condition: statedCondition,
+      ...(statedCondition ? { title_source: "listing" as const } : {}),
+      // Marketplace membership is not evidence of a clean title or settled cash price.
+      options: {
+        priceEvidence:
+          reportedPrice == null
+            ? {
+                kind: "reference",
+                referenceValue: price,
+                listedAmount: price,
+                evidenceText:
+                  "CarGurus expectedPrice; not a seller purchase price.",
+              }
+            : {
+                kind: "unknown",
+                listedAmount: price,
+                evidenceText:
+                  "Full purchase price terms have not been checked on the source listing.",
+              },
+      },
       location_city: str(l.sellerCity) || str(l.city) || str(l.location?.city),
       location_state: state && LISTING_STATES.has(state) ? state : undefined,
       images,

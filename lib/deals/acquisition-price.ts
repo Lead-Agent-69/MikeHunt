@@ -38,7 +38,7 @@ export function disclosedPriceEvidence(
 ): PriceEvidence | undefined {
   const amount = positivePrice(listedAmount);
   const cashLabels =
-    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
+    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)/gi;
   let rejectedCashLabel: string | undefined;
   const disclosedCash: PriceEvidence[] = [];
   for (const cash of Array.from(text.matchAll(cashLabels))) {
@@ -48,6 +48,9 @@ export function disclosedPriceEvidence(
       cash.index + cash[0].length + 35,
     );
     if (
+      // Never accept a numeric prefix of a range, malformed amount, phone number or "18k".
+      /^(?:[,.]\d|\d|[km]\b)/i.test(after) ||
+      /^\s*(?:[-–—\/]\s*\$?\s*\d|(?:to|through|or)\s+\$?\s*\d)/i.test(after) ||
       /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly)\s*$/i.test(
         before,
       ) ||
@@ -73,6 +76,14 @@ export function disclosedPriceEvidence(
       evidenceText: "Source listing discloses conflicting purchase prices.",
     };
   if (disclosedCash.length) return disclosedCash[0];
+  if (
+    !rejectedCashLabel &&
+    /\b(?:cash|full(?:\s+cash)?|total\s+purchase|sale)\s+price\s*(?:is|of|:|-)?\s*\$/i.test(
+      text,
+    )
+  )
+    rejectedCashLabel =
+      "Source purchase-price text does not contain one valid amount.";
   const disclaimer =
     /(?:(?:price|amount)\s+(?:listed|shown|advertised)|(?:listed|shown|advertised)\s+(?:price|amount))\s+(?:may\s+be|is|represents)\s+(?:a\s+|the\s+)?down[\s-]*payment(?:\s+and\s+not\s+(?:the\s+)?full\s+price)?|not\s+(?:the\s+)?full\s+(?:cash\s+)?(?:purchase\s+)?price/i.exec(
       text,

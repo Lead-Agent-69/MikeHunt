@@ -109,6 +109,29 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("shows an ended auction as a last observed bid", async () => {
+  const row = { ...listing([]), auctionEndAt: "2020-01-01T12:00:00Z" };
+  await act(async () =>
+    root.render(<MarketListingCard row={row} flipDesk={false} />),
+  );
+  expect(host.textContent).toContain("Last observed bid; auction has ended.");
+  expect(host.textContent).not.toContain("Bidding is open");
+});
+it.each([
+  [undefined, "Title unconfirmed"],
+  ["source_default", "Title unconfirmed (reported by source)"],
+  ["listing", "Clean title"],
+] as const)(
+  "renders a clean-title claim with provenance %s",
+  async (titleSource, label) => {
+    const row = { ...listing([]), condition: "clean_title", titleSource };
+    await act(async () =>
+      root.render(<MarketListingCard row={row} flipDesk={false} />),
+    );
+    expect(host.textContent).toContain(label);
+  },
+);
+
 it("keeps the photo's detail-link action and provides explicit photo arrows", async () => {
   const row = listing([
     "https://images.test/front.jpg",
@@ -162,7 +185,7 @@ it("keeps one price and identity below the unobstructed photo, with separate det
   expect(photo.textContent).not.toContain("Current bid");
   expect(photo.textContent).not.toContain("$1,000");
   expect(photo.querySelector("img")?.className).toContain("object-contain");
-  expect(price.textContent).toContain("Current bid");
+  expect(price.textContent).toContain("Last observed bid");
   expect(price.textContent).toContain("$1,000");
   expect(host.textContent?.match(/\$1,000/g)).toHaveLength(1);
   expect(

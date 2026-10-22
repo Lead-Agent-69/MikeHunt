@@ -90,7 +90,7 @@ export async function scrapeIAA(
       const title =
         [yr, a.Make, a.Model, a.Series].filter(Boolean).join(" ").trim() ||
         "IAA Vehicle";
-      await enrichAndStore({
+      stored += await enrichAndStore({
         source: "iaa",
         source_category: "salvage",
         external_id: String(a.StockNumber),
@@ -106,7 +106,6 @@ export async function scrapeIAA(
         location_zip: a.Zip ? String(a.Zip).trim() : undefined,
         listing_url: url,
       });
-      stored += 1;
     } catch {
       /* skip this lot, keep going */
     }

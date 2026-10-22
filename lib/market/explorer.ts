@@ -35,6 +35,7 @@ export type MarketListing = {
   assemblyCountry?: string;
   availabilityStatus?: string;
   condition?: string;
+  titleSource?: "listing" | "source_default";
   damageType?: string;
   sellerType?: string;
   lane: string;

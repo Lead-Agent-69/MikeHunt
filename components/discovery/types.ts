@@ -81,6 +81,7 @@ export interface DiscoveryDeal {
   firstSeenAt?: string;
   /** Freshness proof: when the source/importer last confirmed this listing still existed. */
   lastSeenAt?: string;
+  auctionEndAt?: string | null;
   /** Optional context line shown on the card (e.g. "32 mi from you", win-pattern reason). */
   winReason?: string;
   /** Why this result appears for the active buyer scope. */
