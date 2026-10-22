@@ -59,7 +59,11 @@ import { ContactSeller } from "@/components/deal/ContactSeller";
 import { DealNotes } from "@/components/deal/DealNotes";
 import { VehicleSourceAction } from "@/components/deal/VehicleSourceAction";
 import { ImageGallery } from "@/components/shared/ImageGallery";
-import { ListingVerification } from "@/components/deal/ListingVerification";
+import {
+  ListingVerification,
+  type VerificationSection,
+} from "@/components/deal/ListingVerification";
+import { DetailDisclosure } from "@/components/deal/DetailDisclosure";
 import { PriceMilesScatter } from "@/components/deal/PriceMilesScatter";
 import { BestTimeToBuy } from "@/components/deal/BestTimeToBuy";
 import { MarketContext } from "@/components/deal/MarketContext";
@@ -72,7 +76,6 @@ import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
-import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 
 type SourceHealthItem = {
@@ -123,69 +126,6 @@ function money(value?: number | null) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function PersonalListingLead({ deal }: { deal: any }) {
-  const lastSeen = deal?.lastSeenAt || deal?.last_seen_at;
-  const seenLabel = listingFreshnessLabel({
-    firstSeenAt: deal?.firstSeenAt || deal?.first_seen_at,
-    lastSeenAt: lastSeen,
-  });
-  const checks = [
-    "VIN matches the listing",
-    "Mileage and title status",
-    "Condition and damage photos",
-    "Seller contact and the all-in price",
-  ];
-  return (
-    <section
-      className="border-y border-[var(--b1)] py-4 md:py-5"
-      aria-label="Listing to check"
-    >
-      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
-        Check this listing
-      </p>
-      <h2 className="mt-1 text-xl font-black text-[var(--t1)]">
-        Checks before purchase
-      </h2>
-
-      <div className="mt-3 rounded-[var(--r1)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-sm text-[var(--t2)]">
-        <span className="font-black">All-in cost is not confirmed.</span>{" "}
-        Repair, transport, taxes, and registration still need to be checked.
-      </div>
-      <p className="mt-4 text-[10px] font-black uppercase tracking-[0.16em] text-[var(--t5)]">
-        What to verify
-      </p>
-      <ul className="mt-2 space-y-1 text-sm text-[var(--t3)]">
-        {checks.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ul>
-      {deal?.sourceUrl ? (
-        <div className="mt-4">
-          <a
-            href={deal.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm font-black text-[var(--amber)]"
-          >
-            {sourceLinkLabel(deal.sourceUrl)}
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
-          <p className="mt-1 text-xs text-[var(--t5)]">
-            {lastSeen
-              ? `Listing ${seenLabel.charAt(0).toLowerCase()}${seenLabel.slice(1)}. Open the source to confirm it is still available.`
-              : "Open the source to confirm this listing is still available."}
-          </p>
-        </div>
-      ) : (
-        <p className="mt-4 text-sm text-[var(--t4)]">
-          The original listing link is unavailable. Verify the seller before
-          proceeding.
-        </p>
-      )}
-    </section>
-  );
 }
 
 // Engine verdict as the page shows it. NOT_ENOUGH_DATA = too few comps and no third-party value
@@ -413,49 +353,6 @@ function DecisionCommandPanel({
   );
 }
 
-/**
- * Keeps the first detail viewport focused on the decision. Expensive children do
- * not mount until someone explicitly asks to examine that part of the vehicle.
- */
-function DetailDisclosure({
-  eyebrow,
-  title,
-  summary,
-  children,
-}: {
-  eyebrow: string;
-  title: string;
-  summary: string;
-  children: React.ReactNode;
-}) {
-  const [expanded, setExpanded] = React.useState(false);
-
-  return (
-    <details
-      className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)]"
-      onToggle={(event) => setExpanded(event.currentTarget.open)}
-    >
-      <summary className="interactive-surface flex cursor-pointer list-none items-center justify-between gap-4 p-4 marker:hidden md:p-5 [&::-webkit-details-marker]:hidden">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
-            {eyebrow}
-          </p>
-          <h2 className="mt-1 text-base font-black text-[var(--t1)]">
-            {title}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--t4)]">{summary}</p>
-        </div>
-        <span className="shrink-0 text-xs font-black text-[var(--blue)]">
-          {expanded ? "Hide" : "Examine"}
-        </span>
-      </summary>
-      {expanded ? (
-        <div className="border-t border-[var(--b1)] p-4 md:p-5">{children}</div>
-      ) : null}
-    </details>
-  );
-}
-
 // Fetcher function for SWR
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -490,6 +387,17 @@ export default function DealPage({
   const [watching, setWatching] = React.useState(false);
   const [showCashOfferModal, setShowCashOfferModal] = React.useState(false);
   const [findSimilarOpen, setFindSimilarOpen] = React.useState(false);
+  const [sectionRequest, setSectionRequest] = React.useState({
+    dealId: id,
+    section: "" as VerificationSection | "",
+    count: 0,
+  });
+  const openVerificationSection = (section: VerificationSection) =>
+    setSectionRequest((current) => ({
+      dealId: id,
+      section,
+      count: current.count + 1,
+    }));
   const loadedDealIdRef = React.useRef<string | null>(null);
   const localSaved = useLocalSavedVehicles();
   const isLocallyWatched = localSaved.has(id);
@@ -739,6 +647,7 @@ export default function DealPage({
   const detailQuality = React.useMemo(() => {
     if (!serverDeal) return null;
     return gradeDataQuality({
+      source: serverDeal.source,
       images: serverDeal.images,
       imageUrl: serverDeal.images?.[0],
       vin: serverDeal.vin,
@@ -758,6 +667,7 @@ export default function DealPage({
       sellerType: serverDeal.sellerType,
       sellerPhone: serverDeal.contact?.phone,
       sellerEmail: serverDeal.contact?.email,
+      sellerContactUrl: serverDeal.contact?.listingUrl || serverDeal.sourceUrl,
       auctionEndAt: serverDeal.auctionEndAt,
       sourceUrl: serverDeal.sourceUrl,
     });
@@ -1062,66 +972,39 @@ export default function DealPage({
           <ReportListing key={id} listingId={id} />
         </aside>
       </div>
-      {serverDeal?.decisionEvidence?.acquisitionReady === false && (
-        <section
-          className="rounded-lg border border-[var(--amber-bd)] bg-[var(--amber-lo)] p-4"
-          aria-label="Vehicle evidence status"
-        >
-          <h2 className="text-lg font-bold text-[var(--t1)]">
-            {serverDeal.decisionEvidence.label}: research before purchase
-          </h2>
-          <p className="mt-2 text-sm text-[var(--t2)]">
-            {serverDeal.decisionEvidence.summary}
-          </p>
-          <p className="mt-2 text-sm text-[var(--t3)]">
-            {serverDeal.decisionEvidence.nextCheck}
-          </p>
-        </section>
-      )}
       {serverDeal &&
-        serverDeal?.decisionEvidence?.state !== "auction_watch" &&
-        (store.userType === "dealer" ? (
-          serverDeal?.decisionEvidence?.acquisitionReady === true && (
-            <DecisionCommandPanel
-              deal={{
-                ...serverDeal,
-                id,
-                askPrice:
-                  serverDeal?.ask_price ||
-                  serverDeal?.askPrice ||
-                  store.askPrice,
-                vin: serverDeal?.vin || store.vin,
-                trueNetProfit: serverDeal?.true_net_profit ?? adjustedNetProfit,
-              }}
-              engineVerdict={engineVerdict}
-              engineNetProfit={engineNetProfit}
-              engineScore={engineScore}
-              engineRoi={engineRoi}
-              detailQualityScore={detailQuality?.score}
-              proofLinks={proofLinks}
-              onCashOffer={() => setShowCashOfferModal(true)}
-              onWatchPrice={handleWatchPrice}
-            />
-          )
-        ) : (
-          <PersonalListingLead
+        serverDeal.decisionEvidence?.state !== "auction_watch" &&
+        store.userType === "dealer" &&
+        serverDeal.decisionEvidence?.acquisitionReady === true && (
+          <DecisionCommandPanel
             deal={{
               ...serverDeal,
-              askPrice: serverDeal?.askPrice ?? serverDeal?.ask_price ?? 0,
-              sourceUrl: serverDeal?.sourceUrl || serverDeal?.source_url,
+              id,
+              askPrice:
+                serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
+              vin: serverDeal?.vin || store.vin,
+              trueNetProfit: serverDeal?.true_net_profit ?? adjustedNetProfit,
             }}
+            engineVerdict={engineVerdict}
+            engineNetProfit={engineNetProfit}
+            engineScore={engineScore}
+            engineRoi={engineRoi}
+            detailQualityScore={detailQuality?.score}
+            proofLinks={proofLinks}
+            onCashOffer={() => setShowCashOfferModal(true)}
+            onWatchPrice={handleWatchPrice}
           />
-        ))}
+        )}
 
       {serverDeal && detailQuality && (
         <ListingVerification
           present={detailQuality.present}
           missing={detailQuality.missing}
-          acquisitionReady={
-            serverDeal.decisionEvidence?.acquisitionReady === true
-          }
-          summary={serverDeal.decisionEvidence?.summary}
-          nextCheck={serverDeal.decisionEvidence?.nextCheck}
+          evidence={serverDeal.decisionEvidence}
+          priceKind={serverDeal.priceEvidence?.kind}
+          sourceUrl={serverDeal.sourceUrl}
+          dealerMode={store.userType === "dealer"}
+          onOpenSection={openVerificationSection}
         />
       )}
       {serverDeal?.sourceUrl && isSourceLandingPage(serverDeal.sourceUrl) && (
@@ -1146,9 +1029,15 @@ export default function DealPage({
       </section>
 
       <DetailDisclosure
+        request={
+          sectionRequest.dealId === id && sectionRequest.section === "condition"
+            ? sectionRequest.count
+            : 0
+        }
+        key={`${id}:condition`}
         eyebrow="Vehicle examination"
         title="Check condition, title, and history"
-        summary="VIN signals, listing claims, and source-reported sale records."
+        summary="VIN signals, title history, and condition reported in the listing."
       >
         <div className="space-y-4">
           {serverDeal && (
@@ -1157,13 +1046,6 @@ export default function DealPage({
               title={serverDeal.title}
               condition={serverDeal.condition ?? store.titleType}
               damageType={serverDeal.damageType ?? serverDeal.damage_type}
-            />
-          )}
-          {serverDeal && (
-            <RecentlySold
-              make={serverDeal.make ?? store.make}
-              model={serverDeal.model ?? store.model}
-              year={serverDeal.year ?? store.year}
             />
           )}
           {serverDeal?.images && serverDeal.images.length > 0 && (
@@ -1189,11 +1071,24 @@ export default function DealPage({
       />
 
       <DetailDisclosure
+        request={
+          sectionRequest.dealId === id && sectionRequest.section === "market"
+            ? sectionRequest.count
+            : 0
+        }
+        key={`${id}:market`}
         eyebrow="Market evidence"
         title="Compare price and timing"
-        summary="Price history, comparable position, and local market timing."
+        summary="Source-reported sale records, asking-price history, and local market timing."
       >
         <div className="space-y-4">
+          {serverDeal && (
+            <RecentlySold
+              make={serverDeal.make ?? store.make}
+              model={serverDeal.model ?? store.model}
+              year={serverDeal.year ?? store.year}
+            />
+          )}
           <MarketContext dealId={id} />
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
             <PriceMilesScatter
@@ -1223,6 +1118,12 @@ export default function DealPage({
       </DetailDisclosure>
 
       <DetailDisclosure
+        request={
+          sectionRequest.dealId === id && sectionRequest.section === "plan"
+            ? sectionRequest.count
+            : 0
+        }
+        key={`${id}:plan`}
         eyebrow="Plan and record"
         title="Costs, seller, and private notes"
         summary="Build an all-in plan, contact the seller, and keep your research together."
@@ -1303,6 +1204,7 @@ export default function DealPage({
       </DetailDisclosure>
 
       <DetailDisclosure
+        key={`${id}:research`}
         eyebrow="Research tools"
         title="Open one focused tool"
         summary="Deal IQ, an on-demand AI brief, and vehicle data—without stacking duplicate calculators."

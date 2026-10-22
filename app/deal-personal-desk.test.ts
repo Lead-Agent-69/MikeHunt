@@ -14,8 +14,8 @@ describe("deal page personal desk", () => {
     expect(page).toContain("readLocalBuyerIntent");
     expect(page).toContain("prefs.buyerScope?.legacyBuyerMode");
     expect(page).toContain("prefs.buyerScope?.buyerMode");
-    expect(page).toContain("PersonalListingLead");
-    expect(page).toContain("What to verify");
+    expect(page).toContain("<ListingVerification");
+    expect(page).toContain("onOpenSection={openVerificationSection}");
     expect(page).toContain("<VehicleSummary");
     expect(page).toContain("sourceLinkLabel(deal.sourceUrl)");
     // Seller contact is a buying action for every desk, not a dealer-only calculator.
@@ -47,7 +47,7 @@ describe("deal page personal desk", () => {
 
     // G1: the single decision command (net profit, ROI, score, max bid) is flip-desk only.
     expect(page).toMatch(
-      /store\.userType === "dealer" \? \([\s\S]{0,350}<DecisionCommandPanel/,
+      /store\.userType === "dealer" &&[\s\S]{0,180}<DecisionCommandPanel/,
     );
     expect(page).not.toContain("The Decision");
     expect(page).not.toContain("Savings vs Market");
@@ -82,22 +82,26 @@ describe("deal page personal desk", () => {
     }
 
     // Personal still gets the verify-list lead and interactive price history.
-    expect(page).toContain("<PersonalListingLead");
+    expect(page).toContain("<ListingVerification");
     expect(page).toContain("<PriceTimeline dealId={id} />");
   });
 
   it("keeps the initial vehicle read focused and defers deeper investigation", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
 
-    expect(page).toContain("function DetailDisclosure");
+    expect(page).toContain("import { DetailDisclosure }");
     expect(page).toContain("Vehicle examination");
     expect(page).toContain("Market evidence");
     expect(page).toContain("Plan and record");
     expect(page).toContain("Research tools");
     expect(page).toContain("<DealResearchWorkspace");
     expect(page).not.toContain("Advanced workspace");
-    expect(page).toContain("Expensive children do");
-    expect(page).toMatch(/\{expanded \?\s*\(/);
+    const disclosure = readFileSync(
+      "components/deal/DetailDisclosure.tsx",
+      "utf8",
+    );
+    expect(disclosure).toContain("Mount expensive tools only when opened");
+    expect(disclosure).toMatch(/\{expanded \?\s*\(/);
     expect(page).not.toContain('"/api/calibration"');
     expect(page.indexOf("<MaxBidWidget")).toBeGreaterThan(
       page.indexOf('eyebrow="Plan and record"'),
@@ -107,9 +111,14 @@ describe("deal page personal desk", () => {
   it("does not mistake source fields or source inventory for inspected vehicle proof", () => {
     const page = readFileSync("app/(dashboard)/deal/[id]/page.tsx", "utf8");
 
-    expect(page).toContain("All-in cost is not confirmed.");
+    expect(page).not.toContain('aria-label="Vehicle evidence status"');
+    expect(page).not.toContain("PersonalListingLead");
     expect(page).toContain("listing photo");
-    expect(page).toContain(
+    const verification = readFileSync(
+      "components/deal/ListingVerification.tsx",
+      "utf8",
+    );
+    expect(verification).toContain(
       "source-provided and are not a mechanic inspection.",
     );
     expect(page).toContain("<ListingVerification");
@@ -118,7 +127,7 @@ describe("deal page personal desk", () => {
     expect(page).not.toContain("Buyer math");
     expect(page).not.toContain("{detailMathConfidence} confidence");
     expect(page.indexOf("<ImageGallery")).toBeLessThan(
-      page.indexOf("<PersonalListingLead"),
+      page.indexOf("<ListingVerification"),
     );
   });
   it("uses explicit listing verification instead of unsupported confidence scores", () => {

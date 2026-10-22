@@ -1,5 +1,6 @@
 import { isAuctionChannel } from "@/lib/sources/source-meta";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { conditionFromTitleType } from "@/lib/deals/title-badge-model";
 
 export type DataQualityField =
   | "photo"
@@ -65,6 +66,35 @@ export function qualityFieldLabel(field: string) {
   return FIELD_LABELS[field as DataQualityField] || field;
 }
 
+function usableText(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const text = value.trim();
+  return (
+    !!text &&
+    !/^(?:unknown|n\/?a|none|null|undefined|not[ _-](?:reported|provided|available)|tbd|[-—]+)$/i.test(
+      text,
+    )
+  );
+}
+
+function reportedNumber(value: unknown, minimum: number): boolean {
+  return (
+    (typeof value === "number" ||
+      (typeof value === "string" && !!value.trim())) &&
+    Number.isFinite(Number(value)) &&
+    Number(value) >= minimum
+  );
+}
+
+function usableUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    return ["https:", "http:"].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 export function gradeDataQuality(input: DataQualityInput): DataQualityGrade {
   const images = photoEvidence(
     [
@@ -77,23 +107,42 @@ export function gradeDataQuality(input: DataQualityInput): DataQualityGrade {
   const auctionDateExpected = input.source
     ? isAuctionChannel(input.source) || sellerType === "auction"
     : !["dealer", "private", "retail"].includes(sellerType);
+  // Operability/damage categories and placeholder strings do not report a title status.
+  const titleCondition = conditionFromTitleType(
+    usableText(input.condition) ? input.condition : input.titleType,
+  );
+  const titleReported = [
+    "clean_title",
+    "rebuilt_title",
+    "salvage_title",
+    "parts_only",
+  ].includes(titleCondition || "");
   const checks: Array<[DataQualityField, boolean]> = [
     ["photo", images.length > 0],
-    ["vin", Boolean(input.vin)],
-    ["title", Boolean(input.titleType)],
-    ["damage", Boolean(input.condition || input.damageType)],
-    ["mileage", Number(input.mileage || 0) > 0],
-    ["location", Boolean(input.locationCity || input.locationState)],
-    ["price", Number(input.askPrice || 0) > 0],
-    ["seller", Boolean(input.seller || input.sellerType)],
+    ["vin", /^[A-HJ-NPR-Z0-9]{17}$/i.test(String(input.vin || "").trim())],
+    ["title", titleReported],
+    ["damage", usableText(input.condition) || usableText(input.damageType)],
+    ["mileage", reportedNumber(input.mileage, 0)],
+    [
+      "location",
+      usableText(input.locationCity) || usableText(input.locationState),
+    ],
+    ["price", reportedNumber(input.askPrice, Number.MIN_VALUE)],
+    ["seller", usableText(input.seller) || usableText(input.sellerType)],
     [
       "sellerContact",
-      Boolean(input.sellerPhone || input.sellerEmail || input.sellerContactUrl),
+      usableText(input.sellerPhone) ||
+        usableText(input.sellerEmail) ||
+        usableUrl(input.sellerContactUrl),
     ],
-    ["source", Boolean(input.sourceUrl)],
+    ["source", usableUrl(input.sourceUrl)],
   ];
   if (auctionDateExpected) {
-    checks.push(["auction", Boolean(input.auctionEndAt)]);
+    checks.push([
+      "auction",
+      !!input.auctionEndAt &&
+        Number.isFinite(new Date(input.auctionEndAt).getTime()),
+    ]);
   }
 
   const present = checks.filter(([, ok]) => ok).map(([field]) => field);
