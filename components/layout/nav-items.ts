@@ -111,6 +111,7 @@ export const SIGN_IN_REQUIRED_HREFS: readonly string[] = [
   "/deal",
   "/searches",
   "/settings",
+  "/sources",
   "/saved",
   "/alerts",
   "/fleet",
