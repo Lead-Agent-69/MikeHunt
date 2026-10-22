@@ -76,6 +76,7 @@ import { TitleWashDetector } from "@/components/deal/TitleWashDetector";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { CashOfferLetterModal } from "@/components/deal/CashOfferLetterModal";
 import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import { TitleBadge } from "@/components/shared/TitleBadge";
 
 type SourceHealthItem = {
@@ -1002,7 +1003,12 @@ export default function DealPage({
           missing={detailQuality.missing}
           evidence={serverDeal.decisionEvidence}
           priceKind={serverDeal.priceEvidence?.kind}
+          source={serverDeal.source}
           sourceUrl={serverDeal.sourceUrl}
+          observationLabel={listingFreshnessLabel({
+            firstSeenAt: serverDeal.firstSeenAt,
+            lastSeenAt: serverDeal.lastSeenAt,
+          })}
           dealerMode={store.userType === "dealer"}
           onOpenSection={openVerificationSection}
         />

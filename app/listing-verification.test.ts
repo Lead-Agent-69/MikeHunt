@@ -84,4 +84,28 @@ describe("ListingVerification", () => {
       expect(html).not.toContain("href=");
     }
   });
+  it("keeps listing age separate from its latest observation without asserting availability", () => {
+    const html = render({
+      observationLabel: "First seen 7d ago · checked just now",
+    });
+    expect(html).toContain("First seen 7d ago · checked just now");
+    expect(html).toContain("Confirm availability");
+  });
+  it("retains auction terms when a price anomaly takes priority over the auction-watch state", () => {
+    const html = render({
+      source: "copart",
+      sourceUrl: "https://copart.com/lot/123",
+      priceKind: "reference",
+      evidence: {
+        state: "price_anomaly",
+        label: "Price needs verification",
+        summary: "Price terms need review.",
+        nextCheck: "Confirm the real price.",
+        acquisitionReady: false,
+      },
+    });
+    expect(html).toContain("View auction");
+    expect(html).toContain("buyer fees");
+    expect(html).toContain("Price needs verification");
+  });
 });

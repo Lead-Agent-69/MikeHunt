@@ -2,6 +2,7 @@ import { fieldLabel, type DataQualityField } from "@/lib/data-quality";
 import type { DecisionEvidence } from "@/lib/intelligence/decision-guard";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { VehicleSourceAction } from "./VehicleSourceAction";
+import { isAuctionSource } from "@/lib/deal-terms";
 
 export type VerificationSection = "condition" | "market" | "plan";
 
@@ -11,6 +12,8 @@ type Props = {
   evidence?: DecisionEvidence;
   priceKind?: PriceEvidence["kind"];
   sourceUrl?: string | null;
+  source?: string | null;
+  observationLabel?: string;
   dealerMode?: boolean;
   onOpenSection: (section: VerificationSection) => void;
 };
@@ -21,11 +24,15 @@ export function ListingVerification({
   evidence,
   priceKind,
   sourceUrl,
+  source,
+  observationLabel,
   dealerMode = false,
   onOpenSection,
 }: Props) {
   const auction =
-    evidence?.state === "auction_watch" || priceKind === "current_bid";
+    evidence?.state === "auction_watch" ||
+    priceKind === "current_bid" ||
+    isAuctionSource(source);
   const priceCheck = auction
     ? "Confirm the final bid or buy-now terms, buyer fees, and purchase eligibility. A current bid is not the final purchase price."
     : ["down_payment", "monthly_payment", "finance_teaser"].includes(
@@ -104,6 +111,9 @@ export function ListingVerification({
           <h3 className="text-sm font-semibold text-[var(--t1)]">
             Price and availability
           </h3>
+          {observationLabel && (
+            <p className="mt-1 text-xs text-[var(--t4)]">{observationLabel}</p>
+          )}
           <p className="mt-1 mb-3 flex-1 text-sm text-[var(--t3)]">
             {priceCheck}
           </p>
