@@ -119,7 +119,7 @@ export async function loadCuratedOutcomes(
   file = curatedOutcomesPath(),
 ): Promise<CuratedOutcomes> {
   try {
-    const body = await readFile(file, "utf8");
+    const body = await readFile(/* turbopackIgnore: true */ file, "utf8");
     if (body.length > 1_000_000) return { version: 1, rows: [] };
     return parseCuratedOutcomes(JSON.parse(body));
   } catch {

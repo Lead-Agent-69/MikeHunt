@@ -352,7 +352,9 @@ export function sweepStatePath(
 
 export async function loadSweepState(file = sweepStatePath()) {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf8")) as SweepState;
+    const parsed = JSON.parse(
+      await readFile(/* turbopackIgnore: true */ file, "utf8"),
+    ) as SweepState;
     if (parsed?.version !== 1 || !Array.isArray(parsed.sources))
       return emptySweepState();
     return {

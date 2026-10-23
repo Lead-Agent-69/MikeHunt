@@ -107,7 +107,9 @@ export async function loadCuratedRotation(
   file = curatedRotationPath(),
 ): Promise<CuratedRotation> {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf8"));
+    const parsed = JSON.parse(
+      await readFile(/* turbopackIgnore: true */ file, "utf8"),
+    );
     if (
       parsed?.version !== 1 ||
       !parsed.lastAttempted ||
