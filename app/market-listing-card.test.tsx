@@ -117,6 +117,44 @@ it.each([
 );
 
 it.each([
+  [3943, "Modeled net after costs", "+$3,943"],
+  [-3300, "Modeled loss after costs", "-$3,300"],
+  [0, "Modeled break-even after costs", "$0"],
+] as const)(
+  "shows a %s modeled net separately from the pre-cost price gap",
+  async (profitEstimate, label, amount) => {
+    await act(async () =>
+      root.render(
+        <MarketListingCard
+          row={{ ...listing([]), priceGap: 8906, profitEstimate }}
+          flipDesk
+        />,
+      ),
+    );
+    const modeled = host.querySelector('[data-testid="market-modeled-net"]');
+    expect(modeled?.textContent).toContain(label);
+    expect(modeled?.textContent).toContain(amount);
+    expect(modeled?.textContent).toContain("Model only");
+    expect(
+      host.querySelector('[data-testid="market-price-gap"]')?.textContent,
+    ).toContain("$8,906");
+  },
+);
+
+it("does not expose flip economics on a personal market card", async () => {
+  await act(async () =>
+    root.render(
+      <MarketListingCard
+        row={{ ...listing([]), priceGap: 8906, profitEstimate: 3943 }}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.querySelector('[data-testid="market-modeled-net"]')).toBeNull();
+  expect(host.textContent).not.toContain("Modeled net after costs");
+});
+
+it.each([
   ["asking", "Asking price"],
   ["current_bid", "Current bid"],
   ["buy_now", "Buy-now price"],

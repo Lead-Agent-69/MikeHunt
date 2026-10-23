@@ -432,7 +432,7 @@ describe("Market filter journey", () => {
       options.find((option) => option.value === value)!;
     expect(byValue("profitEstimate:desc").disabled).toBe(true);
     expect(byValue("profitEstimate:desc").textContent).toContain(
-      "needs verified costs",
+      "needs verified inputs",
     );
     expect(byValue("profitScore:desc").disabled).toBe(true);
     expect(byValue("priceGap:desc").disabled).toBe(true);
