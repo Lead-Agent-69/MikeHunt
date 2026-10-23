@@ -42,10 +42,21 @@ begin
     raise exception 'Malformed evidence date was accepted';
   end if;
   if position(
-    'base as not materialized' in lower(
+    'core_rows as not materialized' in lower(
+      pg_get_functiondef('public.inventory_quality_rollup_v1()'::regprocedure)
+    )
+  ) = 0 or position(
+    'visible_rows as materialized' in lower(
       pg_get_functiondef('public.inventory_quality_rollup_v1()'::regprocedure)
     )
   ) = 0 then
+    raise exception 'Inventory quality rollup is not using staged narrow scans';
+  end if;
+  if position(
+    'select d.*' in lower(
+      pg_get_functiondef('public.inventory_quality_rollup_v1()'::regprocedure)
+    )
+  ) > 0 then
     raise exception 'Inventory quality rollup still materializes wide deal rows';
   end if;
 
