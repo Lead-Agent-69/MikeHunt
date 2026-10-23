@@ -79,6 +79,32 @@ function sourceListingUrl(value: unknown): string | undefined {
   }
 }
 
+const TRACKING_QUERY_PARAM =
+  /^(?:utm_.+|fbclid|gclid|msclkid|mc_cid|mc_eid|ref|referrer)$/i;
+
+/**
+ * Identity for one origin listing across aggregator queries and pages.
+ * AutoTempest can return the same retailer URL with a different aggregator id
+ * or tracking query string, so its result id alone is not a stable dedupe key.
+ */
+export function autotempestListingKey(deal: Partial<Deal>): string {
+  const source = String(deal.source || "unknown").toLowerCase();
+  const rawUrl = sourceListingUrl(deal.source_url);
+  if (rawUrl) {
+    const url = new URL(rawUrl);
+    url.hash = "";
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (TRACKING_QUERY_PARAM.test(key)) url.searchParams.delete(key);
+    }
+    url.searchParams.sort();
+    if (url.pathname.length > 1)
+      url.pathname = url.pathname.replace(/\/+$/, "");
+    return `${source}|url:${url.toString()}`;
+  }
+
+  return `${source}|id:${String(deal.source_deal_id || deal.id || "")}`;
+}
+
 function usdAmount(value: unknown): number | undefined {
   if (typeof value === "number") return positivePrice(value);
   if (typeof value !== "string") return undefined;
@@ -317,7 +343,10 @@ async function harvestQuery(
       requestSignal,
     );
     if (!items.length) return true;
-    for (const it of items) byId.set(it.source_deal_id!, it);
+    for (const it of items) {
+      const key = autotempestListingKey(it);
+      if (!byId.has(key)) byId.set(key, it);
+    }
     if (byId.size >= control.maxResults) return false;
     const key = next ? JSON.stringify(next) : "";
     if (!next || key === prevKey) return true; // cursor exhausted / not advancing
