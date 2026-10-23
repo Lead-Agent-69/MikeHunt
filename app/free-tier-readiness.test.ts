@@ -43,6 +43,33 @@ describe("free-tier readiness", () => {
       "ok",
     );
   });
+  it("warns on upcoming log enforcement without fabricating a current hold", () => {
+    const data = snapshot();
+    data.usage.logIngestionBytes = 1_010_000_000;
+    const report = assessUsage(data, now);
+    expect(report.status).toBe("warn");
+    expect(report.rows.find((r) => r.id === "logIngestionBytes")).toMatchObject(
+      { advisoryOnly: true, status: "warn" },
+    );
+  });
+  it("allows optional hidden meters to remain unknown", () => {
+    const data = snapshot();
+    delete data.usage.cachedEgressBytes;
+    delete data.usage.vercelImageSourceImages;
+    expect(assessUsage(data, now).status).toBe("ok");
+  });
+  it("returns operator actions for missing readings and hard holds", () => {
+    const missing = snapshot();
+    delete missing.usage.databaseBytes;
+    expect(assessUsage(missing, now).actions.join(" ")).toContain(
+      "databaseBytes",
+    );
+    const held = snapshot();
+    held.usage.databaseBytes = 450_000_000;
+    expect(assessUsage(held, now).actions.join(" ")).toContain(
+      "Pause new bulk imports",
+    );
+  });
   it("rejects old, future, invalid or incomplete observations", () => {
     for (const measuredAt of [
       "bad",

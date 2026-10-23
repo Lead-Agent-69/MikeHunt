@@ -1,0 +1,29 @@
+{
+  "measuredAt": "2026-10-23T03:59:39Z",
+  "vercelHobbyEligible": null,
+  "periodElapsed": {
+    "supabase": 0.8333333333,
+    "vercel": 1
+  },
+  "usage": {
+    "databaseBytes": 315440000,
+    "storageBytes": 0,
+    "uncachedEgressBytes": 3209000000,
+    "activeUsers": 8,
+    "edgeInvocations": 0,
+    "realtimeMessages": 2700,
+    "realtimePeakConnections": 3,
+    "logIngestionBytes": 1006000000,
+    "logQueryBytes": 4263000000,
+    "vercelCpuHours": 2.5167,
+    "vercelMemoryGbHours": 23.5,
+    "vercelInvocations": 118932,
+    "vercelTransferBytes": 3410000000,
+    "vercelOriginBytes": 780540000,
+    "vercelCdnRequests": 142329,
+    "vercelBuildHours": 23,
+    "vercelDeploymentStorageBytes": 1600000000,
+    "vercelFunctionStorageBytes": 5380000000,
+    "vercelSpeedInsightsPoints": 4261
+  }
+}
