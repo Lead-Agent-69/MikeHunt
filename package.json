@@ -37,6 +37,8 @@
     "prepare": "husky",
     "postinstall": "node scripts/postinstall.js",
     "health": "node scripts/health-check.mjs",
+    "ops:production": "node scripts/production-watch.mjs",
+    "ops:budget": "node scripts/free-tier-readiness.mjs",
     "format": "prettier --write \"**/*.{ts,tsx,js,cjs,mjs,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,cjs,mjs,json,md,css}\""
   },

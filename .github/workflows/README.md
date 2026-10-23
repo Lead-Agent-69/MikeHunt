@@ -4,6 +4,8 @@ Active here:
 
 - `ci.yml` — typecheck + lint + tests on every push/PR.
 - `accuracy.yml` — weekly valuation-accuracy regression gate.
+- `production-watch.yml` — twice-daily, credential-free canonical URL and
+  inventory-freshness check from GitHub-hosted infrastructure.
 
 ## Why scraping is NOT here — read before re-enabling anything
 

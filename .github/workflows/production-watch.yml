@@ -1,0 +1,22 @@
+name: Production Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 1,13 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  public-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Verify canonical production and inventory freshness
+        run: node scripts/production-watch.mjs https://mikehunt-69.vercel.app
