@@ -33,6 +33,7 @@
     "verify:quick": "npm run typecheck && npm run lint",
     "accuracy:gate": "tsx scripts/valuation-backtest.ts",
     "audit:data": "tsx scripts/audit-data-quality.ts",
+    "audit:inventory-evidence": "tsx scripts/audit-inventory-evidence.ts",
     "automate": "tsx scripts/automate.ts",
     "prepare": "husky",
     "postinstall": "node scripts/postinstall.js",

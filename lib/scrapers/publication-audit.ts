@@ -4,6 +4,7 @@ import {
   isCustomerInventory,
 } from "@/lib/search/customer-inventory";
 import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
+import { photoEvidence } from "@/lib/images/photo-evidence";
 
 type Row = Omit<Parameters<typeof isCustomerInventory>[0], "options"> & {
   options?: {
@@ -50,6 +51,12 @@ export function sourcePublicationAudit(
           typeof seen === "string" && Number.isFinite(Date.parse(seen)),
       )
       .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;
+  const photoCounts = rows.map((row) => {
+    const state = String(row.options?.photoAudit?.state || "").toLowerCase();
+    if (state === "unavailable" || state === "placeholder") return 0;
+    return photoEvidence(row.images, row.options?.photoAudit).images.length;
+  });
+  const photosObserved = photoCounts.reduce((sum, count) => sum + count, 0);
   return {
     host,
     deferredObservations,
@@ -62,6 +69,17 @@ export function sourcePublicationAudit(
     ).length,
     // These sum to sampled rows minus candidates, not losses before storage.
     exclusions,
+    photoDepth: {
+      usablePhotoRows: photoCounts.filter((count) => count > 0).length,
+      singlePhotoRows: photoCounts.filter((count) => count === 1).length,
+      multiPhotoRows: photoCounts.filter((count) => count > 1).length,
+      threePlusPhotoRows: photoCounts.filter((count) => count >= 3).length,
+      photosObserved,
+      averagePhotosPerRow: rows.length
+        ? Math.round((photosObserved / rows.length) * 10) / 10
+        : 0,
+      maxPhotosOnRow: Math.max(0, ...photoCounts),
+    },
     photoReachabilityVerified: false,
     newestStoredObservation: newest,
   };
