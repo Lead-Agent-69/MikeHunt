@@ -69,6 +69,12 @@ It records unchanged image, mounts, source settings and quota counters, not proo
 of notification delivery. Keep the existing agent deployment restriction above;
 an owner-approved exception for one rollout is not a standing permission.
 
+Also compare the host source mounted at `/app/cache` on `scraper` with the host
+source mounted at `/cache` on `janitor`. They must be the same directory. A
+healthy janitor pointed at a different checkout does not protect the active
+worker cache. On Windows, set `SCRAPER_STATE_ROOT` with forward slashes before
+rendering Compose, then verify the resolved mounts after the worker is healthy.
+
 The worker and Vercel must use the same `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, paired
 `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`. Do not generate a replacement pair when
 subscriptions already exist. Confirm configuration on both runtimes, then verify
@@ -93,6 +99,7 @@ webhook with `RESEND_WEBHOOK_SECRET`; key presence alone is not delivery proof.
 
 | Variable                                                                             | Needed?                      | Value / default                                      | Why                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------ | ---------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SCRAPER_STATE_ROOT`                                                                 | Recommended on Windows       | `F:/MikeHunt/main` on the current host               | Keeps scraper cache, profiles and logs on the roomy data drive. The scraper and janitor resolve this same root; verify both mounted cache paths match after rollout.                   |
 | `GSA_API_KEY`                                                                        | **Yes** for GSA at full rate | Jonah's api.data.gov key (already given; not in git) | GSA Auctions adapter. Without it, it falls back to `DEMO_KEY` (throttled, low hourly cap). Set it on Vercel production too if the app reads GSA.                                       |
 | `SCRAPER_POLITE_MODE`                                                                | No (default **on**)          | unset = on. `0`/`off`/`false`/`no` = legacy          | Polite mode becomes the default for every scraper (robots.txt + Crawl-delay, randomized per-domain gaps, honest UA, Retry-After/backoff, ban-risk breaker). Only set `0` to roll back. |
 | `POLITE_CACHE_DIR`                                                                   | **Recommended**              | `/app/cache/polite`                                  | Persists the ETag/Last-Modified cache and robots.txt across restarts so unchanged pages are not refetched. Lives on the existing `./cache` volume.                                     |
