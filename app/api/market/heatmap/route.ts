@@ -8,6 +8,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // /api/market/heatmap — where the actionable money is, by state. Aggregates the engine-vetted
 // (GO/HOLD) inventory per state: how many opportunities + the profit they carry. Powers the US tile
@@ -39,10 +40,9 @@ export async function GET(req: NextRequest) {
         { n: number; totalProfit: number; maxProfit: number }
       > = {};
       for (let page = 0; page < 6; page++) {
-        const { data, error } = await sb
-          .from("deals")
-          .select("location_state, true_net_profit")
-          .eq("active", true)
+        const { data, error } = await applyBuyableInventory(
+          sb.from("deals").select("location_state, true_net_profit"),
+        )
           .in("deal_verdict", ["go", "hold"])
           .gt("ask_price", 0)
           .range(page * 1000, (page + 1) * 1000 - 1);

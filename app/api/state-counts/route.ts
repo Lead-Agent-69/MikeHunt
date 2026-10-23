@@ -5,8 +5,7 @@ import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
-import { applyCustomerInventory } from "@/lib/search/customer-inventory";
-import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/state-counts — live car inventory count per state, so the "My States" picker can show
 // "Missouri · 2,450" (Netflix-style "what's available"). Cached 5 min; the numbers barely move.
@@ -17,10 +16,8 @@ async function countByState(): Promise<Record<string, number>> {
   // silently truncated aggregate as the available inventory count.
   const data = await fetchAllRows<{ location_state: string | null }>(
     (from, to) =>
-      applyLiveAuctionWindow(
-        applyCustomerInventory(
-          sb.from("deals").select("location_state").eq("active", true),
-        ),
+      applyBuyableInventory(
+        sb.from("deals").select("location_state").eq("active", true),
       )
         .order("id", { ascending: true })
         .range(from, to),

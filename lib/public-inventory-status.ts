@@ -1,4 +1,4 @@
-import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 type InventoryRead = "active" | "fresh_photos" | "added_24h" | "newest";
 type ReadFailure =
@@ -84,7 +84,7 @@ export async function publicInventoryStatus(sb: any, now = Date.now()) {
       .eq("active", true);
   const [active, fresh, added, newest] = await Promise.all([
     read("active", countActive()),
-    read("fresh_photos", applyCustomerInventory(countActive(), now)),
+    read("fresh_photos", applyBuyableInventory(countActive(), now)),
     read(
       "added_24h",
       countActive().gt("created_at", new Date(now - 86400000).toISOString()),

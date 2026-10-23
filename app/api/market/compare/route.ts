@@ -9,6 +9,7 @@ import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { fitDepreciationCurve } from "@/lib/scoring/depreciation";
 import { daysOnMarket } from "@/lib/intelligence/days-on-market";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/compare?vehicles=Honda:Accord:2018,Toyota:Camry:2018
 // Side-by-side dealer economics: GO deals, avg profit, days-on-market, $/1k-mi depreciation, trend.
@@ -36,12 +37,13 @@ export async function GET(req: NextRequest) {
       const year = parseInt(yearStr || "0", 10);
       if (!make || !model) return null;
 
-      let q = supabase
-        .from("deals")
-        .select(
-          "ask_price, true_net_profit, mileage, deal_verdict, first_seen_at",
-        )
-        .eq("active", true)
+      let q = applyBuyableInventory(
+        supabase
+          .from("deals")
+          .select(
+            "ask_price, true_net_profit, mileage, deal_verdict, first_seen_at",
+          ),
+      )
         .ilike("make", make)
         .ilike("model", `%${model.split(" ")[0]}%`)
         .gt("ask_price", 0)

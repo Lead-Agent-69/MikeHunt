@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { PartsCalculator } from "@/lib/parts/parts-calculator";
 import { createServerComponentClient } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 export async function POST(request: NextRequest) {
   const rl = rateLimit(request, {
@@ -110,11 +111,13 @@ export async function GET(request: NextRequest) {
 
     // Pull any real deal data for this VIN to ground purchase price / condition.
     const supabase = createServerComponentClient();
-    const { data: deal } = await supabase
-      .from("deals")
-      .select("ask_price, condition, damage_type")
+    const { data: deal } = await applyBuyableInventory(
+      supabase.from("deals").select("ask_price, condition, damage_type"),
+      Date.now(),
+      { includeWithoutPhotos: true },
+    )
       .eq("vin", vin)
-      .order("updated_at", { ascending: false })
+      .order("last_seen_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 

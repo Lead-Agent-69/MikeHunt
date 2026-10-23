@@ -32,6 +32,9 @@ function chain(result: any) {
     "gt",
     "gte",
     "lte",
+    "not",
+    "neq",
+    "or",
     "order",
     "limit",
   ])

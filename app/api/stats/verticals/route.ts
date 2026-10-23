@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/stats/verticals — headline live counts for the public landing. Cars only: active deals +
 // GO-verdict deals, plus a few recent GO deals for the live scrolling background feed. Public, read-only,
@@ -11,15 +12,12 @@ export async function GET() {
   try {
     const sb = createServerComponentClient();
     const [active, go] = await Promise.all([
-      sb
-        .from("deals")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true),
-      sb
-        .from("deals")
-        .select("id", { count: "exact", head: true })
-        .eq("active", true)
-        .eq("deal_verdict", "go"),
+      applyBuyableInventory(
+        sb.from("deals").select("id", { count: "exact", head: true }),
+      ),
+      applyBuyableInventory(
+        sb.from("deals").select("id", { count: "exact", head: true }),
+      ).eq("deal_verdict", "go"),
     ]);
     cars = { active: active.count || 0, go: go.count || 0 };
   } catch {
@@ -40,14 +38,14 @@ export async function GET() {
   let feed: FeedItem[] = [];
   try {
     const sb = createServerComponentClient();
-    const { data: carRows } = await sb
-      .from("deals")
-      .select(
-        "year, make, model, ask_price, location_city, location_state, images, lat, lng",
-      )
-      .eq("active", true)
+    const { data: carRows } = await applyBuyableInventory(
+      sb
+        .from("deals")
+        .select(
+          "year, make, model, ask_price, location_city, location_state, images, lat, lng",
+        ),
+    )
       .eq("deal_verdict", "go")
-      .not("images", "is", null)
       .order("last_seen_at", { ascending: false })
       .limit(40);
 

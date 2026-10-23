@@ -19,6 +19,7 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/mispricing — the mispricing radar. Clusters active deals by make/model/year-band, computes
 // each cluster's price distribution, and surfaces the statistical outliers priced well under their
@@ -81,12 +82,13 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServerComponentClient();
 
-  let q = supabase
-    .from("deals")
-    .select(
-      "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
-    )
-    .eq("active", true)
+  let q = applyBuyableInventory(
+    supabase
+      .from("deals")
+      .select(
+        "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
+      ),
+  )
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0)
     .not("make", "is", null)

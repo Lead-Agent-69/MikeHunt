@@ -2,6 +2,7 @@
 // ─── Market Intelligence Layer for Smart Deal Scoring ─────────────────────────
 
 import { createServerComponentClient } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 export interface MarketTrend {
   make: string;
@@ -158,16 +159,13 @@ async function getCurrentSupply(
   const supabase = createServerComponentClient();
 
   try {
-    // Count recent listings (last 7 days)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    let query = supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
+    let query = applyBuyableInventory(
+      supabase.from("deals").select("id", { count: "exact", head: true }),
+      Date.now(),
+      { includeWithoutPhotos: true, observedDays: 7 },
+    )
       .ilike("make", make)
-      .ilike("model", `%${model}%`)
-      .gte("last_scraped_at", sevenDaysAgo.toISOString());
+      .ilike("model", `%${model}%`);
 
     if (state) {
       query = query.ilike("location_state", state);
@@ -260,14 +258,11 @@ export async function updateMarketTrends(): Promise<number> {
   const supabase = createServerComponentClient();
 
   try {
-    // Get aggregated data from vehicles table (last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const { data: vehicles, error } = await supabase
-      .from("deals")
-      .select("make, model, ask_price")
-      .gte("last_scraped_at", thirtyDaysAgo.toISOString())
+    const { data: vehicles, error } = await applyBuyableInventory(
+      supabase.from("deals").select("make, model, ask_price"),
+      Date.now(),
+      { includeWithoutPhotos: true, observedDays: 30 },
+    )
       .not("make", "is", null)
       .not("model", "is", null)
       .not("ask_price", "is", null);

@@ -97,12 +97,10 @@ export function inventoryViewUnavailableReason(
 
 export function applyInventoryViewScope(query: any, params: URLSearchParams) {
   let q = applyVehicleDetails(
-    applyLiveAuctionWindow(
-      applyCustomerInventory(query, Date.now(), {
-        includeWithoutPhotos: params.get("hasPhotos") === "no",
-        observedDays: Number(params.get("seenWithin")),
-      }),
-    ),
+    applyBuyableInventory(query, Date.now(), {
+      includeWithoutPhotos: params.get("hasPhotos") === "no",
+      observedDays: Number(params.get("seenWithin")),
+    }),
     params,
   );
   q = applyInventoryLane(q, params.get("lane") || "all");
@@ -178,8 +176,7 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     q = q.or(dealers.map((host) => `source_url.ilike.%${host}%`).join(","));
   return q;
 }
-import { applyLiveAuctionWindow } from "./live-auction-window";
-import { applyCustomerInventory } from "./customer-inventory";
+import { applyBuyableInventory } from "./customer-inventory";
 import {
   parseTitleTypes,
   titleCategoryOrFilter,

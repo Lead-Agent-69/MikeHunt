@@ -6,7 +6,7 @@ import {
   inventoryLocationQuery,
 } from "@/lib/search/radius-inventory";
 import { internalError } from "@/lib/api/http-error";
-import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -173,18 +173,19 @@ export async function GET(req: NextRequest) {
   // title filter and the remaining facets are narrowed in memory with the same enum mapping.
   const applyTitleInDb = cascade;
   const build = () => {
-    let query = inventoryLocationQuery(
-      supabase,
-      location,
-      cascade
-        ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
-        : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url,seller_type:options->>sellerType",
-    ).eq("active", true);
-    query = applyLiveAuctionWindow(
-      applyCustomerInventory(query, Date.now(), {
+    let query = applyBuyableInventory(
+      inventoryLocationQuery(
+        supabase,
+        location,
+        cascade
+          ? "id,title,make,model,year,trim,condition,damage_type,location_city,location_state"
+          : "id,title,make,model,trim,damage_type,location_city,location_state,year,condition,source,source_url,seller_type:options->>sellerType",
+      ),
+      Date.now(),
+      {
         includeWithoutPhotos: params.get("hasPhotos") === "no",
         observedDays: Number(params.get("seenWithin")),
-      }),
+      },
     );
     if (
       !hasAuctionDetailFilters(params) &&
@@ -301,4 +302,3 @@ export async function GET(req: NextRequest) {
     return internalError("scan:facets", error);
   }
 }
-import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

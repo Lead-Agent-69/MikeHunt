@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/snapshot?make=Honda&model=Accord&year=2018&daysAgo=30
 // "Time travel": compare today's average ask to a historical snapshot from market_aggregates.
@@ -41,10 +42,7 @@ export async function GET(req: NextRequest) {
   const { data: hist } = await hq;
 
   // Current avg ask from live deals.
-  let cq = supabase
-    .from("deals")
-    .select("ask_price")
-    .eq("active", true)
+  let cq = applyBuyableInventory(supabase.from("deals").select("ask_price"))
     .ilike("make", make)
     .ilike("model", `%${model.split(" ")[0]}%`)
     .gt("ask_price", 0)

@@ -8,6 +8,7 @@ import {
 } from "@/lib/deals/source-price-context";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 const MAX_SOURCES = 50;
 // Exact reported VIN observations, with unlike amounts kept out of cash comparisons.
@@ -69,11 +70,10 @@ export async function GET(
     });
   }
 
-  const { data, error } = await supabase
-    .from("deals")
-    .select(`id,location_state,${SOURCE_PRICE_FIELDS}`)
+  const { data, error } = await applyBuyableInventory(
+    supabase.from("deals").select(`id,location_state,${SOURCE_PRICE_FIELDS}`),
+  )
     .eq("vin", vin)
-    .eq("active", true)
     .order("last_seen_at", { ascending: false })
     .order("id", { ascending: true })
     .limit(MAX_SOURCES + 1);

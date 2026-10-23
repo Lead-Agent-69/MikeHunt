@@ -71,6 +71,60 @@ type SourceProof = {
   inventory: InventoryReadinessProof | null;
 };
 
+type InventoryQualityProof = {
+  total_rows?: number | string | null;
+  active_rows?: number | string | null;
+  current_visible_rows?: number | string | null;
+  new_last_24h_rows?: number | string | null;
+  new_last_7d_rows?: number | string | null;
+  updated_last_24h_rows?: number | string | null;
+  newest_visible_at?: string | null;
+  retained_not_visible_rows?: number | string | null;
+  current_strict_buy_candidates?: number | string | null;
+  current_geocoded_rows?: number | string | null;
+  current_city_rows?: number | string | null;
+  current_watch_candidate_rows?: number | string | null;
+  current_market_value_backed_rows?: number | string | null;
+  current_resale_estimate_backed_rows?: number | string | null;
+  current_deal_math_ready_rows?: number | string | null;
+  current_go_rows?: number | string | null;
+  current_hold_rows?: number | string | null;
+  current_pass_rows?: number | string | null;
+  current_insufficient_rows?: number | string | null;
+};
+
+const proofCount = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : 0;
+};
+
+export function hasDecisionReadyInventory(
+  proof: InventoryQualityProof | null | undefined,
+) {
+  return proofCount(proof?.current_strict_buy_candidates) > 0;
+}
+
+async function loadInventoryQualityProof(
+  sb: any,
+): Promise<InventoryQualityProof | null> {
+  return cached(
+    "status:inventory-quality:v1",
+    300_000,
+    async () => {
+      try {
+        const { data, error } = await sb.rpc("inventory_quality_rollup_v1");
+        return !error && Array.isArray(data) && data[0]
+          ? (data[0] as InventoryQualityProof)
+          : null;
+      } catch {
+        // App and database deploy independently. Missing proof fails decision readiness closed.
+        return null;
+      }
+    },
+    (result) => result !== null,
+  );
+}
+
 function loadAuthProviders(): Promise<AuthProviderReadiness> {
   if (!isSupabaseConfigured())
     return Promise.resolve(unconfiguredAuthProviders());
@@ -455,9 +509,6 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   }
 
   const sb = createServerComponentClient();
-  const since24 = new Date(Date.now() - 86400_000).toISOString();
-  const since7 = new Date(Date.now() - 7 * 86400_000).toISOString();
-
   const countActive = (build: (q: any) => any) =>
     build(
       sb
@@ -466,34 +517,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
         .eq("active", true),
     ).then((r: any) => r.count ?? 0);
 
-  const [
-    active,
-    new24,
-    new7,
-    updated24,
-    geocoded,
-    withCity,
-    go,
-    watchCandidates,
-    health,
-    recent,
-    newest,
-    sourceProof,
-  ] = await Promise.all([
-    countActive((q: any) => q),
-    countActive((q: any) => q.gt("created_at", since24)),
-    countActive((q: any) => q.gt("created_at", since7)),
-    countActive((q: any) => q.gt("updated_at", since24)),
-    countActive((q: any) => q.not("lat", "is", null)),
-    countActive((q: any) => q.not("location_city", "is", null)),
-    countActive((q: any) => q.eq("deal_verdict", "go")),
-    countActive((q: any) =>
-      q
-        .gte("ask_price", 3000)
-        .gt("sell_estimate", 0)
-        .not("true_net_profit", "is", null)
-        .lt("true_net_profit", 0),
-    ),
+  const [health, recent, sourceProof, inventoryQuality] = await Promise.all([
     sb
       .from("source_health")
       .select("*")
@@ -512,16 +536,8 @@ async function computeFullStatus(): Promise<Record<string, any>> {
           run_at: row.started_at,
         })),
       ),
-    sb
-      .from("deals")
-      .select("last_seen_at")
-      .eq("active", true)
-      .not("last_seen_at", "is", null)
-      .order("last_seen_at", { ascending: false })
-      .limit(1)
-      .maybeSingle()
-      .then((r: any) => r.data?.last_seen_at ?? null),
     loadSourceProof(sb),
+    loadInventoryQualityProof(sb),
   ]);
 
   const exactCoverage = sourceProof.inventory?.total
@@ -545,12 +561,31 @@ async function computeFullStatus(): Promise<Record<string, any>> {
           .then((r: any) => r.data ?? []),
       ]);
 
-  const pct = (n: number) => (active ? Math.round((n / active) * 100) : 0);
-  const newestVisible = exactCoverage?.newestSeen || newest;
+  const fallbackVisible = exactCoverage?.total || qualityRows.length || 0;
+  const currentVisible = proofCount(
+    inventoryQuality?.current_visible_rows ?? fallbackVisible,
+  );
+  const storedActive = proofCount(
+    inventoryQuality?.active_rows ?? exactCoverage?.storedTotal,
+  );
+  const qualityBase = currentVisible || fallbackVisible;
+  const newestVisible =
+    inventoryQuality?.newest_visible_at || exactCoverage?.newestSeen || null;
   const hoursSince = newestVisible
     ? Math.round((Date.now() - new Date(newestVisible).getTime()) / 3600_000)
     : null;
-  const qualityBase = exactCoverage?.total || qualityRows.length || active || 0;
+  const new24 = proofCount(inventoryQuality?.new_last_24h_rows);
+  const new7 = proofCount(inventoryQuality?.new_last_7d_rows);
+  const updated24 = proofCount(inventoryQuality?.updated_last_24h_rows);
+  const geocoded = proofCount(inventoryQuality?.current_geocoded_rows);
+  const withCity = proofCount(inventoryQuality?.current_city_rows);
+  const watchCandidates = proofCount(
+    inventoryQuality?.current_watch_candidate_rows,
+  );
+  const strictBuyCandidates = proofCount(
+    inventoryQuality?.current_strict_buy_candidates,
+  );
+  const currentGo = proofCount(inventoryQuality?.current_go_rows);
   const qualityCount = (predicate: (row: any) => boolean) =>
     qualityRows.reduce(
       (sum: number, row: any) => sum + (predicate(row) ? 1 : 0),
@@ -622,57 +657,54 @@ async function computeFullStatus(): Promise<Record<string, any>> {
   // Fair Purchase Price); soldComps = retail completed-sale price points; attributedAuctionSales
   // are honest government auction outcomes kept out of retail resale math; aggregateGroups are
   // learned make/model/year/state value buckets the nightly rollup builds from mmr_value.
-  const [
-    marketValueBacked,
-    resaleEstimateBacked,
-    dealMathReady,
-    soldComps,
-    attributedAuctionSales,
-    aggregateGroups,
-  ] = await Promise.all([
-    countActive((q: any) => q.gt("mmr_value", 0)),
-    countActive((q: any) => q.gt("sell_estimate", 0)),
-    countActive((q: any) =>
-      q
-        .gt("sell_estimate", 0)
-        .not("true_net_profit", "is", null)
-        .not("profit_score", "is", null),
-    ),
-    withRetailSold((scope) =>
-      applyRetailSoldScope(
-        sb.from("sold_listings").select("id", { count: "exact", head: true }),
-        scope,
-      ),
-    ).then((r: any) => r.count ?? 0),
-    sb
-      .from("sold_listings")
-      .select("id", { count: "exact", head: true })
-      .eq("basis", "sold")
-      .not("sale_channel", "is", null)
-      .then((r: any) => r.count ?? 0),
-    sb
-      .from("market_aggregates")
-      .select("year", { count: "exact", head: true })
-      .then((r: any) => r.count ?? 0),
-  ]);
+  const marketValueBacked = proofCount(
+    inventoryQuality?.current_market_value_backed_rows,
+  );
+  const resaleEstimateBacked = proofCount(
+    inventoryQuality?.current_resale_estimate_backed_rows,
+  );
+  const dealMathReady = proofCount(
+    inventoryQuality?.current_deal_math_ready_rows,
+  );
+  const [soldComps, attributedAuctionSales, aggregateGroups] =
+    await Promise.all([
+      withRetailSold((scope) =>
+        applyRetailSoldScope(
+          sb.from("sold_listings").select("id", { count: "exact", head: true }),
+          scope,
+        ),
+      ).then((r: any) => r.count ?? 0),
+      sb
+        .from("sold_listings")
+        .select("id", { count: "exact", head: true })
+        .eq("basis", "sold")
+        .not("sale_channel", "is", null)
+        .then((r: any) => r.count ?? 0),
+      sb
+        .from("market_aggregates")
+        .select("year", { count: "exact", head: true })
+        .then((r: any) => r.count ?? 0),
+    ]);
 
   const realData = buildRealDataReadiness({
-    activeDeals: qualityBase,
+    activeDeals: currentVisible,
     newLast24h: new24,
     newestAgeHours: hoursSince,
     photoPct: exactCoverage
       ? qualityPct(detailCoverage.photo)
-      : pct(withImages),
+      : qualityPct(withImages),
     sourceLinkPct: qualityPct(detailCoverage.source),
     pricePct: qualityPct(detailCoverage.price),
     titlePct: qualityPct(detailCoverage.title),
     damagePct: qualityPct(detailCoverage.damage),
     mileagePct: qualityPct(detailCoverage.mileage),
-    vinPct: exactCoverage ? qualityPct(detailCoverage.vin) : pct(withVin),
+    vinPct: exactCoverage
+      ? qualityPct(detailCoverage.vin)
+      : qualityPct(withVin),
     sellerPct: qualityPct(detailCoverage.seller),
     sellerContactPct: qualityPct(detailCoverage.sellerContact),
     auctionDatePct,
-    decisionReady: go > 0 && soldComps > 0,
+    decisionReady: hasDecisionReadyInventory(inventoryQuality),
   });
 
   // In-sample asking-price proxy; this cannot certify transaction or resale accuracy.
@@ -726,18 +758,28 @@ async function computeFullStatus(): Promise<Record<string, any>> {
     realData,
     buyerReady: realData.buyerReady,
     decisionReady: realData.decisionReady,
-    activeDeals: active,
+    activeDeals: currentVisible,
+    storedActiveDeals: storedActive,
+    inventory: {
+      totalStored: proofCount(inventoryQuality?.total_rows),
+      activeStored: storedActive,
+      currentVisible,
+      retainedNotVisible: proofCount(
+        inventoryQuality?.retained_not_visible_rows,
+      ),
+      strictBuyCandidates,
+    },
     readySources: sourceHealth.readySources,
     sourceHealth,
     sourceBreakdown,
     valuationAccuracy,
     knowledgeBase: {
       marketValueBacked,
-      marketValuePct: pct(marketValueBacked),
+      marketValuePct: qualityPct(marketValueBacked),
       resaleEstimateBacked,
-      resaleEstimatePct: pct(resaleEstimateBacked),
+      resaleEstimatePct: qualityPct(resaleEstimateBacked),
       dealMathReady,
-      dealMathReadyPct: pct(dealMathReady),
+      dealMathReadyPct: qualityPct(dealMathReady),
       soldComps,
       attributedAuctionSales,
       aggregateGroups,
@@ -747,7 +789,7 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       prioritizedMakes: profitableMakes,
     },
     freshness: {
-      activeDeals: active,
+      activeDeals: currentVisible,
       newLast24h: new24,
       newLast7d: new7,
       updatedLast24h: updated24,
@@ -755,14 +797,23 @@ async function computeFullStatus(): Promise<Record<string, any>> {
       stale: hoursSince == null || hoursSince > 24,
     },
     quality: {
-      goDeals: go,
+      goDeals: currentGo,
+      strictBuyCandidates,
+      verdicts: {
+        go: currentGo,
+        hold: proofCount(inventoryQuality?.current_hold_rows),
+        pass: proofCount(inventoryQuality?.current_pass_rows),
+        notEnoughData: proofCount(inventoryQuality?.current_insufficient_rows),
+      },
       watchCandidates,
-      vinPct: exactCoverage ? qualityPct(detailCoverage.vin) : pct(withVin),
+      vinPct: exactCoverage
+        ? qualityPct(detailCoverage.vin)
+        : qualityPct(withVin),
       imagePct: exactCoverage
         ? qualityPct(detailCoverage.photo)
-        : pct(withImages),
-      geocodedPct: pct(geocoded),
-      cityPct: pct(withCity),
+        : qualityPct(withImages),
+      geocodedPct: qualityPct(geocoded),
+      cityPct: qualityPct(withCity),
       titlePct: qualityPct(detailCoverage.title),
       damagePct: qualityPct(detailCoverage.damage),
       mileagePct: qualityPct(detailCoverage.mileage),
@@ -810,13 +861,13 @@ const loadPersistedFullStatus = unstable_cache(
     }
     return payload;
   },
-  ["system-status-full-v3"],
+  ["system-status-full-v4"],
   { revalidate: 60, tags: ["system-status-full"] },
 );
 
 function loadFullStatus() {
   return cached(
-    "status:full:v3",
+    "status:full:v4",
     60_000,
     async () => {
       try {

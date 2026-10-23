@@ -5,6 +5,7 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // Honest inventory count for the Discover header. This does not sum profit and
 // does not cap a hidden dollar total.
@@ -20,13 +21,14 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("deals")
-    .select(
-      "id, year, make, model, ask_price, location_city, location_state, source",
-      { count: "exact" },
-    )
-    .eq("active", true)
+  let q = applyBuyableInventory(
+    supabase
+      .from("deals")
+      .select(
+        "id, year, make, model, ask_price, location_city, location_state, source",
+        { count: "exact" },
+      ),
+  )
     .gt("ask_price", 0)
     .order("last_seen_at", { ascending: false })
     .limit(1);

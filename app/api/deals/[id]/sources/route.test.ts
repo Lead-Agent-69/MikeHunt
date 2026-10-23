@@ -22,7 +22,17 @@ vi.mock("@/lib/supabase", () => ({
             resolve,
           ),
       };
-      for (const method of ["select", "eq", "order", "limit"])
+      for (const method of [
+        "select",
+        "eq",
+        "neq",
+        "not",
+        "or",
+        "gte",
+        "lte",
+        "order",
+        "limit",
+      ])
         query[method] = (...args: unknown[]) => {
           state.calls.push([table, method, ...args]);
           return query;

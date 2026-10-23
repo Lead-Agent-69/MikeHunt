@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { createServerComponentClient } from "@/lib/supabase";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/ticker — items for the scrolling home ticker. New GO today, biggest movers,
 // flash count. All derived from data we already have.
@@ -21,11 +22,9 @@ export async function GET(req: NextRequest) {
   const supabase = createServerComponentClient();
   const since = new Date(Date.now() - 86400000).toISOString();
 
-  let newToday = supabase
-    .from("deals")
-    .select("id", { count: "exact", head: true })
-    .eq("active", true)
-    .gte("created_at", since);
+  let newToday = applyBuyableInventory(
+    supabase.from("deals").select("id", { count: "exact", head: true }),
+  ).gte("created_at", since);
   if (flipDesk) newToday = newToday.eq("deal_verdict", "go");
 
   const [newCount, pulse, movers, flash] = await Promise.all([
@@ -38,7 +37,9 @@ export async function GET(req: NextRequest) {
       .order("data_points", { ascending: false })
       .limit(10),
     flipDesk
-      ? supabase.from("flash_deals").select("id", { count: "exact", head: true })
+      ? supabase
+          .from("flash_deals")
+          .select("id", { count: "exact", head: true })
       : Promise.resolve({ count: 0 }),
   ]);
 

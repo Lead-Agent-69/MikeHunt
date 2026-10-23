@@ -25,11 +25,24 @@ const DEAL = {
   location_state: "TX",
   images: ["https://img.example/1.jpg"],
   first_seen_at: NOW_ISO,
+  last_seen_at: NOW_ISO,
 };
 
 function chain(rows: any[], error: any = null) {
   const q: any = {};
-  for (const m of ["select", "eq", "gt", "gte", "not", "order", "limit", "in"])
+  for (const m of [
+    "select",
+    "eq",
+    "gt",
+    "gte",
+    "lte",
+    "not",
+    "neq",
+    "or",
+    "order",
+    "limit",
+    "in",
+  ])
     q[m] = (...args: any[]) => {
       queryCalls.push([m, ...args]);
       return q;

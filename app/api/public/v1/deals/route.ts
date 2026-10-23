@@ -9,6 +9,7 @@ import {
   listingsForDesk,
   readSavedBuyerMode,
 } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 const CORS = { "Access-Control-Allow-Origin": "*" };
 
@@ -71,12 +72,13 @@ export async function GET(req: NextRequest) {
     Math.max(1, parseInt(sp.get("limit") || "50", 10) || 50),
   );
 
-  let q = supabase
-    .from("deals")
-    .select(
-      "id, vin, year, make, model, ask_price, sell_estimate, true_net_profit, recommended_max_bid, deal_verdict, profit_score, location_state, location_city, source, source_url",
-    )
-    .eq("active", true)
+  let q = applyBuyableInventory(
+    supabase
+      .from("deals")
+      .select(
+        "id, vin, year, make, model, ask_price, sell_estimate, true_net_profit, recommended_max_bid, deal_verdict, profit_score, location_state, location_city, source, source_url",
+      ),
+  )
     .gt("ask_price", 0)
     .order("profit_score", { ascending: false, nullsFirst: false })
     .limit(limit);

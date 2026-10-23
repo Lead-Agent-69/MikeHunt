@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { rankAlternatives } from "@/lib/deals/rank-alternatives";
-import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { isAuctionSource } from "@/lib/deal-terms";
 import {
   redactListingForNonFlipDesk,
@@ -93,14 +93,15 @@ export async function GET(
   try {
     const semantic = await fetchSemanticSimilar(supabase, id, base);
     if (semantic?.rows.length) {
-      const hydrated = await supabase
-        .from("deals")
-        .select(columns)
-        .in(
-          "id",
-          semantic.rows.map((row: any) => row.id),
-        )
-        .eq("active", true);
+      const hydrated = await applyBuyableInventory(
+        supabase
+          .from("deals")
+          .select(columns)
+          .in(
+            "id",
+            semantic.rows.map((row: any) => row.id),
+          ),
+      );
       if (!hydrated.error) semanticRows = hydrated.data || [];
     }
   } catch {
@@ -108,14 +109,10 @@ export async function GET(
   }
 
   // Include an attribute pool so vector coverage cannot hide a closer-priced match.
-  let q = supabase
-    .from("deals")
-    .select(columns)
-    .eq("active", true)
+  let q = applyBuyableInventory(supabase.from("deals").select(columns))
     .eq("make", base.make)
     .neq("id", id)
     .gt("ask_price", 0)
-    .gte("last_seen_at", new Date(Date.now() - 7 * 86400000).toISOString())
     .order("last_seen_at", { ascending: false })
     .limit(120);
 
@@ -125,8 +122,6 @@ export async function GET(
     q = q
       .gte("ask_price", Math.ceil(Number(base.ask_price) * 0.6))
       .lte("ask_price", Math.floor(Number(base.ask_price) * 1.4));
-  q = applyLiveAuctionWindow(q);
-
   const { data: rows, error } = await q;
   if (error && !semanticRows.length)
     return NextResponse.json(

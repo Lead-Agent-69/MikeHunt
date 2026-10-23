@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  applyBuyableInventory,
   applyCustomerInventory,
   isCustomerInventory,
   listingPhotos,
@@ -68,6 +69,15 @@ describe("customer inventory eligibility", () => {
     expect(isCustomerInventory({ ...row, active: false }, now)).toBe(false);
     expect(
       isCustomerInventory(
+        {
+          ...row,
+          options: { sourceAvailability: { state: "removed" } },
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCustomerInventory(
         { ...row, options: { photoAudit: { state: "unavailable" } } },
         now,
       ),
@@ -78,6 +88,33 @@ describe("customer inventory eligibility", () => {
         now,
       ),
     ).toBe(true);
+    expect(
+      isCustomerInventory(
+        { ...row, auction_end_at: "2026-10-13T11:59:59Z" },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCustomerInventory(
+        { ...row, auction_end_at: "2026-10-13T12:00:01Z" },
+        now,
+      ),
+    ).toBe(true);
+  });
+  it("applies the complete active, freshness, photo and auction boundary", () => {
+    const query: any = {};
+    for (const method of ["eq", "not", "neq", "gte", "lte", "or"])
+      query[method] = vi.fn(() => query);
+    const now = Date.parse("2026-10-13T12:00:00Z");
+
+    expect(applyBuyableInventory(query, now)).toBe(query);
+    expect(query.eq).toHaveBeenCalledWith("active", true);
+    expect(query.or).toHaveBeenCalledWith(
+      "options->sourceAvailability->>state.is.null,options->sourceAvailability->>state.neq.removed",
+    );
+    expect(query.or).toHaveBeenCalledWith(
+      "auction_end_at.is.null,auction_end_at.gt.2026-10-13T12:00:00.000Z",
+    );
   });
   it("filters missing photos and stale/future observations before pagination", () => {
     const query: any = {};

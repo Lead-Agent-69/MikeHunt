@@ -10,6 +10,7 @@ import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
 } from "@/lib/deals/acquisition-price";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 interface SniperAlertCandidate {
   dealId: string;
@@ -57,16 +58,15 @@ async function handleSniperEvaluation(req: NextRequest) {
   }
 
   // 1. Fetch live active GO deals
-  const { data: deals, error } = await supabase
-    .from("deals")
-    .select(
+  const { data: deals, error } = await applyBuyableInventory(
+    supabase.from("deals").select(
       `
       id, title, year, make, model, trim, ask_price, sell_estimate,
       true_net_profit, profit_score, deal_verdict, location_state,
       source, source_url, created_at, condition, damage_type, options, lat, lng
     `,
-    )
-    .eq("active", true)
+    ),
+  )
     .eq("deal_verdict", "go")
     .gt("true_net_profit", 0)
     .order("true_net_profit", { ascending: false })

@@ -19,7 +19,18 @@ vi.mock("@/lib/deals/deal-desk-access", () => ({
 
 function queryBuilder() {
   const q: any = {};
-  for (const m of ["select", "not", "gt", "order", "limit"]) q[m] = () => q;
+  for (const m of [
+    "select",
+    "not",
+    "neq",
+    "gt",
+    "gte",
+    "lte",
+    "or",
+    "order",
+    "limit",
+  ])
+    q[m] = () => q;
   q.eq = (...args: unknown[]) => {
     eq(...args);
     return q;

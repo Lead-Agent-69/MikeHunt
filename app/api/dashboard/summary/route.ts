@@ -10,6 +10,7 @@ import {
   createServerComponentClient,
   isSupabaseConfigured,
 } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/dashboard/summary — at-a-glance market intelligence for the home/discover top.
 // "17 new GO deals today · avg 18d to sell · F-150 +6% (buy now)". All from data we already have.
@@ -28,17 +29,14 @@ export async function GET() {
   const since = new Date(Date.now() - 86400000).toISOString();
 
   const [newGo, activeGo, outcomes, movers] = await Promise.all([
-    supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
+    applyBuyableInventory(
+      supabase.from("deals").select("id", { count: "exact", head: true }),
+    )
       .eq("deal_verdict", "go")
-      .eq("active", true)
       .gte("created_at", since),
-    supabase
-      .from("deals")
-      .select("id", { count: "exact", head: true })
-      .eq("deal_verdict", "go")
-      .eq("active", true),
+    applyBuyableInventory(
+      supabase.from("deals").select("id", { count: "exact", head: true }),
+    ).eq("deal_verdict", "go"),
     supabase
       .from("deal_outcomes")
       .select(OUTCOME_LEDGER_COLUMNS)

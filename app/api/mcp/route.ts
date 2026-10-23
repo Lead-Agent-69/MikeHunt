@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { hashApiKey } from "@/lib/api-keys";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // /api/mcp — Model Context Protocol server (JSON-RPC 2.0 over HTTP). Lets AI assistants (Claude,
 // etc.) query the dealer market in natural language and get back PROFIT intelligence — GO verdicts,
@@ -60,12 +61,14 @@ const TOOLS = [
         },
         state: {
           type: "string",
-          description: "US state code filter (e.g. TX, CA, FL) or leave empty for nationwide",
+          description:
+            "US state code filter (e.g. TX, CA, FL) or leave empty for nationwide",
         },
         strategy: {
           type: "string",
           enum: ["max_roi", "fastest_flip", "max_profit"],
-          description: "Ranking strategy: 'max_roi' for highest percentage return, 'fastest_flip' for under 14 days turn, or 'max_profit' for highest cash dollars",
+          description:
+            "Ranking strategy: 'max_roi' for highest percentage return, 'fastest_flip' for under 14 days turn, or 'max_profit' for highest cash dollars",
         },
       },
     },
@@ -103,12 +106,13 @@ async function runTool(name: string, args: any): Promise<string> {
   if (name === "search_deals") {
     const verdict = args.verdict || "go";
     const limit = Math.min(50, Math.max(1, Number(args.limit) || 10));
-    let q = supabase
-      .from("deals")
-      .select(
-        "year, make, model, ask_price, true_net_profit, recommended_max_bid, deal_verdict, location_state, source",
-      )
-      .eq("active", true)
+    let q = applyBuyableInventory(
+      supabase
+        .from("deals")
+        .select(
+          "year, make, model, ask_price, true_net_profit, recommended_max_bid, deal_verdict, location_state, source",
+        ),
+    )
       .gt("ask_price", 0)
       .order("profit_score", { ascending: false, nullsFirst: false })
       .limit(limit);
@@ -143,12 +147,13 @@ async function runTool(name: string, args: any): Promise<string> {
     const state = args.state ? String(args.state).toUpperCase() : "";
     const strategy = args.strategy || "max_roi";
 
-    let q = supabase
-      .from("deals")
-      .select(
-        "id, year, make, model, trim, vin, mileage, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, recommended_max_bid, location_state, source",
-      )
-      .eq("active", true)
+    let q = applyBuyableInventory(
+      supabase
+        .from("deals")
+        .select(
+          "id, year, make, model, trim, vin, mileage, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, recommended_max_bid, location_state, source",
+        ),
+    )
       .gt("true_net_profit", 0)
       .order("true_net_profit", { ascending: false })
       .limit(100);
@@ -171,7 +176,9 @@ async function runTool(name: string, args: any): Promise<string> {
       );
 
     const top = sorted[0];
-    const maxBid = Math.round(Number(top.recommended_max_bid) || top.ask * 0.92);
+    const maxBid = Math.round(
+      Number(top.recommended_max_bid) || top.ask * 0.92,
+    );
 
     return (
       `🔥 NEXT BEST BUY: ${top.year} ${top.make} ${top.model} ${top.trim || ""}\n` +

@@ -142,7 +142,17 @@ describe("fetchAttributeSimilar", () => {
       },
     ];
     const q: any = {};
-    for (const m of ["select", "eq", "neq", "gt", "gte", "lte", "order"])
+    for (const m of [
+      "select",
+      "eq",
+      "neq",
+      "gt",
+      "gte",
+      "lte",
+      "not",
+      "or",
+      "order",
+    ])
       q[m] = (...a: unknown[]) => (calls.push([m, a]), q);
     q.limit = async () => ({ data: rows, error: null });
     const sb = { from: () => q } as any;
