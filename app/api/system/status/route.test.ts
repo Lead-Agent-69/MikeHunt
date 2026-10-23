@@ -1,12 +1,25 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSourceBreakdownFromRollups,
+  hasDecisionReadyInventory,
   lastSeenLabel,
   mergeStatusSources,
   shouldCacheFullStatus,
   sourceListingStatus,
   summarizeSourceHealth,
 } from "./route";
+
+describe("hasDecisionReadyInventory", () => {
+  it("requires a fully evidenced current buy candidate", () => {
+    expect(hasDecisionReadyInventory(null)).toBe(false);
+    expect(
+      hasDecisionReadyInventory({ current_strict_buy_candidates: "0" }),
+    ).toBe(false);
+    expect(
+      hasDecisionReadyInventory({ current_strict_buy_candidates: "1" }),
+    ).toBe(true);
+  });
+});
 
 describe("shouldCacheFullStatus", () => {
   it("keeps setup responses cacheable but retries incomplete production reads", () => {

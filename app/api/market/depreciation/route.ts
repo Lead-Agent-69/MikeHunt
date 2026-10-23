@@ -8,6 +8,7 @@ import {
   sourcePriceContext,
   SOURCE_PRICE_FIELDS,
 } from "@/lib/deals/source-price-context";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/depreciation?make=Honda&model=Accord&year=2018
 // Returns the price-vs-mileage scatter points + a fitted depreciation line ($/1k miles).
@@ -26,10 +27,9 @@ export async function GET(req: NextRequest) {
     );
 
   const supabase = createServerComponentClient();
-  let q = supabase
-    .from("deals")
-    .select(SOURCE_PRICE_FIELDS)
-    .eq("active", true)
+  let q = applyBuyableInventory(
+    supabase.from("deals").select(SOURCE_PRICE_FIELDS),
+  )
     .ilike("make", make.replace(/[\\%_]/g, "\\$&"))
     .ilike("model", model.replace(/[\\%_]/g, "\\$&"))
     .not("mileage", "is", null)

@@ -7,6 +7,7 @@ import {
 } from "@/lib/supabase";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/overview?make=Honda&model=Accord — everything the /overview/[make]/[model] page
 // needs: hero stats, profit-by-trim, scatter points, regional breakdown.
@@ -38,12 +39,13 @@ export async function GET(req: NextRequest) {
   const token = model.split(" ")[0];
 
   const [deals, trims] = await Promise.all([
-    supabase
-      .from("deals")
-      .select(
-        "ask_price, true_net_profit, mileage, deal_verdict, location_state",
-      )
-      .eq("active", true)
+    applyBuyableInventory(
+      supabase
+        .from("deals")
+        .select(
+          "ask_price, true_net_profit, mileage, deal_verdict, location_state",
+        ),
+    )
       .ilike("make", make)
       .ilike("model", `%${token}%`)
       .gt("ask_price", 0)

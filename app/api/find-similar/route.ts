@@ -13,6 +13,7 @@ import {
   pickFindSimilarColumns,
   withNoStore,
 } from "@/lib/deals/find-similar-columns";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,9 @@ export async function GET(request: NextRequest) {
     const priceMax = price > 0 ? Math.round(price * 1.15) : 1000000;
     const mileageMax = mileage > 0 ? Math.round(mileage + 30000) : 300000;
 
-    let query = supabase
-      .from("deals")
-      .select(FIND_SIMILAR_SELECT)
-      .eq("active", true)
+    let query = applyBuyableInventory(
+      supabase.from("deals").select(FIND_SIMILAR_SELECT),
+    )
       .eq("make", make)
       .ilike("model", `%${modelTerm}%`) // match first word of model resiliently
       .gte("year", yearMin)

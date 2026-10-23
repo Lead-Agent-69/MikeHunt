@@ -44,6 +44,16 @@ vi.mock("@/lib/supabase", () => {
         if (op === "is") filters.push((r) => r[col] != null);
         return b;
       },
+      neq: (col: string, val: unknown) => {
+        if (table === "deals") calls.push(["neq", col, val]);
+        if (col === "images" && val === "{}")
+          filters.push((r) => Array.isArray(r.images) && r.images.length > 0);
+        return b;
+      },
+      or: (...args: unknown[]) => {
+        if (table === "deals") calls.push(["or", ...args]);
+        return b;
+      },
       gt: (col: string, val: number) => {
         filters.push((r) => r[col] > val);
         return b;
@@ -92,7 +102,9 @@ const row = (
   deal_verdict: verdict,
   location_city: city,
   location_state: "FL",
-  images: [],
+  images: [`https://img.example/${id}.jpg`],
+  last_seen_at: new Date().toISOString(),
+  auction_end_at: null,
   lat,
   lng,
 });

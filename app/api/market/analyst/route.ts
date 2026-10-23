@@ -12,6 +12,7 @@ import {
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/market/analyst — Deal IQ Layer 4. A plain-English market read over the REAL aggregated
 // data (timing signals + market aggregates). The only AI piece in Deal IQ: generation is explicit
@@ -218,13 +219,13 @@ export async function GET(req: NextRequest) {
 
   let marketAggs = aggs || [];
   if ((!timing || timing.length === 0) && marketAggs.length === 0) {
-    const { data: liveDeals } = await supabase
-      .from("deals")
-      .select(
-        "year, make, model, sell_estimate, mmr_value, true_net_profit, profit_estimate, location_state",
-      )
-      .eq("active", true)
-      .limit(1000);
+    const { data: liveDeals } = await applyBuyableInventory(
+      supabase
+        .from("deals")
+        .select(
+          "year, make, model, sell_estimate, mmr_value, true_net_profit, profit_estimate, location_state",
+        ),
+    ).limit(1000);
     marketAggs = aggregateLiveDealsForMarketPulse(liveDeals || []);
   }
 

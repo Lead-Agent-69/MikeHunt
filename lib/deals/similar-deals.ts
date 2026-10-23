@@ -6,6 +6,7 @@
 // attribute fallback uses the same tiers + segment gate. No similarity number is ever synthesized.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import {
   matchesSimilarFilters,
   selectWithWidening,
@@ -98,10 +99,9 @@ export async function fetchAttributeSimilar(
   const res = await selectWithWidening<Row>(
     source,
     async (b) => {
-      let q = supabase
-        .from("deals")
-        .select(SIMILAR_ATTRIBUTE_COLUMNS)
-        .eq("active", true)
+      let q = applyBuyableInventory(
+        supabase.from("deals").select(SIMILAR_ATTRIBUTE_COLUMNS),
+      )
         .eq("make", source.make as string)
         .neq("id", dealId)
         .gt("ask_price", 0);

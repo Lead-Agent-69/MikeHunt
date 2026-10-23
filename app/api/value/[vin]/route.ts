@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 export async function GET(
   req: NextRequest,
@@ -55,13 +56,12 @@ export async function GET(
       });
     }
 
-    let comps = supabase
-      .from("deals")
-      .select("ask_price, year")
+    let comps = applyBuyableInventory(
+      supabase.from("deals").select("ask_price, year"),
+    )
       .ilike("make", make)
       .ilike("model", model)
-      .not("ask_price", "is", null)
-      .eq("active", true);
+      .not("ask_price", "is", null);
 
     // Constrain to a +/- 2 model-year band when the year is known.
     if (year) {

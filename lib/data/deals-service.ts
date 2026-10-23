@@ -3,7 +3,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { sellerContact } from "@/lib/data/deal-contact";
-import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
 import { withholdConflictingEconomics } from "@/lib/vehicle/listing-identity";
 import {
@@ -314,7 +314,7 @@ export class DealsService {
       .select(DEALS_LIST_SELECT, { count: "exact" })
       .eq("active", true);
 
-    query = applyCustomerInventory(query);
+    query = applyBuyableInventory(query);
 
     if (filters.source?.length) {
       query = query.in("source", filters.source);
@@ -427,7 +427,7 @@ export class DealsService {
         `title.ilike.%${searchTerm}%,make.ilike.%${searchTerm}%,model.ilike.%${searchTerm}%,vin.ilike.%${searchTerm}%`,
       );
 
-    query = applyCustomerInventory(query);
+    query = applyBuyableInventory(query);
 
     if (filters.states?.length) {
       query =
@@ -474,7 +474,7 @@ export class DealsService {
       return [];
     }
 
-    const { data, error } = await applyCustomerInventory(
+    const { data, error } = await applyBuyableInventory(
       this.supabase.from("deals").select(DEALS_LIST_SELECT).eq("active", true),
     )
       .gte("profit_score", 70)

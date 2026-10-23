@@ -20,6 +20,7 @@ import {
 } from "@/lib/deals/deal-desk-access";
 import { assessDecisionEvidence } from "@/lib/intelligence/decision-guard";
 import { hostMatches, hostOf } from "@/lib/net/host-match";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 function csvParam(value: string | null) {
   return (value || "")
@@ -96,10 +97,7 @@ export async function GET(req: NextRequest) {
     `;
 
   const buildQuery = (positiveOnly: boolean) => {
-    let query = supabase
-      .from("deals")
-      .select(baseSelect)
-      .eq("active", true)
+    let query = applyBuyableInventory(supabase.from("deals").select(baseSelect))
       .gte("ask_price", 3000)
       .gt("sell_estimate", 0)
       .not("true_net_profit", "is", null)

@@ -14,6 +14,7 @@ import { assertPublicHttpUrl, UrlNotAllowedError } from "@/lib/net/public-url";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
 import { eligibleAskingPrices } from "@/lib/ai/asking-price-context";
 import { SOURCE_PRICE_FIELDS } from "@/lib/deals/source-price-context";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import {
   ASK_COMP_WINDOW_DAYS,
   dealCheckMarketValue,
@@ -255,20 +256,17 @@ export async function POST(req: NextRequest) {
     const v = extracted.vehicle || {};
     if (v.make && v.model && extracted.selling_price) {
       const supabase = createServerComponentClient();
-      let q = supabase
-        .from("deals")
-        .select(
-          `id, year, make, model, source_deal_id, vin, location_state, ${SOURCE_PRICE_FIELDS}`,
-        )
-        .eq("active", true)
+      let q = applyBuyableInventory(
+        supabase
+          .from("deals")
+          .select(
+            `id, year, make, model, source_deal_id, vin, location_state, ${SOURCE_PRICE_FIELDS}`,
+          ),
+        Date.now(),
+        { includeWithoutPhotos: true, observedDays: ASK_COMP_WINDOW_DAYS },
+      )
         .ilike("make", v.make)
         .ilike("model", `%${String(v.model).split(" ")[0]}%`)
-        .gte(
-          "last_seen_at",
-          new Date(
-            Date.now() - ASK_COMP_WINDOW_DAYS * 86_400_000,
-          ).toISOString(),
-        )
         .limit(300);
       if (v.year)
         q = q.gte("year", Number(v.year) - 1).lte("year", Number(v.year) + 1);

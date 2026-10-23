@@ -21,6 +21,7 @@ import {
 import { isFlipDeskMode, listingsForDesk } from "@/lib/deals/deal-desk-access";
 import { buyerHomeFromPrefs } from "@/lib/geo/buyer-home";
 import { buyerDistanceFields } from "@/lib/discovery/for-you-rank";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/reco/for-you?limit=24 — signed-in "For You" ranked from the user's own view signals.
 //
@@ -156,10 +157,7 @@ export async function GET(req: NextRequest) {
   }
 
   const base = () => {
-    let q = sb
-      .from("deals")
-      .select(COLS)
-      .eq("active", true)
+    let q = applyBuyableInventory(sb.from("deals").select(COLS))
       .gt("ask_price", 0)
       .not("images", "is", null);
     // Discover's eligible IDs already reflect the current filters, including location overrides.

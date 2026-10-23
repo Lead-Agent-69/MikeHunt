@@ -13,6 +13,7 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/deals/near?zip=&radius=&verdict=
 // A selected radius crosses state borders. Without a radius, retain the saved
@@ -144,12 +145,13 @@ export async function GET(req: NextRequest) {
   if (lock.radius > 0 && !canMeasure)
     return NextResponse.json({ deals: [], needsLocation: true });
 
-  let q = supabase
-    .from("deals")
-    .select(
-      "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
-    )
-    .eq("active", true)
+  let q = applyBuyableInventory(
+    supabase
+      .from("deals")
+      .select(
+        "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images, lat, lng",
+      ),
+  )
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0);
   if (verdict) q = q.eq("deal_verdict", verdict);

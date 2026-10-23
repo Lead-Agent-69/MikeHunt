@@ -69,7 +69,7 @@ import {
 } from "@/lib/discovery/auction-scope";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
 import {
-  applyCustomerInventory,
+  applyBuyableInventory,
   isCustomerInventory,
   listingPhotos,
 } from "@/lib/search/customer-inventory";
@@ -1182,16 +1182,13 @@ export async function GET(req: NextRequest) {
   const scanProjection =
     sort === "margin" ? `${SCAN_SELECT},deal_margin` : SCAN_SELECT;
 
-  let query = inventoryLocationQuery(supabase, location, scanProjection, true)
-    // Only live inventory — the nightly prune sets active=false on deals unseen >30 days (awaiting
-    // hard-delete at 60). discover/deals-service already filter this; scan was leaking stale rows.
-    .eq("active", true);
-
-  query = applyLiveAuctionWindow(
-    applyCustomerInventory(query, Date.now(), {
+  let query = applyBuyableInventory(
+    inventoryLocationQuery(supabase, location, scanProjection, true),
+    Date.now(),
+    {
       includeWithoutPhotos: searchParams.get("hasPhotos") === "no",
       observedDays: Number(searchParams.get("seenWithin")),
-    }),
+    },
   );
 
   if (
@@ -1481,4 +1478,3 @@ export async function POST(req: NextRequest) {
     return internalError("scan", error);
   }
 }
-import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";

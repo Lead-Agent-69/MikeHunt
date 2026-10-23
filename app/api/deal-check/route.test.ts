@@ -49,6 +49,8 @@ vi.mock("@/lib/supabase", () => ({
       "lte",
       "gt",
       "not",
+      "neq",
+      "or",
       "order",
       "limit",
     ])

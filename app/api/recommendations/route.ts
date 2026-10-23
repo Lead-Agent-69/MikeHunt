@@ -19,6 +19,7 @@ import {
   listingsForDesk,
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
 // GET /api/recommendations — "Deals like your winners". Learns the make/models THIS dealer has
 // profited on (from logged outcomes) and surfaces active deals matching those patterns. Sharpens as
@@ -153,12 +154,13 @@ export async function GET() {
       ].filter(Boolean),
     ),
   );
-  const { data: rows } = await supabase
-    .from("deals")
-    .select(
-      "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
-    )
-    .eq("active", true)
+  const { data: rows } = await applyBuyableInventory(
+    supabase
+      .from("deals")
+      .select(
+        "id, source, source_url, options, title, year, make, model, vin, mileage, condition, ask_price, sell_estimate, mmr_value, deal_analysis, profit_score, true_net_profit, recommended_max_bid, deal_verdict, location_city, location_state, images",
+      ),
+  )
     .not("source", "in", `(${AUCTION_DB_SOURCES.join(",")})`)
     .gt("ask_price", 0)
     .in("make", makes)

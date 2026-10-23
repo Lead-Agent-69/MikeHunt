@@ -20,9 +20,8 @@ import {
 } from "@/lib/discovery/categorize";
 import { cached } from "@/lib/cache";
 import { fetchAllRows } from "@/lib/db/paginate";
-import { applyCustomerInventory } from "@/lib/search/customer-inventory";
+import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
-import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
 import {
   SOURCE_PRICE_FIELDS,
   sourcePriceContext,
@@ -283,17 +282,17 @@ export async function GET(req: NextRequest) {
             ? boundingBox(center.lat, center.lng, location.radius)
             : null;
         const build = () => {
-          let q = supabase
-            .from("deals")
-            .select(
-              `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
-            )
-            .eq("active", true);
-          q = applyLiveAuctionWindow(
-            applyCustomerInventory(q, Date.now(), {
+          let q = applyBuyableInventory(
+            supabase
+              .from("deals")
+              .select(
+                `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
+              ),
+            Date.now(),
+            {
               includeWithoutPhotos: true,
               observedDays: Number(sp.get("seenWithin")),
-            }),
+            },
           );
 
           // SQL-able filters (push down what we can).

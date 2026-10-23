@@ -48,7 +48,7 @@ const fullRow = {
 
 function chain() {
   const q: any = {};
-  for (const m of ["eq", "gte", "order"]) q[m] = () => q;
+  for (const m of ["eq", "gte", "not", "neq", "or", "order"]) q[m] = () => q;
   q.ilike = (col: string, v: unknown) => {
     ilike(col, v);
     return q;
