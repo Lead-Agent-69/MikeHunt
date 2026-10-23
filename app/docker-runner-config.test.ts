@@ -55,4 +55,17 @@ describe("local Docker scraper runner config", () => {
     );
     expect(compose).toContain('CACHE_ONLY_MODE: "${CACHE_ONLY_MODE:-false}"');
   });
+  it("keeps scraper state and janitor cleanup on one configurable host root", () => {
+    const compose = readFileSync("docker-compose.local.yml", "utf8");
+    const example = readFileSync(".env.local.scraper.example", "utf8");
+
+    expect(
+      compose.match(/source: "\$\{SCRAPER_STATE_ROOT:-\.\}\/cache"/g),
+    ).toHaveLength(2);
+    expect(
+      compose.match(/source: "\$\{SCRAPER_STATE_ROOT:-\.\}\/logs"/g),
+    ).toHaveLength(2);
+    expect(compose).toContain('source: "${SCRAPER_STATE_ROOT:-.}/profiles"');
+    expect(example).toContain("SCRAPER_STATE_ROOT=F:/MikeHunt/main");
+  });
 });

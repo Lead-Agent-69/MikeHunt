@@ -39,9 +39,15 @@ services:
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
-      - ./cache:/app/cache
-      - ./profiles:/app/profiles
-      - ./logs:/app/logs
+      - type: bind
+        source: "${SCRAPER_STATE_ROOT:-.}/cache"
+        target: /app/cache
+      - type: bind
+        source: "${SCRAPER_STATE_ROOT:-.}/profiles"
+        target: /app/profiles
+      - type: bind
+        source: "${SCRAPER_STATE_ROOT:-.}/logs"
+        target: /app/logs
     depends_on:
       redis:
         condition: service_healthy
@@ -96,8 +102,12 @@ services:
       JANITOR_INTERVAL_HOURS: "24"
       JANITOR_LOG_ROOT: /logs
     volumes:
-      - ./cache:/cache
-      - ./logs:/logs
+      - type: bind
+        source: "${SCRAPER_STATE_ROOT:-.}/cache"
+        target: /cache
+      - type: bind
+        source: "${SCRAPER_STATE_ROOT:-.}/logs"
+        target: /logs
       - ./scripts/zeus-janitor.sh:/janitor.sh:ro
     command: ["sh", "/janitor.sh", "--loop"]
     networks:

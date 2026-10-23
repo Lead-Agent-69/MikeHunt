@@ -7,7 +7,7 @@ targeted #360 migration is installed on the primary project: protected-reference
 guards, service-only functions and the storage meter were verified, while the sole
 replacement listing-cleanup job remains paused. No listing cleanup has been run.
 
-The local worker is running image `mikehunt-scraper:refresh-complete-6f277b7f` with
+The local worker is running image `mikehunt-scraper:main-bd20f3b4-20261023` with
 its cache, profiles, logs, source permissions and quota state preserved. An encrypted
 production export now exists in approved private off-device storage and passed an
 isolated restore. Device-loss recovery is not complete until the owner keeps an
@@ -20,10 +20,14 @@ Photos normally remain source URLs, not stored image bytes. Zeus holds scraper f
 unsynced records, optional raw-page caches, logs and browser profiles. It is not yet a full durable
 archive of every listing or photo. Vercel is the web/API layer, not an archive disk.
 
-Read-only check on 2026-10-11: the running scraper mounts `F:\MikeHunt\main\cache`, `logs`, and
-`profiles`. That F: drive is approximately 2 TB with 1.78 TB free, not the proposed 1 TB Docker
-disk. Docker's internal virtual disk and Redis named volume are separate; their backing-disk
-location is not proven by these bind mounts. Cache: 33 MB; logs: 7.2 MB; profiles: 241 MB.
+Verified on 2026-10-23: the running scraper mounts `F:\MikeHunt\main\cache`, `logs`, and
+`profiles`, and the janitor mounts that same `F:\MikeHunt\main\cache`. Set
+`SCRAPER_STATE_ROOT=F:/MikeHunt/main` in the operator env so later image-only rollouts retain
+that alignment. A healthy janitor on another checkout does not protect the active worker cache.
+That F: drive is approximately 2 TB with 1.7 TB free, not the proposed 1 TB Docker disk.
+Docker's internal virtual disk and Redis named volume are separate; their backing-disk location
+is not proven by these bind mounts. The pre-move C: folders remain a rollback copy and are not
+the active worker state.
 Run `node scripts/storage-audit.mjs` to repeat this non-destructive check.
 
 Docker engine audit: images 55.36 GB, build cache 17.34 GB, named volumes 259.6 MB, container
@@ -40,7 +44,7 @@ or re-enable them. The active market-aggregation job is separate and worker
 collection continues. Hosted verification proved that saved, watched, purchased,
 outcome-linked and alert-matched vehicles survive the bounded cleanup function.
 
-The latest read-only meter reported 299,035,795 database bytes, about 59.8% of the
+The latest read-only meter reported 323,153,043 database bytes, about 64.6% of the
 500 MB free-tier database allowance. The worker buffers new inventory at the
 configured threshold instead of assuming local F: capacity expands Supabase storage
 or egress. Continue measuring actual hosted growth; a point-in-time reading does not
