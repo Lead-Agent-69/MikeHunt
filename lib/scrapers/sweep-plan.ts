@@ -138,7 +138,9 @@ export function rotationPath(
 
 export async function loadRotation(file = rotationPath()) {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf8")) as StateRotation;
+    const parsed = JSON.parse(
+      await readFile(/* turbopackIgnore: true */ file, "utf8"),
+    ) as StateRotation;
     if (parsed?.version !== 1 || typeof parsed.lastSwept !== "object")
       return emptyRotation();
     return {

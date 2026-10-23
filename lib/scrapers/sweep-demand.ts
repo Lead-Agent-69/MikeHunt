@@ -457,7 +457,9 @@ export async function loadSourceHealth(
   file = sourceHealthPath(),
 ): Promise<SourceHealth> {
   try {
-    const parsed = JSON.parse(await readFile(file, "utf8")) as SourceHealth;
+    const parsed = JSON.parse(
+      await readFile(/* turbopackIgnore: true */ file, "utf8"),
+    ) as SourceHealth;
     if (parsed?.version !== 1) return emptySourceHealth();
     return {
       version: 1,
