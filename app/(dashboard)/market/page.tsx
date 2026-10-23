@@ -1567,8 +1567,8 @@ export default function MarketPage() {
                   disabled={profitEvidence === 0}
                 >
                   {profitEvidence > 0
-                    ? "Profit ↓"
-                    : "Profit · needs verified costs"}
+                    ? "Modeled net ↓"
+                    : "Modeled net · needs verified inputs"}
                 </option>
               )}
               {flipDesk && (
@@ -1577,8 +1577,8 @@ export default function MarketPage() {
                   disabled={profitScoreEvidence === 0}
                 >
                   {profitScoreEvidence > 0
-                    ? "Score ↓"
-                    : "Score · needs verified costs"}
+                    ? "Model score ↓"
+                    : "Model score · needs verified inputs"}
                 </option>
               )}
               <option value="askPrice:asc">Advertised amount ↑</option>
