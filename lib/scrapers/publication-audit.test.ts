@@ -63,6 +63,15 @@ describe("source publication proof", () => {
       photos_unavailable: 1,
       outside_vehicle_scope: 1,
     });
+    expect(proof.photoDepth).toEqual({
+      usablePhotoRows: 6,
+      singlePhotoRows: 6,
+      multiPhotoRows: 0,
+      threePlusPhotoRows: 0,
+      photosObserved: 6,
+      averagePhotosPerRow: 0.8,
+      maxPhotosOnRow: 1,
+    });
     expect(
       Object.values(proof.exclusions).reduce((sum, value) => sum + value, 0) +
         proof.defaultInventoryCandidates,
@@ -94,5 +103,41 @@ describe("source publication proof", () => {
     expect(proof.storedRowsInSample).toBe(1);
     expect(JSON.stringify(proof)).not.toContain("private@example.test");
     expect(JSON.stringify(proof)).not.toContain("/car/");
+  });
+
+  it("reports usable gallery depth without treating placeholders as photos", () => {
+    const proof = sourcePublicationAudit(
+      "dealer.example",
+      [],
+      [
+        row,
+        {
+          ...row,
+          source_url: "https://dealer.example/car/2",
+          images: [
+            "https://dealer.example/front.jpg",
+            "https://dealer.example/rear.jpg",
+            "https://dealer.example/interior.jpg",
+          ],
+        },
+        {
+          ...row,
+          source_url: "https://dealer.example/car/3",
+          images: ["https://dealer.example/no-photo.jpg"],
+        },
+      ],
+      now,
+    );
+
+    expect(proof.photoDepth).toEqual({
+      usablePhotoRows: 2,
+      singlePhotoRows: 1,
+      multiPhotoRows: 1,
+      threePlusPhotoRows: 1,
+      photosObserved: 4,
+      averagePhotosPerRow: 1.3,
+      maxPhotosOnRow: 3,
+    });
+    expect(proof.photoReachabilityVerified).toBe(false);
   });
 });
