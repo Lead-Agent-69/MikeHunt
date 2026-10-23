@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { parseAutotempest, mapOriginToSource } from "./autotempest";
+import {
+  autotempestListingKey,
+  parseAutotempest,
+  mapOriginToSource,
+} from "./autotempest";
 import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 const resp = (results: any[]) => ({ status: 0, results });
@@ -215,5 +219,52 @@ describe("parseAutotempest", () => {
     ); // no id
     expect(parseAutotempest({})).toEqual([]);
     expect(parseAutotempest(null)).toEqual([]);
+  });
+});
+
+describe("autotempestListingKey", () => {
+  it("deduplicates one origin listing across aggregator ids and tracking URLs", () => {
+    const first = {
+      source: "cars_com" as const,
+      source_deal_id: "at-search-a",
+      source_url:
+        "https://www.cars.com/vehicledetail/abc/?utm_source=autotempest&sort=best&gclid=tracking#photos",
+    };
+    const second = {
+      source: "cars_com" as const,
+      source_deal_id: "at-search-b",
+      source_url:
+        "https://www.cars.com/vehicledetail/abc?sort=best&ref=autotempest",
+    };
+
+    expect(autotempestListingKey(first)).toBe(autotempestListingKey(second));
+  });
+
+  it("keeps meaningful query parameters and source boundaries distinct", () => {
+    const base = {
+      source: "ebay_motors" as const,
+      source_deal_id: "at-eb-1",
+      source_url: "https://www.ebay.com/itm/123?variation=blue",
+    };
+
+    expect(autotempestListingKey(base)).not.toBe(
+      autotempestListingKey({
+        ...base,
+        source_url: "https://www.ebay.com/itm/123?variation=red",
+      }),
+    );
+    expect(autotempestListingKey(base)).not.toBe(
+      autotempestListingKey({ ...base, source: "independent_dealer" }),
+    );
+  });
+
+  it("falls back to the aggregator id when no safe URL exists", () => {
+    expect(
+      autotempestListingKey({
+        source: "cars_com",
+        source_deal_id: "at-only-id",
+        source_url: "javascript:alert(1)",
+      }),
+    ).toBe("cars_com|id:at-only-id");
   });
 });
