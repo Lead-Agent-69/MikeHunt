@@ -1,4 +1,4 @@
--- Run after 20261023112321_inventory_quality_rollup_v1.sql on a disposable/local database.
+-- Run after the inventory quality rollup migrations on a disposable/local database.
 -- Every fixture is rolled back; the assertions compare deltas so existing local rows are harmless.
 begin;
 set local statement_timeout = '15s';
@@ -40,6 +40,13 @@ begin
   end if;
   if public.inventory_safe_timestamptz('not-a-date') is not null then
     raise exception 'Malformed evidence date was accepted';
+  end if;
+  if position(
+    'base as not materialized' in lower(
+      pg_get_functiondef('public.inventory_quality_rollup_v1()'::regprocedure)
+    )
+  ) = 0 then
+    raise exception 'Inventory quality rollup still materializes wide deal rows';
   end if;
 
   select to_jsonb(q) into before_row from public.inventory_quality_rollup_v1() q;
