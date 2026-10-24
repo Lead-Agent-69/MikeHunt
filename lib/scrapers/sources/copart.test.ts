@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { parseCopartLots, previewCopartLots, scrapeCopart } from "./copart";
+import {
+  currentCopartLots,
+  parseCopartLots,
+  previewCopartLots,
+  scrapeCopart,
+} from "./copart";
 import { upsertDeals } from "../pipeline";
 vi.mock("../pipeline", () => ({ upsertDeals: vi.fn() }));
 afterEach(() => vi.unstubAllGlobals());
@@ -21,11 +26,59 @@ describe("parseCopartLots", () => {
       "fetch",
       vi.fn().mockResolvedValue({
         ok: true,
-        json: async () => resp([{ ln: 1, mkn: "FORD", lm: "F-150", hb: 3000 }]),
+        json: async () =>
+          resp([
+            {
+              ln: 1,
+              mkn: "FORD",
+              lm: "F-150",
+              hb: 3000,
+              lad: Date.now() + 86_400_000,
+            },
+          ]),
       }),
     );
     vi.mocked(upsertDeals).mockResolvedValueOnce(0);
     await expect(scrapeCopart(1)).resolves.toBe(0);
+  });
+
+  it("requests newest sale days first", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => resp([]),
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    await previewCopartLots();
+
+    const request = fetch.mock.calls[0]?.[1] as RequestInit;
+    expect(JSON.parse(String(request.body))).toMatchObject({
+      sort: ["auction_date_type desc"],
+      page: 0,
+    });
+  });
+
+  it("never sends historical or undated lots to the write pipeline", async () => {
+    const future = Date.now() + 86_400_000;
+    const ended = Date.now() - 86_400_000;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () =>
+          resp([
+            { ln: "future", mkn: "FORD", lm: "F-150", lad: future },
+            { ln: "ended", mkn: "FORD", lm: "F-150", lad: ended },
+            { ln: "undated", mkn: "FORD", lm: "F-150" },
+          ]),
+      }),
+    );
+    vi.mocked(upsertDeals).mockResolvedValueOnce(1);
+
+    await expect(scrapeCopart(1)).resolves.toBe(1);
+    expect(upsertDeals).toHaveBeenLastCalledWith([
+      expect.objectContaining({ source_deal_id: "future" }),
+    ]);
   });
   it("retains pre-loss value as reference, never as acquisition price", () => {
     const items = parseCopartLots(
@@ -199,6 +252,20 @@ describe("Copart odometer / trim / zip (public lots JSON, sample 2026-10-10)", (
     );
     expect(copartAuctionEnd({ lad: 0 })).toBeUndefined();
     expect(copartAuctionEnd({ lad: "not-a-date" })).toBeUndefined();
+  });
+  it("keeps only future, explicitly dated lots for current inventory", () => {
+    const now = Date.parse("2026-10-24T00:00:00.000Z");
+    expect(
+      currentCopartLots(
+        [
+          { source_deal_id: "future", auction_end: "2026-10-25T23:59:59.999Z" },
+          { source_deal_id: "ended", auction_end: "2026-10-23T23:59:59.999Z" },
+          { source_deal_id: "unknown" },
+          { source_deal_id: "invalid", auction_end: "not-a-date" },
+        ],
+        now,
+      ).map((lot) => lot.source_deal_id),
+    ).toEqual(["future"]);
   });
   it("maps orr, ltd and zip on a parsed lot", () => {
     const [row] = parseCopartLots({

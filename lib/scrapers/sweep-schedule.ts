@@ -299,12 +299,30 @@ export function nextSweepStep(
     Boolean(prior.startedAt) &&
     prior.sources.length > 0 &&
     prior.index < prior.sources.length;
-  if (inProgress) {
+  const priorStartedAt = prior.startedAt
+    ? Date.parse(prior.startedAt)
+    : Number.NaN;
+  const crossedUtcBudgetDay =
+    inProgress &&
+    Number.isFinite(priorStartedAt) &&
+    new Date(priorStartedAt).toISOString().slice(0, 10) !==
+      now.toISOString().slice(0, 10);
+  if (inProgress && !crossedUtcBudgetDay) {
     return {
       kind: "run",
       source: prior.sources[prior.index],
       state: prior,
     };
+  }
+  if (crossedUtcBudgetDay && sources.length) {
+    const state: SweepState = {
+      version: 1,
+      startedAt: now.toISOString(),
+      sources: [...sources],
+      index: 0,
+      lastCompletedAt: prior.lastCompletedAt,
+    };
+    return { kind: "run", source: state.sources[0], state };
   }
   const last = prior.lastCompletedAt ? Date.parse(prior.lastCompletedAt) : NaN;
   const dueAt = Number.isFinite(last) ? last + intervalMs : 0;

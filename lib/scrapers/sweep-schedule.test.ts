@@ -150,6 +150,40 @@ describe("nextSweepStep", () => {
     expect(step.kind === "run" && step.source).toBe("c");
   });
 
+  it("restarts at the first priority source when a sweep crosses the UTC quota day", () => {
+    const prior = {
+      version: 1 as const,
+      startedAt: "2026-10-23T23:56:00.000Z",
+      sources: ["retail", "dealer", "auction"],
+      index: 2,
+      plan: {
+        states: ["MO"],
+        demandStates: ["MO"],
+        zipsByState: { MO: ["63101"] },
+      },
+      lastCompletedAt: "2026-10-23T20:00:00.000Z",
+    };
+    const rollover = new Date("2026-10-24T00:00:01.000Z");
+
+    const step = nextSweepStep(
+      prior,
+      ["retail", "dealer", "auction"],
+      4 * HOUR,
+      rollover,
+    );
+
+    expect(step.kind).toBe("run");
+    if (step.kind !== "run") return;
+    expect(step.source).toBe("retail");
+    expect(step.state).toMatchObject({
+      startedAt: rollover.toISOString(),
+      sources: ["retail", "dealer", "auction"],
+      index: 0,
+      lastCompletedAt: prior.lastCompletedAt,
+    });
+    expect(step.state.plan).toBeUndefined();
+  });
+
   it("walks every source once, then records completion", () => {
     let step = nextSweepStep(emptySweepState(), ["a", "b"], HOUR, now);
     const ran: string[] = [];
@@ -193,7 +227,12 @@ describe("sweep state file", () => {
     };
     await saveSweepState(state, file);
     expect(await loadSweepState(file)).toEqual(state);
-    const resumed = nextSweepStep(await loadSweepState(file), ["other"], HOUR);
+    const resumed = nextSweepStep(
+      await loadSweepState(file),
+      ["other"],
+      HOUR,
+      new Date("2026-10-05T01:00:00.000Z"),
+    );
     expect(resumed.kind).toBe("run");
     if (resumed.kind === "run") expect(resumed.state.plan).toEqual(state.plan);
   });
