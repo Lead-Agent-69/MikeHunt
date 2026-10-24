@@ -6,7 +6,7 @@ import {
   createServerComponentClient,
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const watchlistSchema = z.object({
   deal_id: z.string().uuid(),

@@ -432,6 +432,10 @@ async function runSweepTick(
     };
     return false;
   }
+  if (prior.startedAt && step.state.startedAt !== prior.startedAt)
+    console.log(
+      "[sweep] UTC write budget rolled over; restarting at priority source 1",
+    );
   if (!step.state.plan) {
     // New sweep: signed-in users' home/search states get demand slots; every other state keeps a
     // least-recently-swept baseline floor so nothing starves.

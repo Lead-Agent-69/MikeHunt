@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ECDH } from "node:crypto";
 
 export function isSafePushEndpoint(value: unknown): value is string {

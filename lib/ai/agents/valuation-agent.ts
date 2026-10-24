@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod/v3";
 
 export interface ValuationRequest {
   make: string;
@@ -15,11 +15,21 @@ export interface ValuationRequest {
  * must NEVER be populated by an LLM and written to mmr_value / marketValue.
  */
 const ValuationResultSchema = z.object({
-  estimatedWholesalePrice: z.number().describe('Deprecated: LLM must not invent wholesale/MMR.'),
-  estimatedRetailPrice: z.number().describe('Deprecated: LLM must not invent retail.'),
-  estimatedRepairCost: z.number().describe('Deprecated: LLM must not invent repair cost as market truth.'),
-  confidence: z.enum(['high', 'medium', 'low']),
-  rationale: z.string().describe('Narrate-only explanation; must not invent dollar amounts as market truth.'),
+  estimatedWholesalePrice: z
+    .number()
+    .describe("Deprecated: LLM must not invent wholesale/MMR."),
+  estimatedRetailPrice: z
+    .number()
+    .describe("Deprecated: LLM must not invent retail."),
+  estimatedRepairCost: z
+    .number()
+    .describe("Deprecated: LLM must not invent repair cost as market truth."),
+  confidence: z.enum(["high", "medium", "low"]),
+  rationale: z
+    .string()
+    .describe(
+      "Narrate-only explanation; must not invent dollar amounts as market truth.",
+    ),
   isArbitrageOpportunity: z.boolean(),
 });
 
@@ -37,10 +47,10 @@ export async function predictVehicleValuation(
   _vehicle: ValuationRequest,
 ): Promise<ValuationResult> {
   throw new Error(
-    'LLM price invent is disabled (P0). Market values must come from fetched comps/guides, not the model. Do not store model output as mmr_value or marketValue.',
+    "LLM price invent is disabled (P0). Market values must come from fetched comps/guides, not the model. Do not store model output as mmr_value or marketValue.",
   );
 }
 
 export function isLlmPriceInventEnabled(): boolean {
-  return process.env.ENABLE_LLM_PRICE_INVENT === 'true';
+  return process.env.ENABLE_LLM_PRICE_INVENT === "true";
 }

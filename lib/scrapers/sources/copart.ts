@@ -65,6 +65,21 @@ export function copartAuctionEnd(v: any): string | undefined {
   return date.toISOString();
 }
 
+/**
+ * Copart's broad search index includes historical lots. Only a dated, future
+ * auction is safe to treat as current inventory; unknown and ended dates stay
+ * out of the write pipeline instead of consuming the hosted daily budget.
+ */
+export function currentCopartLots(
+  lots: Partial<Deal>[],
+  now = Date.now(),
+): Partial<Deal>[] {
+  return lots.filter((lot) => {
+    const endsAt = Date.parse(String(lot.auction_end || ""));
+    return Number.isFinite(endsAt) && endsAt > now;
+  });
+}
+
 /** Parse a Copart search-results API response (data.results.content) into salvage deal rows. */
 export function parseCopartLots(json: any): Partial<Deal>[] {
   const lots = json?.data?.results?.content;
@@ -168,7 +183,9 @@ async function fetchCopartPage(
       query: ["*"],
       // VEHTYPE_V = automobiles/SUVs/trucks (excludes equipment/ATVs at the source).
       filter: { MISC: ["vehicle_type_code:VEHTYPE_V"] },
-      sort: ["auction_date_type asc"],
+      // The index includes historical lots. Newest sale days first lets the
+      // current-inventory gate below stop old payloads before any DB writes.
+      sort: ["auction_date_type desc"],
       page,
       size,
       freeFormSearch: false,
@@ -187,11 +204,13 @@ export async function previewCopartLots(
   pageSize = 24,
 ): Promise<Partial<Deal>[]> {
   const json = await fetchCopartPage(0, pageSize);
-  return json ? parseCopartLots(json).slice(0, pageSize) : [];
+  return json
+    ? currentCopartLots(parseCopartLots(json)).slice(0, pageSize)
+    : [];
 }
 
-// The default sort returns the same lots each run, and the API caps deep pagination, so each run
-// samples a random window of the reachable pages to build coverage across yards/sale dates over time.
+// Newest sale days are read first. Historical/undated rows are counted for the
+// receipt but never sent to the write pipeline.
 export async function scrapeCopart(
   maxPages = 12,
   pageSize = 100,
@@ -206,29 +225,27 @@ export async function scrapeCopart(
       ? Math.ceil(Number(first.data.results.totalElements) / pageSize)
       : 1;
   const maxReachablePage = Math.floor(9900 / pageSize); // offset cap, same as other big search APIs
-  const lastStart = Math.max(
-    0,
-    Math.min(totalPages, maxReachablePage) - maxPages,
-  );
-  const startPage = lastStart > 0 ? Math.floor(Math.random() * lastStart) : 0;
+  const reachablePages = Math.min(totalPages, maxReachablePage);
   console.log(
-    `[Copart] ${totalPages} pages of cars (reachable ${Math.min(totalPages, maxReachablePage)}) — sampling from page ${startPage}`,
+    `[Copart] ${totalPages} pages of cars (reachable ${reachablePages}) — checking newest sale days first`,
   );
 
-  if (startPage === 0) all.push(...parseCopartLots(first));
+  let inspected = 0;
+  const appendCurrent = (json: any) => {
+    const parsed = parseCopartLots(json);
+    inspected += parsed.length;
+    all.push(...currentCopartLots(parsed));
+  };
+  appendCurrent(first);
 
-  for (
-    let page = startPage;
-    page < startPage + maxPages && page < totalPages;
-    page++
-  ) {
-    if (page === 0 && startPage === 0) continue; // already captured
+  for (let page = 1; page < maxPages && page < reachablePages; page++) {
     try {
       const json = await fetchCopartPage(page, pageSize);
       if (!json) break;
-      const items = parseCopartLots(json);
-      if (!items.length) break;
-      all.push(...items);
+      const parsed = parseCopartLots(json);
+      if (!parsed.length) break;
+      inspected += parsed.length;
+      all.push(...currentCopartLots(parsed));
       await new Promise((r) => setTimeout(r, 600));
     } catch (e) {
       console.warn(`[Copart] page ${page} failed:`, (e as Error).message);
@@ -236,6 +253,8 @@ export async function scrapeCopart(
     }
   }
 
-  console.log(`[Copart] Found ${all.length} salvage lots`);
+  console.log(
+    `[Copart] ${all.length} current salvage lots; ${inspected - all.length} historical or undated rows skipped`,
+  );
   return all.length > 0 ? await upsertDeals(all) : 0;
 }

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const amount = z.number().finite().nonnegative().nullable();
 const lineItem = z.object({
