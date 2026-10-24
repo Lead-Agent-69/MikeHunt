@@ -6,6 +6,9 @@ const getServerUser = vi.hoisted(() =>
   vi.fn(async () => ({ data: { user: null as { id: string } | null } })),
 );
 const savedPrefs = vi.hoisted(() => ({ value: null as unknown }));
+const dealerRows = vi.hoisted(() => ({ value: [] as any[] }));
+const dealerSourceFilter = vi.hoisted(() => vi.fn());
+const dealerRanges = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/cache", () => ({
   cached: vi.fn((_key: string, _ttl: number, run: () => unknown) => run()),
@@ -15,18 +18,41 @@ vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: vi.fn(() => true),
   createServerComponentClient: vi.fn(() => ({
     rpc,
-    from: vi.fn((table: string) => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(async () => ({
-            data:
-              table === "user_preferences" && savedPrefs.value
-                ? { prefs: savedPrefs.value }
-                : null,
+    from: vi.fn((table: string) => {
+      if (table === "deals") {
+        const builder: any = {};
+        for (const method of ["eq", "gt", "gte", "order", "in", "lte"]) {
+          builder[method] = vi.fn(() => builder);
+        }
+        builder.or = vi.fn((filter: string) => {
+          dealerSourceFilter(filter);
+          return builder;
+        });
+        builder.range = vi.fn((from: number, to: number) => {
+          dealerRanges(from, to);
+          const result = Promise.resolve({
+            data: dealerRows.value.slice(from, to + 1),
+            error: null,
+          });
+          return {
+            abortSignal: vi.fn(() => result),
+          };
+        });
+        return { select: vi.fn(() => builder) };
+      }
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: vi.fn(async () => ({
+              data:
+                table === "user_preferences" && savedPrefs.value
+                  ? { prefs: savedPrefs.value }
+                  : null,
+            })),
           })),
         })),
-      })),
-    })),
+      };
+    }),
   })),
 }));
 
@@ -36,6 +62,9 @@ afterEach(() => {
   getServerUser.mockReset();
   getServerUser.mockImplementation(async () => ({ data: { user: null } }));
   savedPrefs.value = null;
+  dealerRows.value = [];
+  dealerSourceFilter.mockReset();
+  dealerRanges.mockReset();
 });
 
 // First test in the file pays the cold route import (slow on the Windows CI runner);
@@ -457,48 +486,45 @@ describe("GET /api/discover scoped feed contract", () => {
   }, 15_000);
 
   it("honors title, min price, max price, and selected dealer scope", async () => {
-    rpc.mockResolvedValueOnce({
-      data: [
-        {
-          ...baseRow,
-          id: "ae-1",
-          source: "independent_dealer",
-          source_url: "https://aeofmiami.com/product/2023-gmc-terrain",
-          seller_type: "dealer",
-          seller: "AE of Miami",
-          title: "2023 GMC Terrain SUV",
-          make: "GMC",
-          model: "Terrain",
-          condition: "salvage_title",
-          damage_type: "Salvage",
-          ask_price: 5990,
-          location_state: "FL",
-        },
-        {
-          ...baseRow,
-          id: "ae-too-cheap",
-          source: "independent_dealer",
-          source_url: "https://aeofmiami.com/product/cheap",
-          seller_type: "dealer",
-          condition: "salvage_title",
-          damage_type: "Salvage",
-          ask_price: 4200,
-          location_state: "FL",
-        },
-        {
-          ...baseRow,
-          id: "wrong-dealer",
-          source: "independent_dealer",
-          source_url: "https://stjamesautoparts.com/inventory/1",
-          seller_type: "dealer",
-          condition: "salvage_title",
-          damage_type: "Salvage",
-          ask_price: 6500,
-          location_state: "FL",
-        },
-      ],
-      error: null,
-    });
+    dealerRows.value = [
+      {
+        ...baseRow,
+        id: "ae-1",
+        source: "independent_dealer",
+        source_url: "https://aeofmiami.com/product/2023-gmc-terrain",
+        seller_type: "dealer",
+        seller: "AE of Miami",
+        title: "2023 GMC Terrain SUV",
+        make: "GMC",
+        model: "Terrain",
+        condition: "salvage_title",
+        damage_type: "Salvage",
+        ask_price: 5990,
+        location_state: "FL",
+      },
+      {
+        ...baseRow,
+        id: "ae-too-cheap",
+        source: "independent_dealer",
+        source_url: "https://aeofmiami.com/product/cheap",
+        seller_type: "dealer",
+        condition: "salvage_title",
+        damage_type: "Salvage",
+        ask_price: 4200,
+        location_state: "FL",
+      },
+      {
+        ...baseRow,
+        id: "wrong-dealer",
+        source: "independent_dealer",
+        source_url: "https://stjamesautoparts.com/inventory/1",
+        seller_type: "dealer",
+        condition: "salvage_title",
+        damage_type: "Salvage",
+        ask_price: 6500,
+        location_state: "FL",
+      },
+    ];
 
     const { GET } = await import("./route");
     const res = await GET(
@@ -518,6 +544,11 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(body.maxPrice).toBe(10000);
     expect(body.dealerSourceIds).toEqual(["ae-of-miami"]);
     expect(ids).toContain("ae-1");
+    expect(dealerSourceFilter).toHaveBeenCalledWith(
+      "source_url.ilike.%aeofmiami.com%",
+    );
+    expect(dealerRanges).toHaveBeenCalledWith(0, 999);
+    expect(body.coverage.thresholds.minSources).toBe(1);
     expect(ids).not.toContain("ae-too-cheap");
     expect(ids).not.toContain("wrong-dealer");
     const aeDeal = body.rails
