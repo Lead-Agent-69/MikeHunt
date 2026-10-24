@@ -85,6 +85,8 @@ export function buildDiscoverCoverage(input: {
   rowCap: number;
   /** Raw returned count, before photo/freshness filters; preserves limit evidence. */
   queryRowCount?: number;
+  /** Explicit single-source research should not be judged against a multi-source floor. */
+  minimumSources?: number;
   now?: Date;
   windowDays?: number;
 }): DiscoverCoverage {
@@ -154,11 +156,15 @@ export function buildDiscoverCoverage(input: {
 
   const freshRows = fresh.length;
   const sourceCount = bySource.length;
+  const minimumSources = Math.max(
+    1,
+    Math.round(input.minimumSources ?? COVERAGE_THIN_MIN_SOURCES),
+  );
   const status: DiscoverCoverage["status"] =
     freshRows === 0
       ? "none"
       : (!capped && freshRows < COVERAGE_THIN_MIN_ROWS) ||
-          sourceCount < COVERAGE_THIN_MIN_SOURCES
+          sourceCount < minimumSources
         ? "thin"
         : "ok";
 
@@ -182,7 +188,7 @@ export function buildDiscoverCoverage(input: {
     capped,
     thresholds: {
       minRows: COVERAGE_THIN_MIN_ROWS,
-      minSources: COVERAGE_THIN_MIN_SOURCES,
+      minSources: minimumSources,
     },
   };
 }

@@ -75,6 +75,7 @@ import {
   resolveCallerDesk,
 } from "@/lib/deals/deal-desk-access";
 import { seenTimestampOrNull } from "@/lib/deals/listing-freshness";
+import { STALE_AFTER_HOURS } from "@/lib/deals/freshness";
 import {
   matchesTitleCategories,
   parseTitleTypes,
@@ -292,6 +293,101 @@ function parseMakesParam(value: string | null) {
     if (makes.length >= 12) break;
   }
   return makes;
+}
+
+const DISCOVER_DEAL_COLUMNS = [
+  "id",
+  "source",
+  "source_url",
+  "title",
+  "year",
+  "make",
+  "model",
+  "trim",
+  "vin",
+  "mileage",
+  "condition",
+  "damage_type",
+  "ask_price",
+  "sell_estimate",
+  "mmr_value",
+  "deal_analysis",
+  "profit_score",
+  "true_net_profit",
+  "recommended_max_bid",
+  "deal_verdict",
+  "location_city",
+  "location_state",
+  "images",
+  "last_seen_at",
+  "first_seen_at",
+  "auction_end_at",
+  "options",
+].join(",");
+
+const DEALER_QUERY_PAGE_SIZE = 1_000;
+
+function selectedDealerDomains(sourceIds: readonly string[]) {
+  return Array.from(
+    new Set(
+      sourceIds.flatMap((sourceId) =>
+        (DEALER_SOURCE_DOMAINS[sourceId] || []).map((domain) =>
+          domain.toLowerCase(),
+        ),
+      ),
+    ),
+  );
+}
+
+async function fetchSelectedDealerRows(
+  supabase: ReturnType<typeof createServerComponentClient>,
+  options: {
+    sourceIds: readonly string[];
+    state?: string;
+    states: readonly string[];
+    maxPrice: number;
+  },
+) {
+  const domains = selectedDealerDomains(options.sourceIds);
+  if (!domains.length) return [];
+  const sourceFilter = domains
+    .map((domain) => `source_url.ilike.%${domain}%`)
+    .join(",");
+  const now = Date.now();
+  const oldestVisible = new Date(
+    now - STALE_AFTER_HOURS * 3_600_000,
+  ).toISOString();
+  const newestVisible = new Date(now).toISOString();
+
+  const fetchPage = async (from: number, to: number) => {
+    let query = supabase
+      .from("deals")
+      .select(DISCOVER_DEAL_COLUMNS)
+      .eq("active", true)
+      .gt("ask_price", 0)
+      .gte("last_seen_at", oldestVisible)
+      .lte("last_seen_at", newestVisible)
+      .or(sourceFilter)
+      .order("last_seen_at", { ascending: false })
+      .order("id", { ascending: true });
+    if (options.states.length)
+      query = query.in("location_state", [...options.states]);
+    else if (options.state) query = query.eq("location_state", options.state);
+    if (options.maxPrice > 0) query = query.lte("ask_price", options.maxPrice);
+    const { data, error } = await query
+      .range(from, to)
+      .abortSignal(AbortSignal.timeout(15_000));
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? data : [];
+  };
+
+  const first = await fetchPage(0, DEALER_QUERY_PAGE_SIZE - 1);
+  if (first.length < DEALER_QUERY_PAGE_SIZE) return first;
+  const second = await fetchPage(
+    DEALER_QUERY_PAGE_SIZE,
+    DEALER_QUERY_PAGE_SIZE * 2 - 1,
+  );
+  return [...first, ...second];
 }
 
 function rowMatchesMakes(row: { make?: string | null }, makes: string[]) {
@@ -686,16 +782,26 @@ export async function GET(request: NextRequest) {
         // A 10k-row hosted pull now hits statement_timeout (57014). A 2k-row pull was
         // measured at 1.95s. Keep the preview bounded and disclose the cap, including
         // when photo/freshness filtering removes some of the raw returned rows.
-        const { data: rpcData, error: rpcErr } = await supabase.rpc(
-          "discover_deals",
-          {
+        let rpcData: any[];
+        if (dealerSourceIds.length) {
+          // A selected dealer must be applied before the general market cap. Otherwise a
+          // perfectly fresh dealer can disappear when 2,000 newer rows from other sources lead.
+          rpcData = await fetchSelectedDealerRows(supabase, {
+            sourceIds: dealerSourceIds,
+            state: scopeStates.length ? undefined : state,
+            states: scopeStates,
+            maxPrice: maxPrice || 0,
+          });
+        } else {
+          const { data, error } = await supabase.rpc("discover_deals", {
             p_state: scopeStates.length ? null : (state ?? null),
             p_states: scopeStates.length ? scopeStates : null,
             p_max_price: maxPrice || 0,
             p_limit: DISCOVER_ROW_CAP,
-          },
-        );
-        if (rpcErr) throw new Error(rpcErr.message);
+          });
+          if (error) throw new Error(error.message);
+          rpcData = Array.isArray(data) ? data : [];
+        }
         const marketRows: any[] = Array.isArray(rpcData)
           ? rpcData.filter(
               (row: any) =>
@@ -818,8 +924,8 @@ export async function GET(request: NextRequest) {
           merged: m,
           rowCount: rows.length,
           marketListingCount: marketRows.length,
-          // Fresh rows (last 7 days) in the requested states, by source. Counted from the same
-          // RPC rows, never estimated, so the UI can say when coverage is thin.
+          // Fresh rows in the requested scope, by source. Counted from the same bounded query,
+          // never estimated, so the UI can say when coverage is thin.
           coverage: buildDiscoverCoverage({
             marketRows,
             feedRows: rows,
@@ -827,6 +933,7 @@ export async function GET(request: NextRequest) {
             maxPrice: maxPrice || 0,
             rowCap: DISCOVER_ROW_CAP,
             queryRowCount: Array.isArray(rpcData) ? rpcData.length : 0,
+            minimumSources: dealerSourceIds.length ? 1 : undefined,
           }),
         };
       },
