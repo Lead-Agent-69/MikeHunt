@@ -4,7 +4,7 @@
   "description": "MikeHunt — Multi-source vehicle sourcing intelligence platform",
   "private": true,
   "engines": {
-    "node": ">=20.3"
+    "node": ">=20.18.1"
   },
   "scripts": {
     "dev": "next dev --turbo",
@@ -101,7 +101,7 @@
     "twilio": "^6.0.2",
     "web-push": "^3.6.7",
     "ws": "^8.21.0",
-    "zod": "^3.23.8",
+    "zod": "4.6.7",
     "zustand": "^5.0.1"
   },
   "devDependencies": {

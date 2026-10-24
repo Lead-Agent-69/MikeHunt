@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, Output } from "ai";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { requirePaidAiCaller } from "@/lib/auth/paid-ai";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import {
