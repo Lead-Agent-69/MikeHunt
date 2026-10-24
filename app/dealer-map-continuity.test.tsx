@@ -6,6 +6,9 @@ import { expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
   map: { addLayer: vi.fn(), removeLayer: vi.fn(), fitBounds: vi.fn() },
   marker: vi.fn(),
+  clusterOptions: [] as Array<Record<string, unknown>>,
+  clusterAdds: [] as Array<unknown[]>,
+  clusterClears: vi.fn(),
   previews: [] as Array<{
     open: boolean;
     handlers: Map<string, (event?: any) => void>;
@@ -24,7 +27,13 @@ vi.mock("leaflet", () => ({
   default: {
     Icon: { Default: Object.assign(function () {}, { mergeOptions: vi.fn() }) },
     DivIcon: class {},
-    markerClusterGroup: () => ({ addLayer: vi.fn() }),
+    markerClusterGroup: (options: Record<string, unknown>) => {
+      state.clusterOptions.push(options);
+      return {
+        addLayers: (markers: unknown[]) => state.clusterAdds.push(markers),
+        clearLayers: state.clusterClears,
+      };
+    },
     marker: (...args: unknown[]) => {
       state.marker(...args);
       const preview = {
@@ -73,6 +82,12 @@ it("retains marker groups on unrelated renders and rebuilds only for changed inv
     const removed = state.map.removeLayer.mock.calls.length;
     const fitted = state.map.fitBounds.mock.calls.length;
     expect(built).toBeGreaterThan(0);
+    expect(state.clusterOptions.at(-1)).toMatchObject({
+      chunkedLoading: true,
+      chunkInterval: 100,
+      chunkDelay: 24,
+    });
+    expect(state.clusterAdds.at(-1)).toHaveLength(1);
     await act(async () => root.render(<DealerMap points={points} />));
     expect(state.map.addLayer).toHaveBeenCalledTimes(built);
     expect(state.map.removeLayer).toHaveBeenCalledTimes(removed);
@@ -90,9 +105,29 @@ it("retains marker groups on unrelated renders and rebuilds only for changed inv
     expect(state.map.addLayer).toHaveBeenCalledTimes(built + 1);
     expect(state.map.removeLayer).toHaveBeenCalledTimes(removed + 1);
     expect(state.map.fitBounds).toHaveBeenCalledTimes(fitted + 1);
+    expect(state.clusterAdds.at(-1)).toHaveLength(2);
   } finally {
     await act(async () => root.unmount());
   }
+});
+
+it("bulk-adds a nationwide result set instead of indexing each marker separately", async () => {
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  const points = Array.from({ length: 2000 }, (_, index) => ({
+    id: `car-${index}`,
+    name: `Car ${index}`,
+    lat: 25 + (index % 100) * 0.2,
+    lng: -124 + (index % 200) * 0.3,
+  }));
+  try {
+    await act(async () => root.render(<DealerMap points={points} />));
+    expect(state.clusterAdds.at(-1)).toHaveLength(2000);
+    expect(state.map.addLayer).toHaveBeenCalledWith(expect.any(Object));
+  } finally {
+    await act(async () => root.unmount());
+  }
+  expect(state.clusterClears).toHaveBeenCalled();
 });
 
 it("keeps hover/focus previews open when a marker is clicked or activated with Enter", async () => {
