@@ -263,7 +263,9 @@ export default function DiscoverPage() {
       ...(searchParams.has("mode") ? { buyerMode } : {}),
       ...(repairParam === "0" || repairParam === "1"
         ? { includeRepairable: repairParam === "1" }
-        : {}),
+        : hasExplicitDealerScope
+          ? { includeRepairable: true }
+          : {}),
       ...(searchParams.has("maxPrice")
         ? {
             maxPrice:
