@@ -22,6 +22,18 @@
 //   source       string?  channel (copart, ebay_motors, cars_com…)
 //   sourceDealId string?  the channel's own listing id
 // Callers pre-filter to the same make/model/year band (and title lane: clean vs salvage).
+//
+// Optional recency weighting (opts.recency, OFF by default — no option = identical output): within
+// the chosen tier, each comp is brought to today (depreciation / index per month) and weighted by
+// 0.5^(age/halfLife); the value is the weighted median. Tier choice and n still count raw rows.
+// See lib/valuation/comp-recency.ts and docs/valuation/comp-recency.md.
+
+import {
+  effectiveSampleSize,
+  recencyAdjust,
+  weightedMedian,
+  type RecencyOptions,
+} from "@/lib/valuation/comp-recency";
 
 export interface CompObservation {
   price: number;
@@ -58,6 +70,14 @@ export interface CompAggregate {
   excludedSelf: number;
   /** Rows dropped as stale. */
   excludedStale: number;
+  /** Present only when opts.recency was set and a tier qualified. */
+  recency?: {
+    halfLifeDays: number;
+    /** Kish effective sample size of the weights (<= n). */
+    effectiveN: number;
+    /** The plain median of the tier (before ask→sold), for comparison. */
+    unweightedValue: number;
+  };
 }
 
 export interface AggregateOptions {
@@ -65,6 +85,8 @@ export interface AggregateOptions {
   askToSold?: number;
   maxAgeDays?: number | null;
   now?: number;
+  /** Opt-in time-decay weighting + depreciation/index adjustment. Omit for the plain median. */
+  recency?: RecencyOptions | null;
 }
 
 export const COMP_MIN_SAMPLES = 3;
@@ -182,12 +204,30 @@ export function aggregateComps(
 
   for (const tier of tiers) {
     if (tier.rows.length < minSamples) continue;
-    const med = median(tier.rows.map((r) => Number(r.price)));
-    if (med == null || med <= 0) continue;
+    const plain = median(tier.rows.map((r) => Number(r.price)));
+    if (plain == null || plain <= 0) continue;
+    let med = plain;
+    let recency: CompAggregate["recency"];
+    if (opts.recency && opts.recency.halfLifeDays > 0) {
+      const pts = tier.rows.map((r) =>
+        recencyAdjust(Number(r.price), r.observedAt, now, opts.recency!),
+      );
+      const wm = weightedMedian(pts);
+      if (wm != null && wm > 0) med = wm;
+      recency = {
+        halfLifeDays: opts.recency.halfLifeDays,
+        effectiveN:
+          Math.round(effectiveSampleSize(pts.map((p) => p.weight)) * 10) / 10,
+        unweightedValue: Math.round(
+          tier.kind === "ask" ? plain * askToSold : plain,
+        ),
+      };
+    }
     const miles = tier.rows
       .map((r) => Number(r.mileage))
       .filter((m) => Number.isFinite(m) && m > 0);
     return {
+      ...(recency ? { recency } : {}),
       value: Math.round(tier.kind === "ask" ? med * askToSold : med),
       n: tier.rows.length,
       scope: tier.scope,
