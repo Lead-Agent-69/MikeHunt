@@ -192,7 +192,13 @@ function ClusteredMarkers({
     const group = (L as any).markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 50,
+      // Large nationwide result sets must yield between cluster-indexing batches so the
+      // rest of the page remains responsive to scroll, zoom, and touch input.
+      chunkedLoading: true,
+      chunkInterval: 100,
+      chunkDelay: 24,
     });
+    const markers: L.Marker[] = [];
     for (const p of points) {
       const rich =
         (p.price != null && p.price > 0) || p.image || p.score != null;
@@ -225,15 +231,19 @@ function ClusteredMarkers({
         element?.setAttribute("aria-label", p.name);
         element?.addEventListener("focus", activate);
       });
-      group.addLayer(marker);
+      markers.push(marker);
     }
+    // MarkerCluster only applies chunked loading to bulk addLayers calls made after the
+    // group is on the map. Adding each marker separately performs all indexing in one task.
     map.addLayer(group);
+    group.addLayers(markers);
     if (points.length)
       map.fitBounds(
         L.latLngBounds(points.map((point) => [point.lat, point.lng])),
         { padding: [32, 32], maxZoom: 9, animate: false },
       );
     return () => {
+      group.clearLayers();
       map.removeLayer(group);
     };
   }, [map, points]);
