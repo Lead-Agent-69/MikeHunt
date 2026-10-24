@@ -120,6 +120,31 @@ describe("cross-view scope preservation", () => {
     expect(params.get("state")).toBe("TX");
     expect(params.get("maxPrice")).toBe("10000");
   });
+  it("opens an explicit dealer catalog nationwide without saved scope hiding inventory", async () => {
+    saved.states = ["MO"];
+    window.history.replaceState(
+      null,
+      "",
+      "/discover?dealerSourceIds=ae-of-miami",
+    );
+    await act(async () => root.render(React.createElement(Surface)));
+    const params = new URLSearchParams(
+      host.querySelector("output")!.textContent!,
+    );
+    expect(params.get("dealerSourceIds")).toBe("ae-of-miami");
+    expect(params.get("includeRepairable")).toBe("1");
+    expect(params.has("state")).toBe(false);
+    expect(params.has("states")).toBe(false);
+    expect(params.has("maxPrice")).toBe(false);
+    expect(params.has("q")).toBe(false);
+    const href = host
+      .querySelector<HTMLAnchorElement>('a[href^="/feed"]')!
+      .getAttribute("href")!;
+    expect(href).toContain("dealerSourceIds=ae-of-miami");
+    expect(href).toContain("includeRepairable=1");
+    expect(href).toContain("scope=explicit");
+    expect(href).not.toContain("states=MO");
+  });
   it("does not resurrect saved budgets or vehicle queries in an explicit all-inventory link", async () => {
     window.history.replaceState(
       null,

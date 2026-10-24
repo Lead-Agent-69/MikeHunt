@@ -14,6 +14,9 @@ describe("Discover explicit dealer source scope", () => {
     expect(page).toContain("watchedDealers: []");
     expect(page).toContain("watchedDealerSourceIds: explicitDealerSourceIds");
     expect(page).toContain(
+      "hasExplicitDealerScope\n          ? { includeRepairable: true }",
+    );
+    expect(page).toContain(
       "makesParam.length ||\n      hasExplicitDealerScope",
     );
   });

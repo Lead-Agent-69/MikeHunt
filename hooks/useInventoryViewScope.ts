@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildBuyerIntentQuery, useBuyerIntent } from "./useBuyerIntent";
 import { inventoryViewParams } from "@/lib/search/inventory-view-scope";
+import { selectedSourceIds } from "@/lib/search/source-selection";
 
 export function useInventoryViewScope() {
   const { intent, isLoading, savedStates } = useBuyerIntent();
@@ -19,11 +20,17 @@ export function useInventoryViewScope() {
   }, []);
   const query = useMemo(() => {
     const explicit = new URLSearchParams(url || "");
+    const explicitDealerCatalog =
+      selectedSourceIds(explicit.get("dealerSourceIds")).length > 0;
     const params =
-      explicit.get("scope") === "explicit"
+      explicit.get("scope") === "explicit" || explicitDealerCatalog
         ? new URLSearchParams()
         : inventoryViewParams(buildBuyerIntentQuery(intent));
-    if (explicit.get("scope") !== "explicit" && savedStates !== undefined) {
+    if (
+      explicit.get("scope") !== "explicit" &&
+      !explicitDealerCatalog &&
+      savedStates !== undefined
+    ) {
       params.delete("state");
       params.set("states", savedStates.join(","));
     }
@@ -34,6 +41,9 @@ export function useInventoryViewScope() {
     inventoryViewParams(explicit).forEach((value, key) =>
       params.set(key, value),
     );
+    if (explicitDealerCatalog && !explicit.has("includeRepairable")) {
+      params.set("includeRepairable", "1");
+    }
     Array.from(params.entries()).forEach(([key, value]) => {
       if (!value) params.delete(key);
     });
