@@ -24,6 +24,7 @@ import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { laneAllowedForMode } from "@/lib/buyer/lane-access";
 import { hiddenRailKeysForMode } from "@/lib/discovery/desk-rails";
 import { distinctDiscoveryRails } from "@/lib/discovery/distinct-rails";
+import { selectedSourceIds } from "@/lib/search/source-selection";
 import { NearbyDeals } from "@/components/discovery/NearbyDeals";
 import { RecentlyViewed } from "@/components/shared/RecentlyViewed";
 import { WatchedDealerFeed } from "@/components/discovery/WatchedDealerFeed";
@@ -197,6 +198,14 @@ export default function DiscoverPage() {
   const searchParams = useSearchParams();
   const { prefs, authed, isLoading: prefsLoading } = usePreferences();
   const { intent: localIntent } = useBuyerIntent();
+  const explicitDealerSourceIds = React.useMemo(
+    () => selectedSourceIds(searchParams.get("dealerSourceIds")),
+    [searchParams],
+  );
+  const hasExplicitDealerScope = explicitDealerSourceIds.length > 0;
+  const hasExplicitLocation =
+    searchParams.has("state") || searchParams.has("states");
+  const forceDealerNationwide = hasExplicitDealerScope && !hasExplicitLocation;
   const urlScope = React.useMemo(() => {
     const q = (searchParams.get("q") || "").toLowerCase().trim();
     const laneValue = (searchParams.get("lane") || "all").toLowerCase().trim();
@@ -221,7 +230,8 @@ export default function DiscoverPage() {
       buyerMode ||
       repairParam === "0" ||
       repairParam === "1" ||
-      makesParam.length,
+      makesParam.length ||
+      hasExplicitDealerScope,
     );
     if (!hasScope) return null;
     const savedBuyerScope = resolveBuyerIntentScope(
@@ -238,10 +248,12 @@ export default function DiscoverPage() {
       ...(searchParams.has("lane")
         ? { lane: LANE_VALUE_TO_LABEL[laneValue], laneValue }
         : {}),
-      ...(stateParam || searchParams.has("states")
+      ...(stateParam || searchParams.has("states") || forceDealerNationwide
         ? {
             state:
-              stateParam === "NATIONWIDE" || searchParams.has("states")
+              forceDealerNationwide ||
+              stateParam === "NATIONWIDE" ||
+              searchParams.has("states")
                 ? "Nationwide"
                 : stateParam,
           }
@@ -261,8 +273,22 @@ export default function DiscoverPage() {
       ...(searchParams.has("makes")
         ? { makes: makesParam, preferredMakes: makesParam }
         : {}),
+      ...(hasExplicitDealerScope
+        ? {
+            watchedDealers: [],
+            watchedDealerSourceIds: explicitDealerSourceIds,
+          }
+        : {}),
     });
-  }, [searchParams, prefs.buyerScope, localIntent, authed]);
+  }, [
+    searchParams,
+    prefs.buyerScope,
+    localIntent,
+    authed,
+    explicitDealerSourceIds,
+    hasExplicitDealerScope,
+    forceDealerNationwide,
+  ]);
   const router = useRouter();
   const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
@@ -293,7 +319,7 @@ export default function DiscoverPage() {
   }, [urlScope, prefs.buyerScope, localIntent, authed]);
 
   const chosenState = searchParams.get("state");
-  const savedStates = savedScopeStates(prefs);
+  const savedStates = forceDealerNationwide ? null : savedScopeStates(prefs);
   const selectedStates =
     searchParams.get("states") ??
     (chosenState === null && savedStates && savedStates.length > 1
@@ -306,11 +332,13 @@ export default function DiscoverPage() {
         : chosenState.toUpperCase()
       : selectedStates
         ? ""
-        : savedStates
-          ? savedStates[0] || ""
-          : buyerScope?.state && buyerScope.state !== "Nationwide"
-            ? buyerScope.state
-            : effectiveHome(prefs)?.state || "";
+        : forceDealerNationwide
+          ? ""
+          : savedStates
+            ? savedStates[0] || ""
+            : buyerScope?.state && buyerScope.state !== "Nationwide"
+              ? buyerScope.state
+              : effectiveHome(prefs)?.state || "";
   const scopeParams = buildBuyerIntentQuery(buyerScope, state);
   if (selectedStates) {
     scopeParams.delete("state");

@@ -26,7 +26,13 @@ describe("legacy location readers prefer the #66 fields", () => {
 
   it("Discover reads saved scope and home through the helpers", () => {
     const src = read("app/(dashboard)/discover/page.tsx");
-    expect(src).toContain("const savedStates = savedScopeStates(prefs);");
+    const compact = src.replace(/\s+/g, " ");
+    expect(compact).toContain(
+      "const savedStates = forceDealerNationwide ? null : savedScopeStates(prefs);",
+    );
+    expect(compact).toContain(
+      "const forceDealerNationwide = hasExplicitDealerScope && !hasExplicitLocation;",
+    );
     expect(src).toContain('effectiveHome(prefs)?.state || ""');
     expect(src).not.toContain("prefs.carsState ||");
   });
