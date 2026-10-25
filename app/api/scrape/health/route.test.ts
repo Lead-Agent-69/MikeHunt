@@ -517,7 +517,9 @@ describe("GET /api/scrape/health lane scoping", () => {
     expect(body.scope.dealerSourceIds).toEqual(["autovada"]);
     expect(body.sources.map((source: any) => source.id)).toEqual(["autovada"]);
     expect(body.sources[0].activeRows).toBe(0);
-    expect(body.sources[0].enabled).toBe(false);
+    expect(body.sources[0].enabled).toBe(true);
+    expect(body.sources[0].readiness).toBe("not_configured");
+    expect(body.summary.ready).toBe(0);
   });
 
   it.each(["dealer-x2builders-com", "dealer-billsmithauto-com"])(
@@ -799,6 +801,69 @@ describe("buildLiveCoverage (Decision guide 'working markets')", () => {
 });
 
 describe("database inventory health rollups", () => {
+  it.each([true, false])(
+    "uses importer availability and usable rows for a testing dealer (rows: %s)",
+    async (withRows) => {
+      vi.stubEnv("SCRAPE_SOURCES", "curated_dealers");
+      dependencyMocks.isSupabaseConfigured.mockReturnValue(true);
+      const current = new Date().toISOString();
+      const base = {
+        source: "independent_dealer",
+        source_url: "https://www.riverbendrebuildables.com/car/",
+        location_state: "MO",
+        options: { sourceAdapterId: "curated_dealers", sellerType: "dealer" },
+        last_seen_at: current,
+        images: ["https://www.riverbendrebuildables.com/uploads/car.jpg"],
+        make: "Jeep",
+        model: "Gladiator",
+        year: 2020,
+        ask_price: 24700,
+      };
+      const rows = withRows
+        ? [
+            base,
+            { ...base, images: [] },
+            { ...base, last_seen_at: "2020-01-01T00:00:00Z" },
+            {
+              ...base,
+              make: "CFMOTO",
+              model: "UFORCE",
+              title: "2025 CFMOTO U10",
+            },
+          ]
+        : [];
+      const from = vi.fn((table: string) => {
+        const result = { data: table === "deals" ? rows : [], error: null };
+        const q: any = {};
+        for (const method of ["select", "in", "order", "eq", "or", "ilike"])
+          q[method] = () => q;
+        q.limit = q.range = async () => result;
+        return q;
+      });
+      dependencyMocks.createClient.mockReturnValue({
+        from,
+        rpc: async () => ({ data: [], error: null }),
+      });
+      const { GET } = await import("./route");
+      const body = await (
+        await GET(
+          req(
+            "/api/scrape/health?lane=private&state=MO&sellerType=dealer&dealerSourceIds=riverbend-rebuildables",
+          ),
+        )
+      ).json();
+      expect(body.sources).toHaveLength(1);
+      expect(body.sources[0]).toMatchObject({
+        id: "riverbend-rebuildables",
+        enabled: true,
+        readiness: withRows ? "ready" : "needs_run",
+        activeRows: withRows ? 1 : 0,
+      });
+      expect(body.summary.ready).toBe(withRows ? 1 : 0);
+      expect(body.coverage.liveRows).toBe(withRows ? 1 : 0);
+      expect(body.scopeStatus.status).toBe(withRows ? "ready" : "empty");
+    },
+  );
   it("uses the compact RPC for unfiltered health without reading deals pages", async () => {
     vi.stubEnv("SCRAPE_SOURCES", "copart");
     dependencyMocks.isSupabaseConfigured.mockReturnValue(true);

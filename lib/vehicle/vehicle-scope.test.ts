@@ -73,6 +73,9 @@ describe("vehicle scope: cars and light/medium trucks only", () => {
       "boat",
     ],
     ["2020 Polaris RZR", "Polaris", "RZR", "powersports"],
+    ["2025 CFMOTO U10", "CFMOTO", "UFORCE", "powersports"],
+    ["2025 CF Moto U10", "CF Moto", "U10", "powersports"],
+    ["2025 CF-Moto U10", "CF-Moto", "U10", "powersports"],
     [
       "Harley-Davidson Iron XL Sportster",
       "Harley-Davidson",
