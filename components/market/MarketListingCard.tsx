@@ -138,6 +138,7 @@ function ListingCard({
     <article
       ref={cardRef}
       data-market-vehicle={row.id}
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 520px" }}
       className="relative min-w-0 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
     >
       <div
