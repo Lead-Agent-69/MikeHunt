@@ -14,13 +14,19 @@ const state = vi.hoisted(() => ({
   keys: [] as (string | null)[],
   prefs: {} as Prefs,
 }));
-vi.mock("swr", () => ({
-  default: (key: string | null) => {
+vi.mock("swr/infinite", () => ({
+  default: function useMockInfinite(
+    getKey: (index: number, previous: null) => string | null,
+  ) {
+    const [size, setSize] = React.useState(1);
+    const key = getKey(size - 1, null);
     state.keys.push(key);
     return {
       data: key
-        ? {
+        ? Array.from({ length: size }, (_, index) => ({
             rows: [{ id: "car" }],
+            page: index,
+            pageSize: 50,
             total: 1105,
             mode: "all",
             facets: {
@@ -37,9 +43,12 @@ vi.mock("swr", () => ({
               complete: true,
               accessReviewIds: [],
             },
-          }
+          }))
         : undefined,
       isLoading: false,
+      size,
+      setSize,
+      isValidating: false,
       mutate: vi.fn(),
     };
   },
@@ -369,7 +378,7 @@ describe("Market filter journey", () => {
     expect(host.querySelectorAll("h1")).toHaveLength(1);
   });
 
-  it("offers mobile filter disclosure, removable filters and reachable result pages", async () => {
+  it("offers mobile filters and continuous results with a manual fallback", async () => {
     window.history.replaceState(
       null,
       "",
@@ -388,8 +397,8 @@ describe("Market filter journey", () => {
         .click(),
     );
     act(() =>
-      host
-        .querySelector<HTMLButtonElement>('[aria-label="Next results page"]')!
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Load more vehicles")!
         .click(),
     );
     expect(window.location.search).toContain("page=1");

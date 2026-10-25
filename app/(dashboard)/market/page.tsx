@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import useSWR from "swr";
+import { useMarketInventory } from "@/hooks/useMarketInventory";
+import { MarketLoadMore } from "@/components/market/MarketLoadMore";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { DealTable, type TableRow } from "@/components/scan/DealTable";
 import { Ico } from "@/components/shared/Ico";
@@ -35,8 +36,6 @@ import {
   VEHICLE_CATEGORY_FILTERS,
 } from "@/lib/search/inventory-filters";
 import {
-  ChevronLeft,
-  ChevronRight,
   X,
   LayoutGrid,
   List,
@@ -369,7 +368,12 @@ export default function MarketPage() {
       }
       setF(next);
       setDetails({ hasPhotos: "yes", ...readInventoryDetails(params) });
-      setPage(Math.max(0, Math.floor(Number(params.get("page")) || 0)));
+      setPage(
+        Math.min(
+          2000,
+          Math.max(0, Math.floor(Number(params.get("page")) || 0)),
+        ),
+      );
       setReady(true);
     };
     restore();
@@ -427,10 +431,8 @@ export default function MarketPage() {
         : f.sort,
     );
     p.set("sortDir", f.sortDir);
-    p.set("pageSize", "50");
-    p.set("page", String(page));
     return p.toString();
-  }, [f, details, page, flipDesk]);
+  }, [f, details, flipDesk]);
   const debouncedQs = useDebouncedValue(qs, 350);
   const saveCurrentSearch = () => {
     try {
@@ -471,23 +473,30 @@ export default function MarketPage() {
   };
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready) replaceInventoryHistory(`/market?${qs}`);
-  }, [qs, ready]);
+    if (ready) replaceInventoryHistory(`/market?${qs}&page=${page}`);
+  }, [qs, ready, page]);
 
-  const { data, error, isLoading, mutate } = useSWR(
-    !pendingFilters ? `/api/market/explore?${debouncedQs}` : null,
+  const {
+    data,
+    rows: loadedRows,
+    error,
+    loadMoreError,
+    isLoading,
+    loadingMore,
+    hasMore,
+    mutate,
+  } = useMarketInventory(
+    !pendingFilters ? debouncedQs : null,
+    page + 1,
     fetchMarket,
-    {
-      keepPreviousData: false,
-    },
   );
 
-  const rows: MarketListing[] = pendingFilters ? [] : data?.rows || [];
-  React.useEffect(() => {
-    if (!pendingFilters && typeof data?.page === "number" && data.page !== page)
-      setPage(data.page);
-  }, [data?.page, page, pendingFilters]);
-  const busy = pendingFilters || isLoading;
+  const rows: MarketListing[] = pendingFilters ? [] : loadedRows;
+  const busy = pendingFilters || (isLoading && !rows.length);
+  const loadNextBatch = React.useCallback(() => {
+    if (!busy && !loadingMore && !loadMoreError && hasMore)
+      setPage((current) => current + 1);
+  }, [busy, loadingMore, loadMoreError, hasMore]);
   const facets = data?.facets || {
     states: {},
     lanes: {},
@@ -914,7 +923,9 @@ export default function MarketPage() {
           </span>
         </button>
         <p className="ml-auto hidden px-2 text-[10px] text-[var(--t4)] sm:block">
-          {busy ? "Updating inventory…" : `${rows.length} shown on this page`}
+          {busy
+            ? "Updating inventory…"
+            : `${rows.length.toLocaleString()} vehicles loaded`}
         </p>
       </nav>
       {activeCount > 0 && (
@@ -1613,7 +1624,7 @@ export default function MarketPage() {
                 error?.marketMessage ||
                 "Could not load market listings. Your filters have been kept."
               }
-              onRetry={() => void mutate()}
+              onRetry={() => void Promise.resolve(mutate()).catch(() => {})}
             />
           ) : rows.length > 0 ? (
             view === "grid" ? (
@@ -1624,7 +1635,7 @@ export default function MarketPage() {
                     "repeat(auto-fill, minmax(min(100%, 19rem), 1fr))",
                 }}
               >
-                <MarketReturnPosition />
+                {!loadingMore && <MarketReturnPosition />}
                 {rows.map((row) => (
                   <MarketListingCard
                     key={row.id}
@@ -1670,37 +1681,15 @@ export default function MarketPage() {
             </p>
           )}
           {!error && !pendingFilters && total > 0 && (
-            <nav
-              aria-label="Market result pages"
-              className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] pt-3"
-            >
-              <p role="status" className="text-xs text-[var(--t3)]">
-                Page {page + 1} of {Math.max(1, Math.ceil(total / 50))} ·{" "}
-                {rows.length} shown
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  aria-label="Previous results page"
-                  title="Previous results page"
-                  disabled={page === 0 || busy}
-                  onClick={() => setPage((current) => Math.max(0, current - 1))}
-                  className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] disabled:opacity-40"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next results page"
-                  title="Next results page"
-                  disabled={(page + 1) * 50 >= total || busy}
-                  onClick={() => setPage((current) => current + 1)}
-                  className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] disabled:opacity-40"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </nav>
+            <MarketLoadMore
+              shown={rows.length}
+              total={total}
+              hasMore={hasMore}
+              loading={loadingMore}
+              failed={Boolean(loadMoreError)}
+              onLoadMore={loadNextBatch}
+              onRetry={() => void Promise.resolve(mutate()).catch(() => {})}
+            />
           )}
         </section>
       )}
