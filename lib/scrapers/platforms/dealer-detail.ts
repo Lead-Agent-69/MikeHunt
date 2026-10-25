@@ -44,12 +44,49 @@ export function dealerDetailPriceEvidence(
     )
     .remove();
   const clean = load(primary.html() || "");
+  let nativePrice: { amount: number; context: string } | undefined;
+  try {
+    const url = new URL(deal.source_url || "");
+    const product = clean(".page-product");
+    const panel = product.find(".page-product__price");
+    const current = panel.find("span.current");
+    // Riverbend's own vehicle-price panel, not arbitrary .current amounts on other sites.
+    if (
+      ["riverbendrebuildables.com", "www.riverbendrebuildables.com"].includes(
+        url.hostname,
+      ) &&
+      !url.username &&
+      !url.password &&
+      product.length === 1 &&
+      panel.length === 1 &&
+      current.length === 1 &&
+      identityKey &&
+      normalize(product.find("h1").text()).includes(identityKey)
+    ) {
+      const amountText = current.text().trim();
+      if (/^\$(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?$/.test(amountText)) {
+        const amount = Number(amountText.replace(/[$,]/g, ""));
+        if (amount >= 100 && amount < 2_000_000) {
+          const context = product.clone();
+          context.find("br").replaceWith(" ");
+          context.find("div,p,h1,h2,h3,li,dt,dd,td,th").append(" ");
+          nativePrice = {
+            amount,
+            context: context.text().replace(/\s+/g, " "),
+          };
+        }
+      }
+    }
+  } catch {
+    // Missing/invalid source identity cannot qualify site-specific price markup.
+  }
   const descriptions = primary.find(".vehicle-description");
   const text = [
     expectedVin || (identityKey && normalize(car.name).includes(identityKey))
       ? car.description
       : "",
     descriptions.length === 1 ? descriptions.text() : "",
+    nativePrice?.context,
     ...["Cash Price", "Sale Price", "Full Price", "All In Price"].map(
       (label) => {
         const value = dealerDetailField(clean, label);
@@ -64,7 +101,41 @@ export function dealerDetailPriceEvidence(
     /\ball[\s-]+in\s+price\b/gi,
     "full price",
   );
-  const evidence = disclosedPriceEvidence(classifiedText, deal.ask_price);
+  let evidence = disclosedPriceEvidence(
+    classifiedText,
+    nativePrice?.amount ?? deal.ask_price,
+  );
+  if (nativePrice) {
+    if (
+      evidence?.kind === "asking" &&
+      evidence.askingPrice !== nativePrice.amount
+    )
+      evidence = {
+        kind: "unknown",
+        listedAmount: nativePrice.amount,
+        evidenceText:
+          "Vehicle price panel conflicts with the disclosed purchase price.",
+      };
+    else if (!evidence) {
+      const qualified =
+        /\b(?:from|starting|as low as|savings|save|discount|rebate|down|deposit|monthly|financing)\b|\/\s*mo\b/i.test(
+          nativePrice.context,
+        );
+      evidence = qualified
+        ? {
+            kind: "unknown",
+            listedAmount: nativePrice.amount,
+            evidenceText:
+              "Vehicle price panel includes qualified pricing; confirm the full purchase amount.",
+          }
+        : {
+            kind: "asking",
+            askingPrice: nativePrice.amount,
+            listedAmount: nativePrice.amount,
+            evidenceText: `Riverbend vehicle price panel: $${nativePrice.amount}. Seller-reported asking price; fees not confirmed.`,
+          };
+    }
+  }
   // Missing detail terms do not invalidate a price established on the inventory card.
   // Keep that card's own observation time, rather than dating it as a detail check.
   if (!evidence && deal.options?.priceEvidence?.kind === "asking")

@@ -17,6 +17,97 @@ const parse = (
     observedAt,
   );
 describe("dealer detail price verification", () => {
+  const riverbend = {
+    title: "2020 Jeep Gladiator",
+    year: 2020,
+    make: "Jeep",
+    model: "Gladiator",
+    ask_price: 24700,
+    source_url: "https://www.riverbendrebuildables.com/2020-jeep-gladiator/",
+  };
+  const nativePanel = (amount = "$24,700", description = "") =>
+    `<div class="page-product"><h1>2020 Jeep Gladiator</h1><div class="page-product__price"><div><span class="current">${amount}</span></div></div><p>${description}</p></div>`;
+  it("reads Riverbend's matched native asking-price panel without inventing all-in costs", () => {
+    expect(
+      dealerDetailPriceEvidence(load(nativePanel()), riverbend, {}, observedAt),
+    ).toMatchObject({
+      kind: "asking",
+      askingPrice: 24700,
+      checkedAt: observedAt,
+      evidenceText: expect.stringContaining("fees not confirmed"),
+    });
+  });
+  it.each([
+    [
+      "$2,600",
+      "Price listed may be down payment and not full price",
+      "down_payment",
+    ],
+    ["$499", "$499/mo", "monthly_payment"],
+    ["$2,180", "Savings $2,180", "reference"],
+    ["$24,700", "Starting from this amount", "unknown"],
+    ["$24,700", "Cash price $28,000", "unknown"],
+    ["$24,700 - $28,000", "", "unknown"],
+  ])(
+    "does not turn a qualified native amount into a cash price (%s, %s)",
+    (amount, description, kind) => {
+      expect(
+        dealerDetailPriceEvidence(
+          load(nativePanel(amount, description)),
+          riverbend,
+          {},
+          observedAt,
+        )?.kind,
+      ).toBe(kind);
+    },
+  );
+  it("requires the exact source, matching product identity, one price panel, and a dated observation", () => {
+    for (const source_url of [
+      "https://elsewhere.test/car/",
+      "https://riverbendrebuildables.com.evil.test/car/",
+      "https://user:pass@riverbendrebuildables.com/car/",
+    ])
+      expect(
+        dealerDetailPriceEvidence(
+          load(nativePanel()),
+          { ...riverbend, source_url },
+          {},
+          observedAt,
+        )?.kind,
+      ).toBe("unknown");
+    expect(
+      dealerDetailPriceEvidence(
+        load(nativePanel().replace("2020 Jeep Gladiator", "2021 Ford F250")),
+        riverbend,
+        {},
+        observedAt,
+      ),
+    ).toBeUndefined();
+    expect(
+      dealerDetailPriceEvidence(
+        load(
+          nativePanel().replace(
+            "</p>",
+            '</p><div class="page-product__price"><span class="current">$2,180</span></div>',
+          ),
+        ),
+        riverbend,
+        {},
+        observedAt,
+      )?.kind,
+    ).toBe("unknown");
+    expect(
+      dealerDetailPriceEvidence(load(nativePanel()), riverbend, {}),
+    ).toBeUndefined();
+    expect(
+      dealerDetailPriceEvidence(
+        load(nativePanel()),
+        { ...riverbend, vin },
+        { vehicleIdentificationNumber: "1HGCM82633A004352" },
+        observedAt,
+      ),
+    ).toBeUndefined();
+  });
   it("preserves the native inventory card's own source observation date", () => {
     const row = cardToDeal(
       {
