@@ -229,7 +229,11 @@ function shouldShowDealerProof(scope: HealthScope, sourceIds: string[]) {
   );
 }
 
-function dealerProofSources(scope: HealthScope, sourceIds: string[]) {
+function dealerProofSources(
+  scope: HealthScope,
+  sourceIds: string[],
+  importerEnabled: boolean,
+) {
   if (!shouldShowDealerProof(scope, sourceIds)) return [];
   const dealerHosts = scope.dealerHosts || [];
   const dealerSourceIds = scope.dealerSourceIds || [];
@@ -251,7 +255,9 @@ function dealerProofSources(scope: HealthScope, sourceIds: string[]) {
       name: source.name,
       type: "dealer",
       priority: source.priority === "P1" ? "high" : "medium",
-      enabled: source.status === "active",
+      // Catalog testing status is not a runtime pause. The shared importer can
+      // collect these targets; readiness still requires fresh, usable inventory.
+      enabled: importerEnabled && ["active", "testing"].includes(source.status),
       requiresAuth: source.authRequired !== "none",
       stealthRequired: false,
       frequencyMinutes: 720,
@@ -1423,6 +1429,9 @@ export async function GET(request: NextRequest) {
     const virtualDealerSources = dealerProofSources(
       scope,
       sources.map((source) => source.id),
+      sources.some(
+        (source) => source.id === "curated_dealers" && source.enabled,
+      ),
     );
     const existingSourceIds = new Set(sources.map((source) => source.id));
     sources = [

@@ -94,6 +94,30 @@ const request = (search: string) => {
 };
 
 describe("Market inventory filtering and pagination", () => {
+  it("excludes powersports before market counts, facets and pagination", async () => {
+    const base = {
+      year: 2025,
+      source: "independent_dealer",
+      location_state: "MO",
+      ask_price: 14700,
+      images: ["https://dealer.test/inventory/vehicle.jpg"],
+    };
+    state.rows = [
+      {
+        ...base,
+        id: "utv",
+        make: "CFMOTO",
+        model: "UFORCE",
+        title: "2025 CFMOTO U10",
+      },
+      { ...base, id: "pickup", make: "Ford", model: "Ranger" },
+      { ...base, id: "suv", make: "Honda", model: "Pilot" },
+    ];
+    const body = await (await request("pageSize=1")).json();
+    expect(body.total).toBe(2);
+    expect(body.rows).toHaveLength(1);
+    expect(JSON.stringify(body)).not.toContain("CFMOTO");
+  });
   it("defaults to usable vehicle photos before counts and pagination", async () => {
     const base = {
       year: 2024,

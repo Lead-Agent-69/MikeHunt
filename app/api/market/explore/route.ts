@@ -41,6 +41,7 @@ import { validCoords } from "@/lib/geo/buyer-home";
 import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import { marketValuation } from "@/lib/market/valuation";
 import { listingIdentityWarning } from "@/lib/vehicle/listing-identity";
+import { isInVehicleScope } from "@/lib/vehicle/vehicle-scope";
 import { marketSourceCoverage } from "@/lib/market/source-coverage";
 import { sellerTypeEvidence } from "@/lib/deals/seller-type";
 import {
@@ -353,7 +354,7 @@ export async function GET(req: NextRequest) {
         );
         const capped = false;
 
-        let rows = (data || []).map((d: any) => {
+        let rows = (data || []).filter(isInVehicleScope).map((d: any) => {
           const photos = photoEvidence(d.images, {
             placeholderUrls: d.placeholder_urls,
           });
