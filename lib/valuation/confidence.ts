@@ -1,18 +1,41 @@
-// lib/valuation/confidence.ts
-// Honest confidence for a resale estimate, derived from what actually backs the number. A sold blend
-// (rare, damaged titles only) = high; ask-based comps = good; a market aggregate = fair; an offline
-// baseline = estimate only. Shared by the deal page and the discovery cards so the signal is consistent.
-// Wording only — ASK_TO_SOLD and the sold blend weight are not retuned here.
+// Display the recorded evidence confidence, never upgrade it from a basis label alone.
+export type ValueConfidence = "high" | "good" | "fair" | "low" | "estimate";
 
-export type ValueConfidence = "high" | "good" | "fair" | "estimate";
+type ConfidenceEvidence = {
+  confidence?: unknown;
+  source?: unknown;
+  compKind?: unknown;
+  compCount?: unknown;
+  soldCount?: unknown;
+  resaleEvidence?: unknown;
+};
 
 export function valueConfidence(
   sellBasis?: string | null,
   soldAnchored?: boolean | null,
+  evidence?: ConfidenceEvidence | null,
 ): ValueConfidence {
-  if (sellBasis === "comps") return soldAnchored ? "high" : "good";
-  if (sellBasis === "market") return "fair";
-  return "estimate";
+  if (!evidence || evidence.resaleEvidence === false) return "estimate";
+  const count = (value: unknown) =>
+    typeof value === "number" && Number.isFinite(value) && value >= 0
+      ? value
+      : 0;
+  const hasComps =
+    sellBasis === "comps" &&
+    evidence.source === "comparables" &&
+    (evidence.compKind === "ask" || evidence.compKind === "sold") &&
+    count(evidence.compCount) >= 3;
+  const hasGuide =
+    evidence.source === "third_party" && evidence.resaleEvidence === true;
+  if (!hasComps && !hasGuide) return "estimate";
+  if (evidence.confidence === "low") return "low";
+  if (evidence.confidence === "medium") return "good";
+  if (evidence.confidence !== "high") return "estimate";
+  // Asking prices alone cannot establish high confidence in a completed-sale value.
+  const hasSales =
+    (evidence.compKind === "sold" && count(evidence.compCount) >= 3) ||
+    (soldAnchored === true && count(evidence.soldCount) >= 3);
+  return hasSales ? "high" : "good";
 }
 
 export const CONFIDENCE_META: Record<
@@ -22,21 +45,30 @@ export const CONFIDENCE_META: Record<
   high: {
     label: "High",
     color: "var(--green)",
-    blurb: "Partly blended with completed sales",
+    blurb:
+      "Recorded high confidence with source-reported sale evidence; not a guaranteed sale price",
   },
   good: {
-    label: "Good",
-    color: "var(--green)",
-    blurb: "Ask-based comps",
+    label: "Medium",
+    color: "var(--amber)",
+    blurb:
+      "Recorded evidence supports a market estimate; asking prices are not completed sales",
   },
   fair: {
-    label: "Fair",
+    label: "Limited",
     color: "var(--amber)",
-    blurb: "Ask-based estimate from scraped asking prices, not a sold price",
+    blurb: "Limited market evidence; confirm price, title, condition and costs",
+  },
+  low: {
+    label: "Low",
+    color: "var(--amber)",
+    blurb:
+      "The recorded model reports low confidence; verify the comparable evidence before relying on this estimate",
   },
   estimate: {
-    label: "Estimate",
+    label: "Unrated",
     color: "var(--t4)",
-    blurb: "Baseline only — thin comp data",
+    blurb:
+      "Insufficient or unrecorded confidence evidence; research reference only",
   },
 };

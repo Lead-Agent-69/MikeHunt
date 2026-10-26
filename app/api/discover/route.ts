@@ -152,6 +152,7 @@ function mapDeal(
     valueConfidence: valueConfidence(
       d.deal_analysis?.sellBasis,
       d.deal_analysis?.soldAnchored,
+      d.deal_analysis?.valuation,
     ),
     // Evidence count behind the number (real comps + sold) — surfaces the "backed by N" trust hint.
     valueEvidence:
