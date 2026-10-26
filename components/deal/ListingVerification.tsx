@@ -14,6 +14,7 @@ type Props = {
   sourceUrl?: string | null;
   source?: string | null;
   observationLabel?: string;
+  availabilityWarning?: string | null;
   dealerMode?: boolean;
   onOpenSection: (section: VerificationSection) => void;
 };
@@ -26,6 +27,7 @@ export function ListingVerification({
   sourceUrl,
   source,
   observationLabel,
+  availabilityWarning,
   dealerMode = false,
   onOpenSection,
 }: Props) {
@@ -92,6 +94,14 @@ export function ListingVerification({
       <h2 className="text-base font-bold text-[var(--t1)]">
         Before you decide
       </h2>
+      {availabilityWarning && (
+        <p
+          role="status"
+          className="mt-3 rounded-lg border border-[var(--amber-d)] bg-[var(--s1)] p-3 text-sm font-semibold text-[var(--t1)]"
+        >
+          {availabilityWarning}
+        </p>
+      )}
       <p
         className={`mt-2 text-sm font-semibold ${evidence?.acquisitionReady ? "text-[var(--green)]" : "text-[var(--amber-d)]"}`}
       >

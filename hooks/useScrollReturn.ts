@@ -31,7 +31,7 @@ export function useScrollReturn(resultsId?: string) {
         htmlY: document.documentElement.scrollTop,
       };
     },
-    restore() {
+    restore(showResults = false) {
       cancel();
       const saved = snapshot.current;
       snapshot.current = null;
@@ -39,7 +39,10 @@ export function useScrollReturn(resultsId?: string) {
       setRestoring(true);
       const apply = () => {
         if (window.location.pathname !== saved.path) return;
-        if (resultsId && window.location.search !== saved.search) {
+        if (
+          resultsId &&
+          (showResults || window.location.search !== saved.search)
+        ) {
           document
             .getElementById(resultsId)
             ?.scrollIntoView({ block: "start", behavior: "instant" });

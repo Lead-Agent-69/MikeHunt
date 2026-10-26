@@ -273,8 +273,10 @@ export default function MarketPage() {
   const floatingFilterTrigger = React.useRef<HTMLButtonElement>(null);
   const searchControls = React.useRef<HTMLDivElement>(null);
   const [floatingFilters, setFloatingFilters] = React.useState(false);
+  const presentationChanged = React.useRef(false);
   const closeFilters = () => {
-    browsingScroll.restore();
+    browsingScroll.restore(presentationChanged.current);
+    presentationChanged.current = false;
     setShowFilters(false);
     setShowInsights(false);
   };
@@ -764,6 +766,88 @@ export default function MarketPage() {
     },
   ];
 
+  const renderBrowsingControls = () => (
+    <>
+      <div
+        aria-label="Result view"
+        className="col-start-2 row-start-2 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
+      >
+        <button
+          type="button"
+          aria-label="Photo cards"
+          aria-pressed={view === "grid"}
+          onClick={() => {
+            presentationChanged.current ||= floatingFilters && view !== "grid";
+            setView("grid");
+          }}
+          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "grid" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+        >
+          <LayoutGrid className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Table view"
+          aria-pressed={view === "table"}
+          onClick={() => {
+            presentationChanged.current ||= floatingFilters && view !== "table";
+            setView("table");
+          }}
+          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "table" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+        >
+          <List className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          aria-label="Toggle results map"
+          aria-pressed={showMap}
+          onClick={() => {
+            presentationChanged.current ||= floatingFilters;
+            setShowMap((current) => !current);
+          }}
+          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${showMap ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+        >
+          <MapIcon className="h-4 w-4" />
+        </button>
+      </div>
+      <select
+        aria-label="Sort market results"
+        value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(f.sort) ? "askPrice" : f.sort}:${f.sortDir}`}
+        onChange={(e) => {
+          const [sort, sortDir] = e.target.value.split(":");
+          set({ sort, sortDir: sortDir as "asc" | "desc" });
+        }}
+        className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
+      >
+        <option value="lastSeenAt:desc">Recently seen</option>
+        <option value="priceGap:desc" disabled={priceGapEvidence === 0}>
+          {priceGapEvidence > 0
+            ? "Below estimate ↓"
+            : "Below estimate · needs verified price"}
+        </option>
+        {(f.near || f.lat) && (
+          <option value="distanceMiles:asc">Nearest first</option>
+        )}
+        {flipDesk && (
+          <option value="profitEstimate:desc" disabled={profitEvidence === 0}>
+            {profitEvidence > 0
+              ? "Modeled net ↓"
+              : "Modeled net · needs verified inputs"}
+          </option>
+        )}
+        {flipDesk && (
+          <option value="profitScore:desc" disabled={profitScoreEvidence === 0}>
+            {profitScoreEvidence > 0
+              ? "Model score ↓"
+              : "Model score · needs verified inputs"}
+          </option>
+        )}
+        <option value="askPrice:asc">Advertised amount ↑</option>
+        <option value="askPrice:desc">Advertised amount ↓</option>
+        <option value="mileage:asc">Miles ↑</option>
+        <option value="year:desc">Year ↓</option>
+      </select>
+    </>
+  );
   return (
     <div className="flex min-w-0 flex-col gap-1 sm:gap-2 lg:gap-4">
       <header className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[var(--b1)] pb-1.5 sm:gap-2 sm:pb-3">
@@ -1136,7 +1220,22 @@ export default function MarketPage() {
         }
       >
         {floatingFilters && (
-          <MarketLocation idPrefix="market-browsing" value={f} onChange={set} />
+          <>
+            <MarketLocation
+              idPrefix="market-browsing"
+              value={f}
+              onChange={set}
+            />
+            <section
+              aria-label="Sort and view"
+              className="my-4 rounded-xl border border-[var(--b1)] p-3"
+            >
+              <h2 className="mb-2 text-sm font-bold">Sort and view</h2>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                {renderBrowsingControls()}
+              </div>
+            </section>
+          </>
         )}
         <div className="hidden flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-4 lg:flex">
           <div>
@@ -1632,81 +1731,7 @@ export default function MarketPage() {
                 )}
               </p>
             </div>
-            <div
-              aria-label="Result view"
-              className="col-start-2 row-start-2 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
-            >
-              <button
-                type="button"
-                aria-label="Photo cards"
-                aria-pressed={view === "grid"}
-                onClick={() => setView("grid")}
-                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "grid" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="Table view"
-                aria-pressed={view === "table"}
-                onClick={() => setView("table")}
-                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "table" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
-              >
-                <List className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="Toggle results map"
-                aria-pressed={showMap}
-                onClick={() => setShowMap((current) => !current)}
-                className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${showMap ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
-              >
-                <MapIcon className="h-4 w-4" />
-              </button>
-            </div>
-            <select
-              aria-label="Sort market results"
-              value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(f.sort) ? "askPrice" : f.sort}:${f.sortDir}`}
-              onChange={(e) => {
-                const [sort, sortDir] = e.target.value.split(":");
-                set({ sort, sortDir: sortDir as "asc" | "desc" });
-              }}
-              className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
-            >
-              <option value="lastSeenAt:desc">Recently seen</option>
-              <option value="priceGap:desc" disabled={priceGapEvidence === 0}>
-                {priceGapEvidence > 0
-                  ? "Below estimate ↓"
-                  : "Below estimate · needs verified price"}
-              </option>
-              {(f.near || f.lat) && (
-                <option value="distanceMiles:asc">Nearest first</option>
-              )}
-              {flipDesk && (
-                <option
-                  value="profitEstimate:desc"
-                  disabled={profitEvidence === 0}
-                >
-                  {profitEvidence > 0
-                    ? "Modeled net ↓"
-                    : "Modeled net · needs verified inputs"}
-                </option>
-              )}
-              {flipDesk && (
-                <option
-                  value="profitScore:desc"
-                  disabled={profitScoreEvidence === 0}
-                >
-                  {profitScoreEvidence > 0
-                    ? "Model score ↓"
-                    : "Model score · needs verified inputs"}
-                </option>
-              )}
-              <option value="askPrice:asc">Advertised amount ↑</option>
-              <option value="askPrice:desc">Advertised amount ↓</option>
-              <option value="mileage:asc">Miles ↑</option>
-              <option value="year:desc">Year ↓</option>
-            </select>
+            {renderBrowsingControls()}
           </div>
 
           {!busy && !error && (facets.sources?.length || 0) > 0 && (

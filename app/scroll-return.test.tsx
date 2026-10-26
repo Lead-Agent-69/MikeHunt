@@ -100,3 +100,24 @@ it("shows the updated result header when filters changed instead of restoring an
   target.remove();
   f.cleanup();
 });
+
+it("returns to results after changing presentation even when the query is unchanged", () => {
+  const f = setup();
+  window.history.replaceState(null, "", "/market?makes=Ford");
+  const target = document.createElement("section");
+  target.id = "market-results";
+  target.scrollIntoView = vi.fn();
+  document.body.append(target);
+  document.body.scrollTop = 20000;
+  act(() => f.controls.capture());
+  act(() => f.controls.restore(true));
+  f.flush();
+  f.flush();
+  expect(target.scrollIntoView).toHaveBeenCalledWith({
+    block: "start",
+    behavior: "instant",
+  });
+  expect(f.scroll).not.toHaveBeenCalled();
+  target.remove();
+  f.cleanup();
+});

@@ -1072,9 +1072,9 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
 function EmptyFleet() {
   return (
     <DataSetupState
-      title="Fleet starts when a deal becomes yours"
-      message="Saved and watched vehicles help you shortlist. Fleet is for the next step: units you bought, transport, recon, floor cost, listed price, offers, and final outcome."
-      primaryHref="/scan?sort=profit"
+      title="Your purchase pipeline starts here"
+      message="Keep candidates in Saved. Once you buy a vehicle, record the purchase from its detail page to track transport, repairs, costs, and its outcome here."
+      primaryHref="/market"
       primaryLabel="Find a vehicle to buy"
       secondaryHref="/saved"
       secondaryLabel="Review saved candidates"
@@ -1093,12 +1093,12 @@ function FleetSetupState({ signedIn }: { signedIn: boolean }) {
       }
       message={
         signedIn
-          ? "Fleet tracks vehicles you acquire: transport, repairs, carrying costs, list price, offers, and the final outcome. Add one from your saved vehicles when you are ready."
-          : "Fleet is personal operating data. Sign in first, then add a vehicle from Scan or Saved when you purchase it."
+          ? "Your pipeline tracks purchased vehicles: transport, repairs, carrying costs, list price, offers, and the final outcome. Add one from your saved vehicles when you are ready."
+          : "Sign in to keep your purchase records private. After buying a vehicle, record it from its detail page."
       }
-      primaryHref={signedIn ? "/scan?sort=profit" : "/login"}
+      primaryHref={signedIn ? "/market" : "/login"}
       primaryLabel={signedIn ? "Find vehicles" : "Sign in"}
-      secondaryHref="/scan?sort=profit"
+      secondaryHref="/market"
       secondaryLabel="Find vehicles"
       compact
     />

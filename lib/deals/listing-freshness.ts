@@ -60,3 +60,15 @@ export function seenTimestampOrNull(value: unknown): string | null {
   const ms = toMs(value);
   return ms == null ? null : new Date(ms).toISOString();
 }
+
+/** A source observation is not confirmation that a vehicle remains available. */
+export function listingAvailabilityWarning(
+  input: ListingSeenInput,
+  now = Date.now(),
+): string | null {
+  const last = toMs(input.lastSeenAt);
+  if (last == null || last > now + HOUR)
+    return "Availability has not been checked. Confirm this vehicle and its price with the seller before making plans.";
+  if (now - last < 72 * HOUR) return null;
+  return `Availability needs checking: last seen ${ago(last, now)}. The vehicle or advertised terms may have changed. Confirm with the seller before travelling or making an offer.`;
+}
