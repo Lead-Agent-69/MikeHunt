@@ -149,7 +149,9 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
     try {
       await detachPushForLogout();
       if (isSupabaseConfigured()) {
-        const { error } = await createClientComponentClient().auth.signOut();
+        const { error } = await createClientComponentClient().auth.signOut({
+          scope: "local",
+        });
         if (error) throw error;
       } else {
         window.location.assign("/api/auth/demo-logout?next=/login");

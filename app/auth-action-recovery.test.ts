@@ -82,6 +82,8 @@ it("keeps a failed logout in the account and allows retry", async () => {
   expect(mocks.replace).not.toHaveBeenCalled();
   await click("Log out");
   expect(mocks.replace).toHaveBeenCalledWith("/login");
+  expect(mocks.signOut).toHaveBeenNthCalledWith(1, { scope: "local" });
+  expect(mocks.signOut).toHaveBeenNthCalledWith(2, { scope: "local" });
   expect(mocks.refresh).toHaveBeenCalledOnce();
 });
 it("opens Google login through the cookie-preserving server route", async () => {
