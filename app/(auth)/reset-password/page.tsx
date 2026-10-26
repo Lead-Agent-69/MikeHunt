@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   createClientComponentClient,
@@ -9,6 +9,9 @@ import {
 import { PasswordField } from "@/components/shared/Field";
 import { Btn } from "@/components/shared/Btn";
 import { friendlyAuthError } from "@/lib/auth/friendly-error";
+import { isRecoveryToken } from "@/lib/auth/recovery-token";
+import { createLatestRequest } from "@/lib/latest-request";
+import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 
 export default function ResetPasswordPage() {
   const [ready, setReady] = useState(false);
@@ -18,9 +21,14 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [complete, setComplete] = useState(false);
+  const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const recoveryRequests = useRef(createLatestRequest());
+  const confirming = useRef(false);
 
   useEffect(() => {
     let active = true;
+    const manager = recoveryRequests.current;
     async function checkSession() {
       try {
         if (
@@ -31,6 +39,18 @@ export default function ResetPasswordPage() {
           throw new Error(
             "This reset link is invalid or expired. Request a new link below.",
           );
+        }
+        const token = new URLSearchParams(window.location.hash.slice(1)).get(
+          "token_hash",
+        );
+        if (token !== null) {
+          if (!isRecoveryToken(token))
+            throw new Error(
+              "This reset link is invalid or expired. Request a new link below.",
+            );
+          if (active) setRecoveryToken(token);
+          // Page previews and existing sessions must not consume the email link.
+          return;
         }
         const { data, error } =
           await createClientComponentClient().auth.getUser();
@@ -48,8 +68,46 @@ export default function ResetPasswordPage() {
     void checkSession();
     return () => {
       active = false;
+      manager.cancel();
     };
   }, []);
+
+  async function confirmRecovery() {
+    if (confirming.current || !recoveryToken) return;
+    confirming.current = true;
+    const task = recoveryRequests.current.start();
+    setVerifying(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token_hash: recoveryToken }),
+        signal: task.signal,
+      });
+      const result = await response.json();
+      if (!task.isCurrent()) return;
+      if (!response.ok || result?.verified !== true) {
+        throw new Error(
+          "This reset link could not be verified. Try again or request a new link.",
+        );
+      }
+      // A full navigation removes the bearer hash and reloads the verified
+      // cookies even when this browser was signed in to a different account.
+      window.location.replace("/reset-password");
+    } catch {
+      if (task.isCurrent())
+        setError(
+          "We couldn't verify this link. Try again or request a new reset link.",
+        );
+    } finally {
+      if (task.isCurrent()) {
+        confirming.current = false;
+        setVerifying(false);
+        task.finish();
+      }
+    }
+  }
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -90,7 +148,14 @@ export default function ResetPasswordPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-[var(--s1)] px-6 py-12">
-      <section className="w-full max-w-md">
+      <section className="glass-panel w-full max-w-md rounded-2xl border border-[var(--b1)] bg-[var(--s0)] p-6 sm:p-8">
+        <Link
+          href="/"
+          aria-label="DealerHunt home"
+          className="mb-8 inline-flex min-h-11 items-center"
+        >
+          <MikeHuntLogo size="md" />
+        </Link>
         <h1 className="text-2xl font-bold text-[var(--t1)] mb-4">
           Set a new password
         </h1>
@@ -100,7 +165,23 @@ export default function ResetPasswordPage() {
             {error}
           </p>
         )}
-        {complete ? (
+        {recoveryToken ? (
+          <div className="space-y-4">
+            <p className="text-[var(--t3)]">
+              Continue to verify your email link, then choose a new password.
+              Your password has not changed.
+            </p>
+            <Btn type="button" loading={verifying} onClick={confirmRecovery}>
+              {verifying ? "Verifying link..." : "Continue to reset password"}
+            </Btn>
+            <Link
+              href="/forgot-password"
+              className="block font-semibold text-[var(--amber-d)]"
+            >
+              Request a new reset link
+            </Link>
+          </div>
+        ) : complete ? (
           <div>
             <p role="status" className="mb-4">
               Your password has been updated.

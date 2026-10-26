@@ -28,6 +28,63 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
+});
+
+it("does not consume an emailed recovery hash on page load, even with an existing account session", async () => {
+  window.history.replaceState(
+    {},
+    "",
+    `/reset-password#token_hash=pkce_${"a".repeat(56)}`,
+  );
+  const confirm = vi
+    .fn()
+    .mockRejectedValue(new Error("private network detail"));
+  vi.stubGlobal("fetch", confirm);
+  await mount();
+  expect(confirm).not.toHaveBeenCalled();
+  expect(mocks.getUser).not.toHaveBeenCalled();
+  expect(container.querySelector("input")).toBeNull();
+  expect(container.textContent).toContain("Continue to reset password");
+  await act(async () => container.querySelector("button")!.click());
+  expect(confirm).toHaveBeenCalledWith(
+    "/api/auth/recovery",
+    expect.objectContaining({
+      method: "POST",
+      signal: expect.any(AbortSignal),
+    }),
+  );
+  expect(container.textContent).toContain("Try again");
+  expect(container.textContent).not.toContain("private network detail");
+  expect(mocks.updateUser).not.toHaveBeenCalled();
+  expect(container.querySelector("button")!.disabled).toBe(false);
+});
+
+it("cancels pending recovery verification when navigating away", async () => {
+  window.history.replaceState(
+    {},
+    "",
+    `/reset-password#token_hash=pkce_${"b".repeat(56)}`,
+  );
+  let signal: AbortSignal | undefined;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((_url: string, options: { signal: AbortSignal }) => {
+      signal = options.signal;
+      return new Promise((_resolve, reject) =>
+        signal!.addEventListener("abort", () => reject(new Error("aborted"))),
+      );
+    }),
+  );
+  await mount();
+  await act(async () => {
+    container.querySelector("button")!.click();
+    container.querySelector("button")!.click();
+  });
+  expect(fetch).toHaveBeenCalledOnce();
+  await act(async () => root.unmount());
+  expect(signal?.aborted).toBe(true);
+  expect(mocks.updateUser).not.toHaveBeenCalled();
 });
 async function mount() {
   await act(async () => root.render(React.createElement(ResetPasswordPage)));
