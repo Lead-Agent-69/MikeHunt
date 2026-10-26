@@ -36,7 +36,7 @@ export function ValuationBreakdown({
   sellEstimate: number;
   mileage?: number | null;
 }) {
-  const conf = valueConfidence(v.basis, v.soldAnchored);
+  const conf = valueConfidence(v.basis, v.soldAnchored, v);
   const cm = CONFIDENCE_META[conf];
   const clean = v.cleanComp ?? v.baseline;
   const hasMileageAdj = Math.abs(v.mileageMult - 1) > 0.005;

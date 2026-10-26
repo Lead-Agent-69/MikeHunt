@@ -26,7 +26,7 @@ export interface DiscoveryDeal {
   priceEvidence?: PriceEvidence;
   sellEstimate?: number;
   /** Honest confidence for the resale estimate (comp-backed vs baseline guess). */
-  valueConfidence?: "high" | "good" | "fair" | "estimate";
+  valueConfidence?: "high" | "good" | "fair" | "low" | "estimate";
   /** How many real comps + sales back the resale number (the "backed by N" trust hint). */
   valueEvidence?: number;
   /** Comparable-listing count, separate from sold anchors. */
