@@ -1,11 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DealerHunt">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 112" role="img" aria-label="DealerHunt">
   <defs>
-    <linearGradient id="dealerhunt-mark" x1="8" y1="6" x2="58" y2="60" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#15c9ff"/>
-      <stop offset="0.48" stop-color="#0877ff"/>
-      <stop offset="1" stop-color="#6d4cff"/>
+    <linearGradient id="dealerhunt-mark" x1="24" y1="8" x2="100" y2="104" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0877ff"/><stop offset="0.5" stop-color="#145bff"/><stop offset="1" stop-color="#1737ed"/>
+    </linearGradient>
+    <linearGradient id="dealerhunt-arrow" x1="76" y1="44" x2="12" y2="105" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2677ff"/><stop offset="1" stop-color="#1029ed"/>
     </linearGradient>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#dealerhunt-mark)"/>
-  <path fill="#fff" fill-rule="evenodd" d="M16 13h16.5C45.5 13 54 20.4 54 32S45.5 51 32.5 51H16V13Zm11 9v20h5.2C39 42 44 38.6 44 32s-5-10-11.8-10H27Z"/>
+  <path fill="url(#dealerhunt-mark)" d="M22 10h56c27 0 46 20 46 46s-19 46-46 46H43l20-20h15c15 0 26-11 26-26S93 30 78 30H39L21 13q-2-3 1-3Z"/>
+  <path fill="url(#dealerhunt-arrow)" d="m7 103 28-46q1-2 4-3l41-10q4-1 1 3L59 80q-1 2-4 4l-46 22q-4 2-2-3Z"/>
+  <path fill="#1645ee" d="m7 103 31-28 16-3 1 12-46 22q-4 2-2-3Z"/>
 </svg>

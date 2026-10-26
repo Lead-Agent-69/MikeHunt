@@ -33,28 +33,10 @@ export function MikeHuntLoader({
       aria-live="polite"
       aria-atomic="true"
     >
-      {/* Repeated asset layers are decorative; the status text carries the task state. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className={cn(styles.piece, styles.left)}
-        src="/brand/DEALERHUNT-D.svg"
-        alt=""
-        aria-hidden="true"
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className={cn(styles.piece, styles.middle)}
-        src="/brand/DEALERHUNT-D.svg"
-        alt=""
-        aria-hidden="true"
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        className={cn(styles.piece, styles.right)}
-        src="/brand/DEALERHUNT-D.svg"
-        alt=""
-        aria-hidden="true"
-      />
+      <svg className={styles.ring} viewBox="0 0 64 64" aria-hidden="true">
+        <circle className={styles.track} cx="32" cy="32" r="29" />
+        <circle className={styles.arc} cx="32" cy="32" r="29" />
+      </svg>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={styles.final}

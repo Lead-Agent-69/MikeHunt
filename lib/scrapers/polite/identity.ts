@@ -7,7 +7,7 @@ export const BOT_VERSION = "1.0";
 
 function siteUrl(): string {
   const raw = (
-    process.env.NEXT_PUBLIC_APP_URL || "https://mikehunt-69.vercel.app"
+    process.env.NEXT_PUBLIC_APP_URL || "https://dealerhunt.vercel.app"
   ).trim();
   return raw.replace(/\/+$/, "");
 }
@@ -17,7 +17,7 @@ export function botInfoUrl(): string {
   return `${siteUrl()}/bot`;
 }
 
-/** e.g. "MikeHuntBot/1.0 (+https://mikehunt-69.vercel.app/bot)" */
+/** Stable crawler identity; the contact page follows the public brand. */
 export function politeUserAgent(): string {
   return `${BOT_TOKEN}/${BOT_VERSION} (+${botInfoUrl()})`;
 }

@@ -1,5 +1,5 @@
 ﻿const CACHE_NAME = 'DealerHunt-v3'
-const STATIC_CACHE = 'DealerHunt-static-v1'
+const STATIC_CACHE = 'DealerHunt-static-v2'
 const DYNAMIC_CACHE = 'DealerHunt-dynamic-v1'
 
 const STATIC_ASSETS = [
