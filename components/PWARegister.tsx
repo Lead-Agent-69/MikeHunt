@@ -27,7 +27,11 @@ export function PWARegister() {
           const names = await caches.keys();
           await Promise.all(
             names
-              .filter((name) => name.startsWith("MikeHunt-"))
+              .filter(
+                (name) =>
+                  name.startsWith("MikeHunt-") ||
+                  name.startsWith("DealerHunt-"),
+              )
               .map((name) => caches.delete(name)),
           );
         })

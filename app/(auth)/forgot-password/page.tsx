@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
       <div className="absolute top-0 left-0 right-0 z-10 p-6">
         <Link
           href="/"
-          aria-label="MIKEHUNT home"
+          aria-label="DealerHunt home"
           className="inline-flex items-center gap-2.5"
         >
           <MikeHuntLogo size="md" />

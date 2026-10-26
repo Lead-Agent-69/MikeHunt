@@ -492,8 +492,8 @@ export default function OnboardingPage() {
             <p className="mt-1 text-xs leading-relaxed">
               Your state starts with currently indexed listings. On Scan, use
               “Search inventory” to re-query what we already have, or “Find new
-              matches” when you want MIKEHUNT to check eligible sources for this
-              exact search.
+              matches” when you want DealerHunt to check eligible sources for
+              this exact search.
             </p>
           </div>
           <div className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] p-3 text-sm text-[var(--t3)]">

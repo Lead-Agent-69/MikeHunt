@@ -133,7 +133,7 @@ describe("shared buyer request recovery", () => {
     await expect(fetcher("/api/scan")).rejects.toMatchObject({
       status: 0,
       message:
-        "We couldn't reach MIKEHUNT right now. Please try again shortly.",
+        "We couldn't reach DealerHunt right now. Please try again shortly.",
     });
     expect(vi.getTimerCount()).toBe(0);
   });

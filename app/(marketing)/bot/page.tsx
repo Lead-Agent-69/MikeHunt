@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { PublicLayout } from "@/components/layout/PublicLayout";
 
 export const metadata: Metadata = {
-  title: "MikeHuntBot | MikeHunt",
+  title: "Crawler identity | DealerHunt",
   description:
-    "What MikeHuntBot is, how it crawls, and how to limit or block it.",
+    "How the DealerHunt crawler identifies itself and how to limit or block it.",
 };
 
 const RULES = [

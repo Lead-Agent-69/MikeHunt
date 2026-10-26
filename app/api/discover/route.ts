@@ -1006,7 +1006,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => (a.hoursLeft ?? 1e9) - (b.hoursLeft ?? 1e9))
       .slice(0, N);
 
-    // "New to MikeHunt": first seen inside JUST_LISTED_WINDOW_HOURS, newest first. We do not know
+    // "New to DealerHunt": first seen inside JUST_LISTED_WINDOW_HOURS, newest first. We do not know
     // when the seller posted it, only when we first saw it, so the rail says that. Undated rows and
     // rows first seen earlier stay out instead of padding the rail with old inventory.
     const fresh = justListedRail(merged, Date.now(), N);
@@ -1258,7 +1258,7 @@ export async function GET(request: NextRequest) {
       { key: "ev", title: "Electric", subtitle: "EVs & hybrids", deals: ev },
       {
         key: "fresh",
-        title: "New to MikeHunt",
+        title: "New to DealerHunt",
         subtitle: `First seen in the last ${JUST_LISTED_WINDOW_HOURS} hours`,
         deals: fresh,
       },
@@ -1266,7 +1266,7 @@ export async function GET(request: NextRequest) {
 
     // Net profit, max bid, profit score, and seller contact only go to a saved reseller / dealer
     // desk. Everyone else (signed out, personal, diy, parts, unknown, prefs error) gets redacted
-    // cards, and the wholesale flip rails (Top Flips, Auction Lots, New to MikeHunt, and Salvage
+    // cards, and the wholesale flip rails (Top Flips, Auction Lots, New to DealerHunt, and Salvage
     // except for parts) are dropped here, not just hidden by the page. Cards are copied, never
     // mutated, because `merged` is cached.
     const desk = await resolveCallerDesk();

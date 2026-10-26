@@ -249,7 +249,7 @@ export function EnablePush({ className }: { className?: string }) {
   if (support === "ios-needs-install")
     return (
       <p className={noteClass}>
-        On iPhone and iPad, deal alerts work once MikeHunt is on your Home
+        On iPhone and iPad, deal alerts work once DealerHunt is on your Home
         Screen: tap Share, then “Add to Home Screen”, and open it from there.
       </p>
     );
@@ -276,7 +276,7 @@ export function EnablePush({ className }: { className?: string }) {
       </div>
     ) : !readiness.configured ? (
       <p className={noteClass}>
-        Push alerts aren’t switched on for MikeHunt yet.
+        Push alerts aren’t switched on for DealerHunt yet.
       </p>
     ) : null;
   if (statusNotice && !enabled) return statusNotice;

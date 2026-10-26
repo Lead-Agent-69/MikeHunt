@@ -278,7 +278,8 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.facets.priceGapEvidence).toBe(2);
   });
   it("keeps unsupported economics behind verified rows and orders that tail by freshness", async () => {
-    const now = Date.now();
+    const seenAt = (hoursAgo: number) =>
+      new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
     const supported = {
       id: "supported",
       source: "independent_dealer",
@@ -287,7 +288,7 @@ describe("Market inventory filtering and pagination", () => {
       sell_estimate: 16000,
       true_net_profit: 2500,
       profit_score: 80,
-      last_seen_at: new Date(now - 24 * 60 * 60_000).toISOString(),
+      last_seen_at: seenAt(12),
       price_evidence: { kind: "asking", askingPrice: 10000 },
       deal_analysis: {
         valuation: {
@@ -303,14 +304,14 @@ describe("Market inventory filtering and pagination", () => {
       {
         ...supported,
         id: "unsupported-old",
-        last_seen_at: new Date(now - 48 * 60 * 60_000).toISOString(),
+        last_seen_at: seenAt(48),
         price_evidence: { kind: "unknown" },
       },
       supported,
       {
         ...supported,
         id: "unsupported-new",
-        last_seen_at: new Date(now - 60 * 60_000).toISOString(),
+        last_seen_at: seenAt(2),
         price_evidence: { kind: "unknown" },
       },
     ];

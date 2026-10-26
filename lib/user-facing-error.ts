@@ -29,7 +29,7 @@ export function userFacingErrorMessage(
     return "Your session needs attention. Sign in again, then try once more.";
   }
   if (/network|fetch|offline|connection|timed? ?out/i.test(message)) {
-    return "We couldn't reach MIKEHUNT right now. Check your connection and try again.";
+    return "We couldn't reach DealerHunt right now. Check your connection and try again.";
   }
   if (
     /supabase|postgrest|postgres|database|docker|runner|scrap(er|ing)|worker|rpc|kong|service.?role|api.?key|relation .+ does not exist|stack|exception|unexpected (end|token)|json.*(parse|input)|execute ['"]?json|syntaxerror/i.test(

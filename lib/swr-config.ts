@@ -29,7 +29,7 @@ export class HttpRequestError extends Error {
                 ? "This is taking longer than expected. Please try again."
                 : status >= 400 && status < 500
                   ? "We couldn't complete that request. Please check your choices and try again."
-                  : "We couldn't reach MIKEHUNT right now. Please try again shortly.",
+                  : "We couldn't reach DealerHunt right now. Please try again shortly.",
     );
     this.name = "HttpRequestError";
   }

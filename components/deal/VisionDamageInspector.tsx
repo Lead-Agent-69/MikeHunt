@@ -143,7 +143,7 @@ export function VisionDamageInspector({
             <div>
               <h3 className="font-bold">Damage assessment not available</h3>
               <p className="mt-2 leading-relaxed text-[var(--t3)]">
-                MIKEHUNT has not analyzed these photos for damage. No defects,
+                DealerHunt has not analyzed these photos for damage. No defects,
                 confidence scores, or repair prices have been inferred from
                 them.
               </p>

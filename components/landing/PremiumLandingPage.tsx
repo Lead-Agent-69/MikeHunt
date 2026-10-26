@@ -48,7 +48,7 @@ export function PremiumLandingPage() {
     <main className="min-h-screen bg-[var(--s1)] text-[var(--t1)]">
       <header className="sticky top-0 z-40 border-b border-[var(--b1)] bg-[var(--s0)]/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="MIKEHUNT home" className="shrink-0">
+          <Link href="/" aria-label="DealerHunt home" className="shrink-0">
             <MikeHuntLogo size="sm" />
           </Link>
           <nav
@@ -104,7 +104,7 @@ export function PremiumLandingPage() {
               Find the next vehicle worth your time.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--t3)]">
-              MIKEHUNT brings your buying criteria, vehicle evidence, and next
+              DealerHunt brings your buying criteria, vehicle evidence, and next
               decision into one focused workspace.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">

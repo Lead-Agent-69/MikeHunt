@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  /* MikeHunt Brand — Midnight Navy → Deep Violet */
+  /* DealerHunt Brand — Midnight Navy → Deep Violet */
   --s0: rgba(255, 255, 255, 0.04);
   --s1: #0a0a0f;
   --s2: #12121a;

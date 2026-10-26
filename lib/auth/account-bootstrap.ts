@@ -10,7 +10,9 @@ function displayName(user: AccountIdentity, requestedName?: string) {
   const metadataName =
     user.user_metadata?.full_name || user.user_metadata?.name;
   const emailName = user.email?.split("@")[0];
-  return String(requestedName || metadataName || emailName || "MikeHunt buyer")
+  return String(
+    requestedName || metadataName || emailName || "DealerHunt buyer",
+  )
     .trim()
     .slice(0, 120);
 }

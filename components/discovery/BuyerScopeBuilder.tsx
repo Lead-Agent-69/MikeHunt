@@ -1333,8 +1333,8 @@ export function BuyerScopeBuilder({
                     {previewPlan.contract.summary}
                   </h4>
                   <p className="mt-1 max-w-2xl text-[11px] leading-relaxed text-[var(--t4)]">
-                    MikeHunt preserves these choices instead of running a broad
-                    fallback:{" "}
+                    DealerHunt preserves these choices instead of running a
+                    broad fallback:{" "}
                     {[
                       previewPlan.contract.allowedFilters.state || "nationwide",
                       previewPlan.contract.allowedFilters.q || "all vehicles",

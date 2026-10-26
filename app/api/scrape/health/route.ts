@@ -640,8 +640,8 @@ function explainSource(
       userStatus: "Off for site terms",
       proofLevel: "off",
       userImpact: retainedRows
-        ? "This site's terms ban automated access, so MikeHunt does not import from it. Rows already on file are older imports and are not refreshed."
-        : "This site's terms ban automated access, so MikeHunt does not import from it.",
+        ? "This site's terms ban automated access, so DealerHunt does not import from it. Rows already on file are older imports and are not refreshed."
+        : "This site's terms ban automated access, so DealerHunt does not import from it.",
       nextAction:
         "Use a permitted official feed or obtain written source permission before enabling automated collection.",
     };

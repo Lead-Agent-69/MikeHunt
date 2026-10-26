@@ -3,9 +3,9 @@ import { getServerUser } from "@/lib/server-supabase";
 import { PremiumLandingPage } from "@/components/landing/PremiumLandingPage";
 
 export const metadata = {
-  title: "MIKEHUNT — Vehicle acquisition, made clear",
+  title: "DealerHunt — Vehicle acquisition, made clear",
   description:
-    "MIKEHUNT is a vehicle acquisition workspace for reviewing evidence, all-in costs, and next steps before you buy.",
+    "DealerHunt is a vehicle acquisition workspace for reviewing evidence, all-in costs, and next steps before you buy.",
 };
 
 export default async function Home() {

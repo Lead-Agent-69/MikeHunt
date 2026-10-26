@@ -1,7 +1,7 @@
 {
-  "name": "MikeHunt",
+  "name": "dealerhunt",
   "version": "1.0.0",
-  "description": "MikeHunt — Multi-source vehicle sourcing intelligence platform",
+  "description": "DealerHunt — Multi-source vehicle sourcing intelligence platform",
   "private": true,
   "engines": {
     "node": ">=20.18.1"

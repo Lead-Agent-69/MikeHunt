@@ -193,7 +193,7 @@ export function InstallPrompt() {
     <div className="mx-auto w-full max-w-sm px-3 pb-[calc(72px+env(safe-area-inset-bottom))] pt-2 md:pb-4">
       <div
         role="region"
-        aria-label="Install MikeHunt"
+        aria-label="Install DealerHunt"
         className="pointer-events-auto flex items-center gap-2 rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] p-3 shadow-[var(--shadow)]"
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -203,7 +203,7 @@ export function InstallPrompt() {
           className="h-8 w-8 shrink-0 rounded"
         />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-black text-[var(--t1)]">MikeHunt</div>
+          <div className="text-sm font-black text-[var(--t1)]">DealerHunt</div>
           {isIOS && (
             <div className="text-xs text-[var(--t2)]">
               Tap Share, then “Add to Home Screen”.
