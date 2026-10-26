@@ -84,17 +84,11 @@ it("keeps a failed logout in the account and allows retry", async () => {
   expect(mocks.replace).toHaveBeenCalledWith("/login");
   expect(mocks.refresh).toHaveBeenCalledOnce();
 });
-it("submits Google login through the cookie-preserving server route", async () => {
+it("opens Google login through the cookie-preserving server route", async () => {
   await render(GoogleButton);
-  const form = host.querySelector('form[action="/auth/google"]');
-  const next = form?.querySelector<HTMLInputElement>('input[name="next"]');
-  expect(form?.getAttribute("method")).toBe("get");
-  expect(next?.value).toBe("/discover");
-  expect(
-    Array.from(form?.querySelectorAll("button") ?? []).some((button) =>
-      button.textContent?.includes("Continue with Google"),
-    ),
-  ).toBe(true);
+  const link = host.querySelector<HTMLAnchorElement>('a[role="button"]');
+  expect(link?.getAttribute("href")).toBe("/auth/google?next=%2Fdiscover");
+  expect(link?.textContent).toContain("Continue with Google");
 });
 
 it("sanitizes the Google post-login destination before submission", async () => {
@@ -106,19 +100,19 @@ it("sanitizes the Google post-login destination before submission", async () => 
     );
   });
   expect(
-    host.querySelector<HTMLInputElement>('input[name="next"]')?.value,
-  ).toBe("/market");
+    host.querySelector<HTMLAnchorElement>('a[role="button"]')?.href,
+  ).toContain("/auth/google?next=%2Fmarket");
 });
 
-it("shows progress when the Google form is submitted", async () => {
+it("shows progress when Google navigation begins", async () => {
   await render(GoogleButton);
-  const form = host.querySelector("form")!;
-  form.addEventListener("submit", (event) => event.preventDefault());
+  const link = host.querySelector<HTMLAnchorElement>('a[role="button"]')!;
+  link.addEventListener("click", (event) => event.preventDefault());
   await act(async () => {
-    form.requestSubmit();
+    link.click();
   });
   expect(host.textContent).toContain("Connecting");
-  expect(host.querySelector("button")?.disabled).toBe(true);
+  expect(link.getAttribute("aria-disabled")).toBe("true");
 });
 it("cancels the auth-provider status request when its form leaves the page", async () => {
   await render(GoogleButton);
@@ -136,9 +130,13 @@ it("offers email recovery without advertising a protected guest preview", async 
     json: async () => ({ authProviders: { reachable: true, google: false } }),
   } as Response);
   await render(GoogleButton);
-  expect(host.querySelector("button")?.disabled).toBe(true);
+  expect(
+    host.querySelector('a[role="button"]')?.getAttribute("aria-disabled"),
+  ).toBe("true");
   expect(host.textContent).toContain("Use the email form below to continue");
-  expect(host.querySelector("a")).toBeNull();
+  expect(host.querySelector('a[role="button"]')?.hasAttribute("href")).toBe(
+    false,
+  );
 });
 it("exposes admin navigation only for the server-verified current identity", async () => {
   vi.stubGlobal(
