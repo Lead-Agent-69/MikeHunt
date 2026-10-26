@@ -21,10 +21,14 @@ export default function BotPage() {
   const contact = process.env.BOT_CONTACT_EMAIL;
   return (
     <PublicLayout
-      title="MikeHuntBot"
+      title="DealerHunt crawler"
       description="How our crawler behaves and how to control it."
     >
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-6">
+        <p className="text-[var(--t3)]">
+          DealerHunt retains the MikeHuntBot crawler identifier so existing
+          robots.txt rules and site restrictions continue to apply.
+        </p>
         <div className="glass-panel p-8 space-y-4">
           <h2 className="text-xl font-bold text-[var(--t1)]">How we crawl</h2>
           <ul className="list-disc pl-5 space-y-2 text-[var(--t3)]">

@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { ArrowLeftRight, Server, Copy, Check } from "lucide-react";
+import { APP_ORIGIN } from "@/lib/brand";
 
 export function PeerToPeerExchangeAndMCP() {
   const [copied, setCopied] = useState(false);
@@ -9,7 +10,7 @@ export function PeerToPeerExchangeAndMCP() {
   const mcpEndpoint =
     typeof window !== "undefined"
       ? `${window.location.origin}/api/mcp`
-      : "https://mikehunt-69.vercel.app/api/mcp";
+      : `${APP_ORIGIN}/api/mcp`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(mcpEndpoint);

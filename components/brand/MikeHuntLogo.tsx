@@ -65,12 +65,13 @@ export function MikeHuntLogo({
       {showWordmark && (
         <span
           className={cn(
-            "font-black uppercase leading-none tracking-normal text-[var(--t1)]",
+            "font-black uppercase leading-none tracking-normal text-[var(--t1)] whitespace-nowrap",
             WORDMARK_SIZES[size],
             wordmarkClassName,
           )}
         >
-          DEALERHUNT
+          <span>DEALER</span>
+          <span className={styles.hunt}>HUNT</span>
         </span>
       )}
     </span>

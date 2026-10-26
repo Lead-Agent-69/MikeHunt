@@ -13,11 +13,15 @@ const state = vi.hoisted(() => ({
   priceGapEvidence: 1,
   keys: [] as (string | null)[],
   prefs: {} as Prefs,
+  mutate: vi.fn<() => Promise<any[]>>(),
+  fetcher: null as null | ((url: string) => Promise<any>),
 }));
 vi.mock("swr/infinite", () => ({
   default: function useMockInfinite(
     getKey: (index: number, previous: null) => string | null,
+    fetcher: (url: string) => Promise<any>,
   ) {
+    state.fetcher = fetcher;
     const [size, setSize] = React.useState(1);
     const key = getKey(size - 1, null);
     state.keys.push(key);
@@ -49,7 +53,7 @@ vi.mock("swr/infinite", () => ({
       size,
       setSize,
       isValidating: false,
-      mutate: vi.fn(),
+      mutate: state.mutate,
     };
   },
 }));
@@ -98,6 +102,7 @@ beforeEach(() => {
   state.priceGapEvidence = 1;
   state.pending = false;
   state.keys = [];
+  state.mutate.mockReset().mockResolvedValue([{ configured: true }]);
   state.prefs = {};
   localStorage.clear();
   host = document.createElement("div");
@@ -336,6 +341,105 @@ describe("Market filter journey", () => {
         .querySelector('[aria-controls="market-filter-panel"]')!
         .getAttribute("aria-expanded"),
     ).toBe("false");
+  });
+
+  it.each([
+    { configured: false, rows: [] },
+    { error: "internal database diagnostic" },
+  ])(
+    "rejects an unusable HTTP-200 batch before it can replace existing cars",
+    async (body) => {
+      await render();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(JSON.stringify(body))),
+      );
+      await expect(state.fetcher!("/api/market/explore")).rejects.toThrow(
+        "Market data could not be loaded",
+      );
+    },
+  );
+
+  it("refreshes once without clearing filters or the loaded inventory", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/market?states=MO&makes=Ford&page=2",
+    );
+    let finish!: (value: any[]) => void;
+    state.mutate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render();
+    const before = window.location.search;
+    const refresh = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Refresh results"]',
+    )!;
+    act(() => {
+      refresh.click();
+      refresh.click();
+    });
+    expect(state.mutate).toHaveBeenCalledOnce();
+    expect(refresh.disabled).toBe(true);
+    expect(host.textContent).toContain("Inventory results");
+    expect(host.textContent).toContain("Refreshing results");
+    await act(async () => finish([{ configured: true }]));
+    expect(host.textContent).toContain(
+      "Results refreshed. Your filters are kept.",
+    );
+    expect(window.location.search).toBe(before);
+  });
+
+  it.each(["rejected", "unconfigured"])(
+    "shows a friendly refresh failure and keeps the cars (%s)",
+    async (failure) => {
+      if (failure === "rejected")
+        state.mutate.mockRejectedValue(
+          new Error("internal database diagnostic"),
+        );
+      else state.mutate.mockResolvedValue([{ configured: false }]);
+      await render();
+      await act(async () =>
+        host
+          .querySelector<HTMLButtonElement>('[aria-label="Refresh results"]')!
+          .click(),
+      );
+      expect(host.textContent).toContain(
+        "Your current vehicles and filters are still here",
+      );
+      expect(host.textContent).toContain("Inventory results");
+      expect(host.textContent).not.toContain("internal database diagnostic");
+      expect(host.textContent).not.toContain("Results refreshed.");
+    },
+  );
+
+  it("does not announce an old refresh as success for a changed search", async () => {
+    let finish!: (value: any[]) => void;
+    state.mutate.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await render();
+    act(() =>
+      host
+        .querySelector<HTMLButtonElement>('[aria-label="Refresh results"]')!
+        .click(),
+    );
+    act(() =>
+      Simulate.change(
+        host.querySelector<HTMLInputElement>('[aria-label="Quick make"]')!,
+        { target: { value: "Ford" } } as any,
+      ),
+    );
+    await act(async () => finish([{ configured: true }]));
+    expect(window.location.search).toContain("makes=Ford");
+    expect(host.textContent).not.toContain("Results refreshed.");
+    expect(host.textContent).not.toContain("Refreshing results.");
   });
 
   it("preserves a typed comma so users can enter multiple makes", async () => {

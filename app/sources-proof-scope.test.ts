@@ -2,6 +2,14 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 describe("sources proof scope", () => {
+  it("explains reported details without presenting a quality score as verification", () => {
+    const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
+    expect(page).toContain("COMPLETENESS_EXPLANATION");
+    expect(page).toContain("detailCompletenessCopy(proofQuality)");
+    expect(page).not.toContain("average detail quality");
+    expect(page).not.toContain("source.qualityLabel ||");
+    expect(page).toContain("Still needs checking");
+  });
   it("constrains filter fields to the mobile grid and labels dropdowns", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).toContain(

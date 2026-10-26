@@ -2,3 +2,9 @@
   border-radius: 5px;
   filter: drop-shadow(0 4px 10px rgb(8 119 255 / 20%));
 }
+.hunt {
+  color: #145bff;
+}
+:global([data-theme="dark"]) .hunt {
+  color: #6c9bff;
+}

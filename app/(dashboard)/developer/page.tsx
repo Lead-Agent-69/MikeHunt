@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState } from "react";
 import useSWR from "swr";
@@ -135,7 +135,7 @@ export default function DeveloperPage() {
           rows: verdict, estimated profit, max buy, vehicle fields, and source
           proof.
         </p>
-        <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`curl "https://mikehunt-69.vercel.app/api/public/v1/deals?state=TX&minProfit=2000" \\
+        <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`curl "https://dealerhunt.vercel.app/api/public/v1/deals?state=TX&minProfit=2000" \\
   -H "x-api-key: dhp_your_key"
 
 # Returns buy-ready deals with estimated_net_profit + recommended_max_bid.
@@ -159,7 +159,7 @@ export default function DeveloperPage() {
 {
   "mcpServers": {
     "DealerHunt": {
-      "url": "https://mikehunt-69.vercel.app/api/mcp",
+      "url": "https://dealerhunt.vercel.app/api/mcp",
       "headers": { "x-api-key": "dhp_your_key" }
     }
   }

@@ -207,7 +207,7 @@ describe("GET /api/scrape/health lane scoping", () => {
         "3 rows",
         "3 photos",
         "100% photo coverage",
-        "64/100 detail",
+        "64% of details reported",
       ]),
     );
     expect(row.proofSummary).toContain(

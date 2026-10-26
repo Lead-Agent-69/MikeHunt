@@ -11,6 +11,7 @@ import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
 import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
 import { sourceProofReadiness } from "@/lib/scrapers/source-proof-readiness";
+import { detailCompletenessCopy } from "@/lib/sources/completeness-copy";
 import { dbSourceValues as inventoryDbSourceValues } from "@/lib/search/inventory-filters";
 import {
   DEALER_SOURCE_DOMAINS,
@@ -754,7 +755,7 @@ export function enrichHealthRow(
       : null,
     `${Number(row.rowsWithPhotos || 0).toLocaleString()} photos`,
     `${photoCoveragePct}% photo coverage`,
-    row.averageQuality ? `${row.averageQuality}/100 detail` : null,
+    row.averageQuality ? detailCompletenessCopy(row.averageQuality) : null,
     freshnessLabel,
   ].filter(Boolean);
   const proofSummary =
@@ -937,7 +938,7 @@ export function buildScopeStatus({
     label: readyCount > 0 ? "Source proof ready" : "Source proof",
     message: scopeFiltered
       ? `Rows, photos, quality, and freshness are scoped to ${parts.join(" · ") || "this search"}.`
-      : "Each source reports operational health plus inventory proof: rows, photos, average detail quality, and the newest listing seen.",
+      : "Each source shows available listings, reported photos and details, and when a listing was last seen.",
     nextAction: readyCount
       ? "Open Scan from a ready source and review the imported vehicles."
       : "Choose a buyer scope or run an import to generate proof.",

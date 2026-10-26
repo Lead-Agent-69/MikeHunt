@@ -30,6 +30,10 @@ import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import {
+  detailCompletenessCopy,
+  COMPLETENESS_EXPLANATION,
+} from "@/lib/sources/completeness-copy";
 import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -331,7 +335,7 @@ function SetupOverview({ health }: { health: any }) {
                   <div className="font-black text-[var(--t1)]">
                     {avgQuality || "—"}
                   </div>
-                  <div className="text-[var(--t5)]">avg quality</div>
+                  <div className="text-[var(--t5)]">detail completeness</div>
                 </div>
               </div>
               <div className="text-xs text-[var(--t4)]">
@@ -656,7 +660,7 @@ function detailProofItems(source: SourceHealthRow) {
     { label: "Mileage", value: c.mileagePct ?? 0 },
     { label: "Condition", value: c.damagePct ?? 0 },
     { label: "Price", value: c.pricePct ?? 0 },
-    { label: "Seller", value: c.sellerPct ?? 0 },
+    { label: "Seller type", value: c.sellerPct ?? 0 },
     { label: "Link", value: c.sourceLinkPct ?? 0 },
   ];
 }
@@ -845,7 +849,7 @@ function SourceProofPanel({
       value: weightedCompleteness(allReadySources, "mileagePct"),
     },
     {
-      label: "Seller contact",
+      label: "Seller/source link",
       value: weightedCompleteness(allReadySources, "sellerContactPct"),
     },
     {
@@ -984,7 +988,7 @@ function SourceProofPanel({
                   ? scopeParts.length
                     ? `Filtered by ${scopeParts.join(" · ")}. Listing count, photos, detail, and freshness reflect that search.`
                     : "Listing count, photos, detail, and freshness reflect this exact buying plan."
-                  : "Each market shows current listings, photo coverage, detail quality, and how recently it was updated."}
+                  : "Each market shows current listings, reported photos and details, and how recently it was updated."}
           </p>
           {noScopeSources ? (
             <div className="mt-3 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-xs font-bold leading-relaxed text-[var(--amber-d)]">
@@ -1048,15 +1052,18 @@ function SourceProofPanel({
                       proofRows === 1 ? "" : "s"
                     }, ${proofPhotos.toLocaleString()} photo-backed listing${
                       proofPhotos === 1 ? "" : "s"
-                    }, ${proofQuality}/100 average detail quality.`
+                    }, ${detailCompletenessCopy(proofQuality)}.`
                   : "Broaden your filters, choose a different market, or adjust your buying plan to find more options."}
                 {weakestAggregateProof.length
-                  ? ` Verify before bidding: ${weakestAggregateProof
+                  ? ` Still needs checking: ${weakestAggregateProof
                       .map(
                         (item) => `${item.label.toLowerCase()} ${item.value}%`,
                       )
                       .join(", ")}.`
                   : ""}
+              </p>
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-[var(--t4)]">
+                {COMPLETENESS_EXPLANATION}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1140,8 +1147,7 @@ function SourceProofPanel({
                   <div className="mt-1 text-[11px] text-[var(--t4)]">
                     {Number(source.rowsWithPhotos || 0).toLocaleString()} photos
                     · {source.photoCoveragePct || 0}% photo coverage ·{" "}
-                    {source.qualityLabel ||
-                      `${source.averageQuality || 0}% detail`}
+                    {detailCompletenessCopy(source.averageQuality)}
                   </div>
                 </Link>
               ))}
@@ -1221,7 +1227,7 @@ function SourceProofPanel({
               <div>Availability</div>
               <div>Listings</div>
               <div>Photos</div>
-              <div>Quality</div>
+              <div>Reported details</div>
               <div>Vehicle details</div>
               <div>Last seen</div>
               <div>Next action</div>
@@ -1263,11 +1269,8 @@ function SourceProofPanel({
                 </div>
                 <div className="text-[var(--t4)]">
                   <span className="font-mono text-[var(--t2)]">
-                    {source.averageQuality || "—"}
+                    {detailCompletenessCopy(source.averageQuality)}
                   </span>{" "}
-                  {source.qualityLabel && (
-                    <span className="text-[10px]">{source.qualityLabel}</span>
-                  )}
                 </div>
                 <div className="space-y-1 text-[10px] text-[var(--t4)]">
                   <div className="flex flex-wrap gap-1">
@@ -1354,7 +1357,7 @@ function sourceCardProof(source: SourceConfig, health?: SourceHealthRow) {
       tone: readinessTone(health.readiness),
       title: `${health.name} listing evidence: ${health.activeRows || 0} listings, ${
         health.rowsWithPhotos || 0
-      } photos, ${health.averageQuality || 0}% detail quality.`,
+      } reported photos, ${detailCompletenessCopy(health.averageQuality)}.`,
     };
   }
   if (scraped) {
@@ -1586,10 +1589,10 @@ function SourceCard({
                       </div>
                       <div className="rounded-[var(--r1)] bg-[var(--s0)] p-2">
                         <div className="font-mono font-black text-[var(--t1)]">
-                          {health.averageQuality || "—"}
+                          {detailCompletenessCopy(health.averageQuality)}
                         </div>
                         <div className="text-[10px] text-[var(--t5)]">
-                          {health.qualityLabel || "quality"}
+                          Detail completeness
                         </div>
                       </div>
                     </div>

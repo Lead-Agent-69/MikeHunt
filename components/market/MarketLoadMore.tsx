@@ -10,6 +10,7 @@ export function MarketLoadMore({
   failed,
   onLoadMore,
   onRetry,
+  refreshing = false,
 }: {
   shown: number;
   total: number;
@@ -18,6 +19,7 @@ export function MarketLoadMore({
   failed: boolean;
   onLoadMore: () => void;
   onRetry: () => void;
+  refreshing?: boolean;
 }) {
   const sentinel = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -53,23 +55,29 @@ export function MarketLoadMore({
     >
       <p role="status" className="text-sm text-[var(--t3)]">
         {failed
-          ? "More vehicles couldn’t load. Your current results are still here."
+          ? "The vehicle list couldn’t update. Your current results are still here."
           : loading
-            ? `Loading more vehicles… ${shown} shown`
-            : `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} matching vehicles${!hasMore ? " · You’re all caught up" : ""}`}
+            ? `${refreshing ? "Refreshing results" : "Loading more vehicles"}… ${shown} shown`
+            : !hasMore && shown !== total
+              ? `${shown.toLocaleString()} unique vehicles loaded · Results may have changed. Refresh to check again.`
+              : `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} matching vehicles${!hasMore ? " · End of current results" : ""}`}
       </p>
-      {(hasMore || failed) && (
+      {(hasMore || failed || shown !== total) && (
         <button
           type="button"
           disabled={loading}
-          onClick={failed ? onRetry : onLoadMore}
+          onClick={failed || !hasMore ? onRetry : onLoadMore}
           className="min-h-11 rounded-xl border border-[var(--b1)] px-5 text-sm font-semibold text-[var(--t1)] disabled:opacity-50"
         >
           {failed
             ? "Retry loading vehicles"
             : loading
-              ? "Loading vehicles…"
-              : "Load more vehicles"}
+              ? refreshing
+                ? "Refreshing results…"
+                : "Loading vehicles…"
+              : !hasMore
+                ? "Refresh results"
+                : "Load more vehicles"}
         </button>
       )}
     </div>
