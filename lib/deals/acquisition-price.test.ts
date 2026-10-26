@@ -307,3 +307,39 @@ it.each([
     );
   },
 );
+
+it.each([
+  "Sale price: $299/week",
+  "Cash price: $299 per week",
+  "Weekly sale price: $299",
+  "Biweekly payment: $299",
+  "$299 a week",
+  "$299 bi-weekly",
+  "$2,180 savings",
+  "Sale price: $2,180 savings",
+  "$2,180 in savings",
+  "$2,180 off",
+])("withholds cash math for payment or discount text: %s", (description) => {
+  const amount = description.includes("2,180") ? 2180 : 299;
+  expect(reportedAcquisitionPrice({ ask_price: amount, description })).toBe(0);
+  expect(
+    reportedAcquisitionPrice({
+      ask_price: amount,
+      options: {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: amount,
+          evidenceText: description,
+        },
+      },
+    }),
+  ).toBe(0);
+});
+it("keeps an explicit full cash price separate from weekly financing and savings", () => {
+  expect(
+    reportedAcquisitionPrice({
+      ask_price: 299,
+      description: "$299 per week. $2,180 savings. Cash price: $18,995.",
+    }),
+  ).toBe(18995);
+});

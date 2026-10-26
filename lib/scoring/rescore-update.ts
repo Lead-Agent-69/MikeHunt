@@ -54,7 +54,8 @@ export function rescoreUpdate(row: RescoreRow, analysis: DealAnalysis) {
       soldAnchored: analysis.soldAnchored,
       wholesaleEstimate: analysis.wholesaleEstimate,
       priceSanity: analysis.priceSanity,
-      inferredPrice: analysis.inferredPrice,
+      // Clear legacy digit-generated asking prices when the listing is rescored.
+      inferredPrice: null,
       warnings: analysis.warnings,
       prediction: analysis.prediction,
     },

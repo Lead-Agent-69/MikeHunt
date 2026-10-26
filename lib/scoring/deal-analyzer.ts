@@ -351,8 +351,7 @@ export interface DealAnalysis extends Omit<ProfitResult, "verdict"> {
   soldAnchored: boolean;
   // Wholesale / MMR-equivalent buy-side benchmark — what this unit is worth at auction/wholesale.
   wholesaleEstimate: number;
-  // "Too good to be true" detector: 'typo' (dropped-digit, with the likely real price), 'implausible'
-  // (bait/deposit), or 'ok'. Lets the UI warn instead of showing fake profit.
+  // Outlier verification; legacy "typo" remains readable, but no corrected price is inferred.
   priceSanity: "ok" | "typo" | "implausible";
   inferredPrice?: number;
   // Forward-looking forecasts — time-to-sell, price-drop likelihood, urgency, projected ROI.
@@ -713,8 +712,7 @@ export function analyzeDeal(
   // the PASS verdict on the same card.
   const priceBait = isPriceImplausible(deal, baseline);
   const unknownMake = !!deal.make && !isKnownMake(deal.make);
-  // "Too good to be true": a clean late-model car priced at a fraction of its value is a dropped-digit
-  // typo or bait, NOT a +$40k steal. Catch it against the (condition-adjusted) sell estimate.
+  // A price far below an estimate needs verification; the ratio does not establish why it differs.
   const sanity = checkPriceSanity(askPrice, sellEstimate, deal.condition);
   // Distribution-aware outlier: priced below the LOWER statistical fence (q1−1.5·IQR) of THIS market's ask
   // comps — adaptive per make/model, no keyword required, so it catches teasers/typos the fixed-ratio check
