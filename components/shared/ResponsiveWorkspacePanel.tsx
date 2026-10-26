@@ -14,6 +14,7 @@ const subscribe = (changed: () => void) => {
 /** Keep complex controls in their own reachable, focus-contained phone screen. */
 export function ResponsiveWorkspacePanel({
   id,
+  forceDialog = false,
   title,
   open,
   onClose,
@@ -22,6 +23,7 @@ export function ResponsiveWorkspacePanel({
   children,
 }: {
   id: string;
+  forceDialog?: boolean;
   title: string;
   open: boolean;
   onClose: () => void;
@@ -34,7 +36,7 @@ export function ResponsiveWorkspacePanel({
     () => window.matchMedia(query).matches,
     () => false,
   );
-  if (!mobile)
+  if (!mobile && !forceDialog)
     return (
       <section
         id={id}
@@ -61,9 +63,9 @@ export function ResponsiveWorkspacePanel({
           aria-describedby={undefined}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocusRef.current?.focus();
+            returnFocusRef.current?.focus({ preventScroll: true });
           }}
-          className="fixed inset-0 z-[81] flex h-dvh min-h-0 flex-col bg-[var(--s0)] text-[var(--t1)] outline-none"
+          className="fixed inset-0 z-[81] flex h-dvh min-h-0 flex-col bg-[var(--s0)] text-[var(--t1)] outline-none lg:inset-x-auto lg:left-1/2 lg:top-20 lg:bottom-auto lg:h-[calc(100dvh-7rem)] lg:w-[min(64rem,calc(100%-3rem))] lg:-translate-x-1/2 lg:rounded-2xl lg:border lg:border-[var(--b1)] lg:shadow-xl"
         >
           <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--b1)] px-3 pb-2 pt-[max(.5rem,env(safe-area-inset-top))]">
             <Dialog.Title className="text-lg font-bold">{title}</Dialog.Title>

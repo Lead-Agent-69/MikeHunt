@@ -26,9 +26,11 @@ const STATE_CODES = Object.keys(US_STATES).sort((a, b) =>
 export function MarketLocation({
   value,
   onChange,
+  idPrefix = "market",
   search,
 }: {
   value: MarketLocationValue;
+  idPrefix?: string;
   onChange: (patch: MarketLocationValue) => void;
   search?: {
     value: string;
@@ -133,7 +135,7 @@ export function MarketLocation({
       {search && (
         <div className="relative min-w-0">
           <input
-            id="market-vehicle-search"
+            id={`${idPrefix}-vehicle-search`}
             aria-label="Search make, model or VIN"
             placeholder="Make, model or VIN"
             value={search.value}
@@ -152,7 +154,7 @@ export function MarketLocation({
       <Dialog.Root open={open} onOpenChange={setOpen}>
         <Dialog.Trigger asChild>
           <button
-            id="market-search-area-trigger"
+            id={`${idPrefix}-search-area-trigger`}
             type="button"
             aria-label={`Search area: ${summary}`}
             title={summary}
@@ -166,7 +168,7 @@ export function MarketLocation({
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 z-[90] bg-black/60" />
           <Dialog.Content
-            id="market-area-dialog"
+            id={`${idPrefix}-area-dialog`}
             className="fixed inset-0 z-[91] flex h-dvh min-h-0 flex-col bg-[var(--s0)] text-[var(--t1)] shadow-xl outline-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border sm:border-[var(--b1)]"
           >
             <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--b1)] px-4 pb-3 pt-[max(.75rem,env(safe-area-inset-top))]">
@@ -226,7 +228,7 @@ export function MarketLocation({
                   <label className="block text-sm font-semibold">
                     ZIP or city, state
                     <input
-                      id="market-search-location"
+                      id={`${idPrefix}-search-location`}
                       aria-label="Search location"
                       placeholder="ZIP or city, state"
                       value={near}
