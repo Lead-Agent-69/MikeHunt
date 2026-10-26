@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { observeScrollEdges } from "@/lib/ui/observe-scroll-edges";
 import Link from "next/link";
+import { ScrollSearchBar } from "@/components/search/ScrollSearchBar";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
@@ -295,6 +296,8 @@ export default function DiscoverPage() {
   const pathname = usePathname();
   const [showInsights, setShowInsights] = useState(false);
   const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
+  const searchControls = useRef<HTMLElement>(null);
+  const [browseSearch, setBrowseSearch] = useState(searchParams.get("q") || "");
   const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
   const [makeDraft, setMakeDraft] = useState("");
   const [budgetDraft, setBudgetDraft] = useState("");
@@ -438,6 +441,25 @@ export default function DiscoverPage() {
 
   return (
     <div className="min-w-0 space-y-1.5 pb-4 md:space-y-2">
+      <ScrollSearchBar
+        anchorRef={searchControls}
+        value={browseSearch}
+        onChange={setBrowseSearch}
+        disabled={!discoverReady}
+        filterCount={quickFilterCount}
+        onFilters={() => {
+          const params = new URLSearchParams(scopeQuery);
+          if (browseSearch.trim()) params.set("q", browseSearch.trim());
+          else params.delete("q");
+          router.push(`/market?${params.toString()}`);
+        }}
+        onSubmit={() => {
+          const params = new URLSearchParams(scopeQuery);
+          if (browseSearch.trim()) params.set("q", browseSearch.trim());
+          else params.delete("q");
+          router.push(`/market?${params.toString()}`);
+        }}
+      />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
@@ -480,7 +502,10 @@ export default function DiscoverPage() {
         onRetry={() => void mutate().catch(() => undefined)}
       />
 
-      <section className="border-y border-[var(--b1)] py-2">
+      <section
+        ref={searchControls}
+        className="border-y border-[var(--b1)] py-2"
+      >
         <p className="text-xs font-bold text-[var(--t1)] md:text-sm">
           {activeScopeLabel}
         </p>
