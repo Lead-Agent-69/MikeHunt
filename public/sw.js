@@ -1,14 +1,14 @@
-﻿const CACHE_NAME = 'MikeHunt-v3'
-const STATIC_CACHE = 'MikeHunt-static-v9'
-const DYNAMIC_CACHE = 'MikeHunt-dynamic-v7'
+﻿const CACHE_NAME = 'DealerHunt-v3'
+const STATIC_CACHE = 'DealerHunt-static-v1'
+const DYNAMIC_CACHE = 'DealerHunt-dynamic-v1'
 
 const STATIC_ASSETS = [
   '/offline.html',
   '/manifest.json',
   '/icon-192x192.png',
   '/icon-512x512.png',
-  '/icon.svg',
-  '/brand/MIKEHUNT-M.svg',
+  '/dealerhunt-icon.svg',
+  '/brand/DEALERHUNT-D.svg',
   '/favicon.ico',
   '/favicon-16x16.png',
   '/favicon-32x32.png',
@@ -92,7 +92,7 @@ self.addEventListener('fetch', (event) => {
             return (await cachedResponse('/offline.html')) || unavailableResponse()
           }
         }
-        return new Response(JSON.stringify({ error: 'Request could not reach MIKEHUNT. Please retry.' }), {
+        return new Response(JSON.stringify({ error: 'Request could not reach DealerHunt. Please retry.' }), {
           status: 503,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -173,7 +173,7 @@ function safeAppPath(url) {
 
 // Push notification handling
 self.addEventListener('push', (event) => {
-  let payload = { title: 'MikeHunt', body: 'An alert matched a new listing.', url: '/alerts' }
+  let payload = { title: 'DealerHunt', body: 'An alert matched a new listing.', url: '/alerts' }
   try {
     if (event.data) payload = Object.assign(payload, event.data.json())
   } catch (e) {
@@ -198,7 +198,7 @@ self.addEventListener('push', (event) => {
       clearTimeout(timer)
     }
     if (!verified) {
-      await self.registration.showNotification('MikeHunt', { body: 'Open MikeHunt to check your alerts.', icon: '/icon-192x192.png', tag: 'account-check', data: { url: '/alerts' } })
+      await self.registration.showNotification('DealerHunt', { body: 'Open DealerHunt to check your alerts.', icon: '/icon-192x192.png', tag: 'account-check', data: { url: '/alerts' } })
       return
     }
   const options = {
@@ -226,7 +226,7 @@ self.addEventListener('push', (event) => {
 })
 
 // Notification tap: open the deal or alert it is about. Reuse a tab already on that page, else steer an open
-// MikeHunt tab there, else open a new window (also how an installed app is launched from a cold start).
+// DealerHunt tab there, else open a new window (also how an installed app is launched from a cold start).
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   if (event.action === 'close') return

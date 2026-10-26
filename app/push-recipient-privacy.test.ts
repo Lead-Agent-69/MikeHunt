@@ -79,9 +79,9 @@ describe("service worker recipient privacy", () => {
     async (viewer) => {
       const { show } = await deliver(viewer);
       expect(show).toHaveBeenCalledWith(
-        "MikeHunt",
+        "DealerHunt",
         expect.objectContaining({
-          body: "Open MikeHunt to check your alerts.",
+          body: "Open DealerHunt to check your alerts.",
         }),
       );
       expect(JSON.stringify(show.mock.calls)).not.toContain("Private");

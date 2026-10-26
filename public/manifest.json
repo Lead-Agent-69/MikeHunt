@@ -1,6 +1,6 @@
 {
-  "name": "MikeHunt — Vehicle Intelligence",
-  "short_name": "MikeHunt",
+  "name": "DealerHunt — Vehicle Intelligence",
+  "short_name": "DealerHunt",
   "id": "/",
   "description": "Compare vehicle listings, review available evidence, and plan purchase costs. Source availability and verification vary.",
   "start_url": "/market",
@@ -62,7 +62,7 @@
       "purpose": "maskable"
     },
     {
-      "src": "/icon.svg",
+      "src": "/dealerhunt-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
@@ -84,7 +84,7 @@
     {
       "name": "Scan the market",
       "short_name": "Scan",
-      "description": "Search the listings MikeHunt has collected",
+      "description": "Search the listings DealerHunt has collected",
       "url": "/scan",
       "icons": [
         {

@@ -35,6 +35,8 @@ export function authCallbackMessage(
   error: string | null | undefined,
 ): string | null {
   switch (error) {
+    case "oauth_start":
+      return "Google sign-in could not start. Please try again or use email.";
     case "oauth":
       return "Google sign-in did not finish. Please try again or use email.";
     case "account_setup":

@@ -2533,7 +2533,7 @@ interface SplashScreenProps {
 }
 export function MobileSplashScreen({
   visible,
-  appName = "MikeHunt",
+  appName = "DealerHunt",
   tagline = "Underpriced cars, deal-scored",
 }: SplashScreenProps) {
   if (!visible) return null;
@@ -2563,7 +2563,7 @@ export function MobileAppBanner({ visible, onOpen, onClose }: AppBannerProps) {
     <div className="app-banner-mobile show">
       <div className="app-icon" />
       <div className="app-info">
-        <div className="app-name">MikeHunt</div>
+        <div className="app-name">DealerHunt</div>
         <div className="app-rating">4.8 ★</div>
       </div>
       <button className="open-btn" onClick={onOpen}>

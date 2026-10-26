@@ -15,7 +15,7 @@ interface DataSetupStateProps {
 
 export function DataSetupState({
   title = "This workspace is ready for your first vehicle",
-  message = "Find a vehicle, save it, and MIKEHUNT will keep the next decision and open checks together here.",
+  message = "Find a vehicle, save it, and DealerHunt will keep the next decision and open checks together here.",
   primaryHref = "/discover",
   primaryLabel = "Find vehicles",
   secondaryHref = "/scan",

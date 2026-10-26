@@ -88,7 +88,7 @@ export function TopNav() {
           className="sticky top-0 z-30 flex h-14 items-center px-4 md:px-6"
           style={{ background: "var(--glass)" }}
         >
-          <Link href="/market" prefetch={false} aria-label="MIKEHUNT home">
+          <Link href="/market" prefetch={false} aria-label="DealerHunt home">
             <MikeHuntLogo />
           </Link>
         </header>
@@ -240,7 +240,7 @@ function TopNavContent() {
         <Link
           href="/market"
           prefetch={false}
-          aria-label="MIKEHUNT home"
+          aria-label="DealerHunt home"
           className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
           <MikeHuntLogo

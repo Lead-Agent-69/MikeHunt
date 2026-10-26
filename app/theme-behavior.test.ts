@@ -27,10 +27,7 @@ beforeEach(() => {
   logoSheet.textContent = readFileSync(
     "components/brand/MikeHuntLogo.module.css",
     "utf8",
-  ).replace(
-    ':global([data-theme="dark"]) .mark',
-    `[data-theme="dark"] .${logoStyles.mark}`,
-  );
+  ).replace(/\.mark/g, `.${logoStyles.mark}`);
   document.head.append(logoSheet);
 });
 
@@ -96,7 +93,7 @@ describe("appearance preference", () => {
     expect(css).toContain("color-scheme: dark");
     const offline = readFileSync("public/offline.html", "utf8");
     expect(offline).toContain("background: #ffffff");
-    expect(offline).toContain("/brand/MIKEHUNT-M.svg");
+    expect(offline).toContain("/brand/DEALERHUNT-D.svg");
     expect(offline).toContain('role="status"');
     const lightGroup = css.slice(
       css.indexOf("Premium acquisition skin"),
@@ -107,29 +104,26 @@ describe("appearance preference", () => {
     expect(lightGroup).toContain("--t1: #0b1220");
   });
 
-  it("keeps the wordmark and plates the cobalt mark on dark", () => {
+  it("keeps the DealerHunt wordmark and mark on dark", () => {
     document.documentElement.setAttribute("data-theme", "dark");
     act(() => root.render(React.createElement(MikeHuntLogo, { size: "sm" })));
-    expect(host.textContent).toContain("MIKEHUNT");
+    expect(host.textContent).toContain("DEALERHUNT");
     const mark = host.querySelector("img");
-    expect(mark?.getAttribute("src")).toBe("/brand/MIKEHUNT-M.svg");
-    expect(getComputedStyle(mark!.parentElement!).backgroundColor).toBe(
-      "rgb(255, 255, 255)",
+    expect(mark?.getAttribute("src")).toBe("/brand/DEALERHUNT-D.svg");
+    expect(getComputedStyle(mark!.parentElement!).filter).toContain(
+      "drop-shadow",
     );
-    expect(getComputedStyle(mark!.parentElement!).padding).toBe("3px");
   });
 
-  it("switches plating through CSS without changing logo markup", () => {
+  it("keeps the same logo markup across themes", () => {
     document.documentElement.setAttribute("data-theme", "light");
     act(() => root.render(React.createElement(MikeHuntLogo, { size: "sm" })));
-    expect(host.textContent).toContain("MIKEHUNT");
+    expect(host.textContent).toContain("DEALERHUNT");
     const plate = host.querySelector("img")!.parentElement!;
     const markup = host.innerHTML;
-    expect(getComputedStyle(plate).backgroundColor).toBe("rgba(0, 0, 0, 0)");
     document.documentElement.setAttribute("data-theme", "dark");
-    expect(getComputedStyle(plate).backgroundColor).toBe("rgb(255, 255, 255)");
     document.documentElement.setAttribute("data-theme", "light");
-    expect(getComputedStyle(plate).backgroundColor).toBe("rgba(0, 0, 0, 0)");
+    expect(plate.className).toContain(logoStyles.mark);
     expect(host.innerHTML).toBe(markup);
   });
 });

@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <title>MikeHunt — Offline</title>
+    <title>DealerHunt — Offline</title>
     <meta name="theme-color" content="#075BE8" />
     <style>
       * {
@@ -115,9 +115,9 @@
   </head>
   <body>
     <div class="icon">
-      <img src="/brand/MIKEHUNT-M.svg" alt="" />
+      <img src="/brand/DEALERHUNT-D.svg" alt="" />
     </div>
-    <h1 id="title">We couldn't reach MIKEHUNT</h1>
+    <h1 id="title">We couldn't reach DealerHunt</h1>
     <p id="message">
       Check your connection and try again. This connection problem does not
       change your account or saved lists.
@@ -130,14 +130,14 @@
         const title = document.getElementById("title");
         const message = document.getElementById("message");
         if (navigator.onLine) {
-          title.textContent = "We couldn't reach MIKEHUNT";
+          title.textContent = "We couldn't reach DealerHunt";
           message.textContent =
             "Your device appears online. Retrying may restore the latest deals.";
           el.textContent = "Connection detected";
         } else {
           title.textContent = "You're Offline";
           message.textContent =
-            "MIKEHUNT needs a connection to fetch the latest deals. Try again when you are back online.";
+            "DealerHunt needs a connection to fetch the latest deals. Try again when you are back online.";
           el.textContent = "No connection detected";
         }
       }

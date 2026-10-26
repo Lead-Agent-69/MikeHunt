@@ -1,15 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import {
-  createClientComponentClient,
-  isSupabaseConfigured,
-} from "@/lib/supabase";
-import { authErrorMessage } from "@/lib/auth/auth-error-message";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
 
-// "Continue with Google" — kicks off Supabase OAuth (PKCE). On success the browser is redirected to
-// Google, then back to /auth/callback?next=…, which exchanges the code and lands on the deal feed.
+// OAuth begins on our server so the PKCE verifier cookie is written to the redirect response before
+// the browser leaves DealerHunt. That makes the flow reliable in mobile browsers and privacy modes.
 export function GoogleButton({
   next = "/discover",
   label = "Continue with Google",
@@ -18,11 +14,10 @@ export function GoogleButton({
   label?: string;
 }) {
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
-  const supabase = createClientComponentClient();
   const configured = isSupabaseConfigured();
   const canUseGoogle = configured && googleReady !== false;
+  const safeNext = safeNextPath(next);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,68 +51,29 @@ export function GoogleButton({
     };
   }, []);
 
-  const onClick = async () => {
-    if (!configured) {
-      setError(
-        "Google sign-in is not available in this local preview. Continue with email instead.",
-      );
-      return;
-    }
-    if (googleReady === false) {
-      setError(
-        "Google sign-in is unavailable right now. Continue with email instead.",
-      );
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`,
-          queryParams: { access_type: "offline", prompt: "select_account" },
-        },
-      });
-      if (error) {
-        setError(
-          authErrorMessage(
-            error.message,
-            "Google sign-in could not start. Please try again.",
-          ),
-        );
-        setLoading(false);
-      }
-    } catch {
-      setError(
-        "Could not connect to sign in. Check your connection and try again.",
-      );
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={loading || !canUseGoogle}
-        className="w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+      <form
+        action="/auth/google"
+        method="get"
+        onSubmit={() => setLoading(true)}
       >
-        <GoogleG />
-        {loading
-          ? "Connecting…"
-          : googleReady === false
-            ? "Google sign-in unavailable"
-            : canUseGoogle
-              ? label
-              : "Google sign-in not configured"}
-      </button>
-      {error && (
-        <p role="alert" className="text-xs text-center text-[var(--red)]">
-          {error}
-        </p>
-      )}
+        <input type="hidden" name="next" value={safeNext} />
+        <button
+          type="submit"
+          disabled={loading || !canUseGoogle}
+          className="w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          <GoogleG />
+          {loading
+            ? "Connecting…"
+            : googleReady === false
+              ? "Google sign-in unavailable"
+              : canUseGoogle
+                ? label
+                : "Google sign-in not configured"}
+        </button>
+      </form>
       {(!configured || googleReady === false) && (
         <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">
           <p className="text-xs font-bold text-[var(--t2)]">

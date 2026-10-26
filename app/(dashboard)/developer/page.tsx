@@ -48,7 +48,7 @@ export default function DeveloperPage() {
           Developer API
         </h1>
         <p className="text-[var(--t3)]">
-          Connect MikeHunt deal intelligence to your DMS, spreadsheets,
+          Connect DealerHunt deal intelligence to your DMS, spreadsheets,
           automation tools, or AI clients.
         </p>
       </div>
@@ -152,13 +152,13 @@ export default function DeveloperPage() {
         </div>
         <p className="text-sm text-[var(--t3)] mb-3">
           Connect Claude, Cursor, or any MCP-capable client to ask the market in
-          plain English. It returns MikeHunt’s deal math and source proof, not
+          plain English. It returns DealerHunt’s deal math and source proof, not
           raw listings.
         </p>
         <pre className="text-xs text-[var(--t2)] overflow-x-auto bg-[var(--s0)] rounded-[var(--r2)] p-3 whitespace-pre-wrap">{`# Add to your MCP client config (HTTP transport):
 {
   "mcpServers": {
-    "MikeHunt": {
+    "DealerHunt": {
       "url": "https://mikehunt-69.vercel.app/api/mcp",
       "headers": { "x-api-key": "dhp_your_key" }
     }

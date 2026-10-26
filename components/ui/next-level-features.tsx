@@ -180,7 +180,7 @@ export function MikeHuntCopilotDrawer({
     );
 
     let responseText =
-      "Start with your budget, location, title tolerance, and vehicle type. MIKEHUNT will keep the search focused and show what still needs checking.";
+      "Start with your budget, location, title tolerance, and vehicle type. DealerHunt will keep the search focused and show what still needs checking.";
 
     if (
       !sourceHealth &&

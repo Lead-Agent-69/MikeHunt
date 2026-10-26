@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     );
 
   const sent = await sendPushToUser(supabase, user.id, {
-    title: "MikeHunt test alert",
+    title: "DealerHunt test alert",
     body: "Alerts reach this device. Tap to open your alerts.",
     url: "/alerts",
     tag: "push-test",

@@ -108,7 +108,7 @@ export default function RegisterPage() {
         <Link
           href="/"
           prefetch={false}
-          aria-label="MIKEHUNT home"
+          aria-label="DealerHunt home"
           className="inline-flex items-center gap-2.5"
         >
           <MikeHuntLogo size="md" />

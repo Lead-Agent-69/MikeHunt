@@ -68,7 +68,7 @@ export async function GET(
 <inventory>
   <dealer>
     <id>${xmlEscape(dealerId)}</id>
-    <name>MikeHunt Dealer</name>
+    <name>DealerHunt Dealer</name>
   </dealer>
   <vehicles>
     ${vehicles

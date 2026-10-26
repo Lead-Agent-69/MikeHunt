@@ -289,7 +289,7 @@ export default function DealerNetworkPage() {
                   {d.total === 0 && (
                     <p className="text-[11px] leading-relaxed text-[var(--t4)]">
                       In the dealer catalog. This shop&apos;s inventory
-                      isn&apos;t imported into MikeHunt yet.
+                      isn&apos;t imported into DealerHunt yet.
                     </p>
                   )}
                   <TitleMix d={d} />

@@ -7,7 +7,7 @@ describe("vehicle evidence truth", () => {
       "components/deal/VisionDamageInspector.tsx",
       "utf8",
     );
-    expect(source).toContain("MIKEHUNT has not analyzed these photos");
+    expect(source).toContain("DealerHunt has not analyzed these photos");
     expect(source).toContain("Photos supplied by the listing source");
     expect(source).not.toContain("setTimeout");
     expect(source).not.toContain("Subframe Mounting Stress Fracture");

@@ -24,7 +24,7 @@ export function PublicLayout({
             {/* Logo */}
             <Link
               href="/"
-              aria-label="MIKEHUNT home"
+              aria-label="DealerHunt home"
               className="flex items-center gap-2.5"
             >
               <MikeHuntLogo size="sm" />
@@ -123,7 +123,7 @@ export function PublicLayout({
           </div>
         </div>
         <p className="border-t border-[var(--b1)] px-4 py-4 text-center text-xs text-[var(--t4)]">
-          © {new Date().getFullYear()} MikeHunt. All rights reserved.
+          © {new Date().getFullYear()} DealerHunt. All rights reserved.
         </p>
       </footer>
     </div>

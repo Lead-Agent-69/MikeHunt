@@ -60,10 +60,10 @@ describe("service worker valid offline responses", () => {
   it("recovers a precached brand icon by path", async () => {
     const icon = new Response("icon");
     const match = vi.fn(async (key: any) =>
-      key === "/brand/MIKEHUNT-M.svg" ? icon : undefined,
+      key === "/brand/DEALERHUNT-D.svg" ? icon : undefined,
     );
     expect(
-      await harness(match).request("/brand/MIKEHUNT-M.svg", {
+      await harness(match).request("/brand/DEALERHUNT-D.svg", {
         destination: "image",
       }),
     ).toBe(icon);

@@ -67,7 +67,7 @@ describe("enable alerts never over-promises", () => {
   it("checks the server can send before offering the button, and offers a real test", () => {
     expect(enablePush).toContain('"/api/push/status"');
     expect(enablePush).toContain(
-      "Push alerts aren’t switched on for MikeHunt yet",
+      "Push alerts aren’t switched on for DealerHunt yet",
     );
     expect(enablePush).toContain('fetch("/api/push/test"');
     expect(enablePush).not.toContain("we’ll ping you");

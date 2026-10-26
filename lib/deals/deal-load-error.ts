@@ -57,7 +57,7 @@ export function dealLoadErrorCopy(kind: DealLoadErrorKind): DealLoadErrorCopy {
       return {
         title: "Deal details are temporarily unavailable",
         message:
-          "MIKEHUNT couldn't load this deal right now. Try again in a minute.",
+          "DealerHunt couldn't load this deal right now. Try again in a minute.",
         actionLabel: "Try again",
         action: "retry",
       };
@@ -65,7 +65,7 @@ export function dealLoadErrorCopy(kind: DealLoadErrorKind): DealLoadErrorCopy {
       return {
         title: "Couldn't load deal",
         message:
-          "We couldn't reach MIKEHUNT right now. Check your connection and try again.",
+          "We couldn't reach DealerHunt right now. Check your connection and try again.",
         actionLabel: "Try again",
         action: "retry",
       };
