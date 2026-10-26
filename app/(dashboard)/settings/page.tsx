@@ -24,7 +24,7 @@ const fetcher = (url: string) =>
 
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
-function CarsViewPrefs() {
+function CarsViewPrefs({ business }: { business: boolean }) {
   const { isLoading } = usePreferences();
   if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
@@ -37,6 +37,12 @@ function CarsViewPrefs() {
           ["Buying preferences", "buying-preferences"],
           ["Locations", "locations"],
           ["Deal alerts", "deal-alerts"],
+          [
+            business ? "Business profile" : "Contact details",
+            "contact-profile",
+          ],
+          ...(business ? [["Deal cost defaults", "cost-defaults"]] : []),
+          ["Notifications", "notifications"],
         ].map(([label, id]) => (
           <a
             key={id}
@@ -229,8 +235,10 @@ export default function SettingsPage() {
       // Revalidate from server
       await mutate(data, false);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to save settings";
+      const message = userFacingErrorMessage(
+        err,
+        "We could not save your profile. Please try again.",
+      );
       setSaveError(
         `${message} Your draft is kept; retry to finish saving all changes.`,
       );
@@ -283,7 +291,7 @@ export default function SettingsPage() {
       </div>
 
       {/* View preferences — user-level, always available (independent of the dealer profile). */}
-      <CarsViewPrefs />
+      <CarsViewPrefs business={showProfitTarget} />
 
       {loading && (
         <div className="text-center py-10">
@@ -296,7 +304,10 @@ export default function SettingsPage() {
       {(authError || error) && !loading && (
         <ErrorState
           title="Couldn't load settings"
-          message={authError || error?.message || "An error occurred"}
+          message={
+            authError ||
+            "Your settings could not be loaded. Check your connection and try again."
+          }
           onRetry={() => mutate()}
           compact
         />
@@ -308,7 +319,10 @@ export default function SettingsPage() {
           className="min-w-0 space-y-6"
         >
           {/* Profile Section */}
-          <div className="glass-panel p-6 animate-popIn">
+          <div
+            id="contact-profile"
+            className="glass-panel scroll-mt-20 p-6 animate-popIn"
+          >
             <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
               {showProfitTarget ? "Business profile" : "Contact details"}
             </h2>
@@ -357,7 +371,8 @@ export default function SettingsPage() {
           {/* Dealer Defaults Section */}
           {showProfitTarget && (
             <div
-              className="glass-panel p-6 animate-popIn"
+              id="cost-defaults"
+              className="glass-panel scroll-mt-20 p-6 animate-popIn"
               style={{ animationDelay: "100ms" }}
             >
               <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
@@ -421,9 +436,43 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* Save Button */}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] bg-[var(--s0)] p-4">
+            <p role="status" className="w-full text-sm text-[var(--red)]">
+              {saveError}
+            </p>
+            <span className="text-sm text-[var(--t4)] font-medium">
+              {showProfitTarget
+                ? "Save contact details and cost defaults here."
+                : "Save your contact details here."}{" "}
+              Buying preferences and locations have their own save buttons.
+            </span>
+            <div className="flex items-center gap-4 w-full sm:w-auto">
+              {saved && (
+                <span className="text-sm font-bold text-[var(--green)] flex items-center gap-1 animate-popIn">
+                  <Ico name="check" size={16} /> Saved!
+                </span>
+              )}
+              <button
+                disabled={saving || notificationSaving || prefsLoading}
+                onClick={handleSave}
+                className="w-full sm:w-auto px-8 py-3 text-sm font-bold text-white rounded-xl transition-all border-none flex justify-center items-center gap-2 disabled:opacity-50"
+                style={{ background: "var(--grad)" }}
+              >
+                {saving && <Ico name="refresh" className="animate-spin" />}
+                {saving
+                  ? "Saving..."
+                  : showProfitTarget
+                    ? "Save profile and costs"
+                    : "Save profile"}
+              </button>
+            </div>
+          </div>
+
           {/* Preferences Section */}
           <div
-            className="glass-panel p-6 animate-popIn"
+            id="notifications"
+            className="glass-panel scroll-mt-20 p-6 animate-popIn"
             style={{ animationDelay: "200ms" }}
           >
             <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
@@ -452,36 +501,6 @@ export default function SettingsPage() {
                   : notificationError ||
                     "Notification changes save automatically."}
             </p>
-          </div>
-
-          {/* Save Button */}
-          <div className="sticky bottom-20 lg:bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] bg-[var(--s0)] p-4">
-            <p role="status" className="w-full text-sm text-[var(--red)]">
-              {saveError}
-            </p>
-            <span className="text-sm text-[var(--t4)] font-medium hidden sm:inline">
-              Save changes to your profile.
-            </span>
-            <div className="flex items-center gap-4 w-full sm:w-auto">
-              {saved && (
-                <span className="text-sm font-bold text-[var(--green)] flex items-center gap-1 animate-popIn">
-                  <Ico name="check" size={16} /> Saved!
-                </span>
-              )}
-              <button
-                disabled={saving || notificationSaving || prefsLoading}
-                onClick={handleSave}
-                className="w-full sm:w-auto px-8 py-3 text-sm font-bold text-white rounded-xl transition-all border-none flex justify-center items-center gap-2 disabled:opacity-50"
-                style={{ background: "var(--grad)" }}
-              >
-                {saving && <Ico name="refresh" className="animate-spin" />}
-                {saving
-                  ? "Saving..."
-                  : showProfitTarget
-                    ? "Save profile and costs"
-                    : "Save profile"}
-              </button>
-            </div>
           </div>
         </fieldset>
       )}

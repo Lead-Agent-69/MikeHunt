@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   listingFreshnessLabel,
+  listingAvailabilityWarning,
   seenTimestampOrNull,
 } from "./listing-freshness";
 
@@ -47,5 +48,33 @@ describe("seenTimestampOrNull", () => {
     expect(seenTimestampOrNull("2026-10-02T03:14:56.267Z")).toBe(
       "2026-10-02T03:14:56.267Z",
     );
+  });
+});
+
+describe("availability warnings", () => {
+  it("flags an old observation without inventing a sale or disappearance", () => {
+    expect(listingAvailabilityWarning({ lastSeenAt: h(360) }, NOW)).toContain(
+      "last seen 15d ago",
+    );
+    expect(listingAvailabilityWarning({ lastSeenAt: h(72) }, NOW)).toContain(
+      "Availability needs checking",
+    );
+  });
+  it("does not use first sighting as evidence of current availability", () => {
+    expect(listingAvailabilityWarning({ firstSeenAt: h(1) }, NOW)).toContain(
+      "has not been checked",
+    );
+    expect(listingAvailabilityWarning({ lastSeenAt: "bad" }, NOW)).toContain(
+      "has not been checked",
+    );
+    expect(listingAvailabilityWarning({ lastSeenAt: h(-4) }, NOW)).toContain(
+      "has not been checked",
+    );
+    expect(
+      listingAvailabilityWarning(
+        { firstSeenAt: h(360), lastSeenAt: h(1) },
+        NOW,
+      ),
+    ).toBeNull();
   });
 });

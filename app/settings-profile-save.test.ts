@@ -116,4 +116,34 @@ describe("profile and cost persistence", () => {
     expect(host.textContent).toContain("Save failed");
     expect(host.textContent).not.toContain("Saved!");
   });
+  it("keeps section links complete and places the profile save before automatic notifications", () => {
+    const nav = host.querySelector('nav[aria-label="Settings sections"]')!;
+    for (const id of ["contact-profile", "cost-defaults", "notifications"]) {
+      expect(nav.querySelector(`a[href="#${id}"]`)).not.toBeNull();
+      expect(host.querySelector(`#${id}`)).not.toBeNull();
+    }
+    const save = Array.from(host.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Save profile and costs"),
+    )!;
+    expect(save.closest(".sticky")).toBeNull();
+    expect(
+      save.compareDocumentPosition(host.querySelector("#notifications")!) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+  it("replaces backend details with recovery copy and retains the draft", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        json: async () => ({
+          error: "PostgREST database relation private_profile does not exist",
+        }),
+      }),
+    );
+    await submit();
+    expect(host.textContent).not.toContain("PostgREST");
+    expect(host.textContent).toContain("Your draft is kept");
+    expect(host.textContent).not.toContain("Saved!");
+  });
 });
