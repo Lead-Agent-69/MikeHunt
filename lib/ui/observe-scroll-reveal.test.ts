@@ -5,11 +5,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
   document.body.scrollTop = 0;
 });
-function setup(initialVisible = false) {
+function setup(initialVisible = false, initialBottom = -100) {
   const frames = new Map<number, FrameRequestCallback>();
   let id = 0;
   let y = 1200;
-  let bottom = -100;
+  let bottom = initialBottom;
   let focused = false;
   vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
     frames.set(++id, cb);
@@ -53,6 +53,11 @@ function setup(initialVisible = false) {
   };
 }
 describe("scroll-revealed search access", () => {
+  it("yields to visible original controls when reattaching after a filter shrinks the results", () => {
+    const f = setup(true, 200);
+    expect(f.publish).toHaveBeenLastCalledWith(false);
+    f.cleanup();
+  });
   it("reveals after 24px up, hides after 48px down, and ignores small reversals", () => {
     const f = setup();
     f.move(1500);

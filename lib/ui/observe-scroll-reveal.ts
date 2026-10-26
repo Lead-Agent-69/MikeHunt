@@ -50,6 +50,7 @@ export function observeScrollReveal(
   const schedule = () => {
     if (!disposed && frame === null) frame = requestAnimationFrame(update);
   };
+  update();
   // Capture body-based dashboard scrolling as well as normal document scrolling.
   window.addEventListener("scroll", schedule, { passive: true, capture: true });
   window.addEventListener("resize", schedule, { passive: true });
