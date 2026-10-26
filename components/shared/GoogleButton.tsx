@@ -5,7 +5,8 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
 
 // OAuth begins on our server so the PKCE verifier cookie is written to the redirect response before
-// the browser leaves DealerHunt. That makes the flow reliable in mobile browsers and privacy modes.
+// the browser leaves DealerHunt. Use a top-level link, not a form submission: the production CSP's
+// form-action policy intentionally blocks a form redirect chain from DealerHunt to Supabase/Google.
 export function GoogleButton({
   next = "/discover",
   label = "Continue with Google",
@@ -18,6 +19,7 @@ export function GoogleButton({
   const configured = isSupabaseConfigured();
   const canUseGoogle = configured && googleReady !== false;
   const safeNext = safeNextPath(next);
+  const googleHref = `/auth/google?next=${encodeURIComponent(safeNext)}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -53,27 +55,28 @@ export function GoogleButton({
 
   return (
     <div className="flex flex-col gap-2">
-      <form
-        action="/auth/google"
-        method="get"
-        onSubmit={() => setLoading(true)}
+      <a
+        href={canUseGoogle ? googleHref : undefined}
+        role="button"
+        aria-disabled={loading || !canUseGoogle}
+        onClick={(event) => {
+          if (loading || !canUseGoogle) {
+            event.preventDefault();
+            return;
+          }
+          setLoading(true);
+        }}
+        className={`w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all ${loading || !canUseGoogle ? "opacity-60 cursor-not-allowed" : ""}`}
       >
-        <input type="hidden" name="next" value={safeNext} />
-        <button
-          type="submit"
-          disabled={loading || !canUseGoogle}
-          className="w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          <GoogleG />
-          {loading
-            ? "Connecting…"
-            : googleReady === false
-              ? "Google sign-in unavailable"
-              : canUseGoogle
-                ? label
-                : "Google sign-in not configured"}
-        </button>
-      </form>
+        <GoogleG />
+        {loading
+          ? "Connecting…"
+          : googleReady === false
+            ? "Google sign-in unavailable"
+            : canUseGoogle
+              ? label
+              : "Google sign-in not configured"}
+      </a>
       {(!configured || googleReady === false) && (
         <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">
           <p className="text-xs font-bold text-[var(--t2)]">
