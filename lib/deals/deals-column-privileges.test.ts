@@ -148,6 +148,8 @@ describe("no anon / browser select of non-granted deals columns", () => {
       "cookie session client for the OAuth / magic-link code exchange only",
     "app/auth/google/route.ts":
       "cookie session client for starting Google OAuth and preserving the PKCE verifier only",
+    "app/api/auth/recovery/route.ts":
+      "Auth-only recovery OTP verification; sets session cookies and performs no database reads",
     "lib/data/dealers-service.ts":
       "public dealers directory under RLS; must never read deals (asserted below)",
   };
