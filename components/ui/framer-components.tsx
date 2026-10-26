@@ -470,7 +470,7 @@ export function RealFolder({
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function LiquidGlassFooter({
-  brandName = "MikeHunt",
+  brandName = "DealerHunt",
   links = [],
   tagline = "Auto flip intelligence.",
 }: {

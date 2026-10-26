@@ -253,7 +253,7 @@ export default function AdminDashboard() {
             <ShieldCheck size={15} /> Operations
           </div>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-[var(--t1)]">
-            MIKEHUNT control room
+            DealerHunt control room
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-[var(--t3)]">
             Live inventory quality, source reliability, and bounded maintenance

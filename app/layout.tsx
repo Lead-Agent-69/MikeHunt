@@ -15,6 +15,7 @@ import { Inter, Fraunces, Syne } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { PageViewTracker } from "@/components/analytics/page-view-tracker";
+import { APP_NAME, APP_TAGLINE } from "@/lib/brand";
 
 // Self-hosted at build time by next/font: no requests to fonts.googleapis.com or
 // fonts.gstatic.com. Same families and weights the old globals.css @import loaded.
@@ -40,24 +41,24 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "MikeHunt - Vehicle Sourcing Intelligence",
+  title: `${APP_NAME} - ${APP_TAGLINE}`,
   description:
     "Smart vehicle sourcing platform for dealers with real-time market intelligence and profit optimization",
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/favicon.ico" },
-      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
+      { url: "/dealerhunt-icon.svg", type: "image/svg+xml" },
     ],
     apple: "/apple-touch-icon.png",
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "MikeHunt",
+    title: APP_NAME,
   },
   openGraph: {
-    title: "MikeHunt - Vehicle Sourcing Intelligence",
+    title: `${APP_NAME} - ${APP_TAGLINE}`,
     description: "Smart vehicle sourcing platform for dealers",
     type: "website",
   },
@@ -110,7 +111,7 @@ export default function RootLayout({
           sizes="32x32"
           href="/favicon-32x32.png"
         />
-        <meta name="apple-mobile-web-app-title" content="MikeHunt" />
+        <meta name="apple-mobile-web-app-title" content={APP_NAME} />
         <meta name="theme-color" content="#075BE8" />
         <meta name="msapplication-TileColor" content="#075BE8" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

@@ -1,6 +1,4 @@
-:global([data-theme="dark"]) .mark {
+.mark {
   border-radius: 5px;
-  background: white;
-  padding: 3px;
-  box-shadow: 0 0 0 1px rgb(15 23 42 / 12%);
+  filter: drop-shadow(0 4px 10px rgb(8 119 255 / 20%));
 }

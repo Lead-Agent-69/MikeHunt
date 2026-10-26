@@ -37,28 +37,28 @@ export function MikeHuntLoader({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={cn(styles.piece, styles.left)}
-        src="/brand/MIKEHUNT-M.svg"
+        src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={cn(styles.piece, styles.middle)}
-        src="/brand/MIKEHUNT-M.svg"
+        src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={cn(styles.piece, styles.right)}
-        src="/brand/MIKEHUNT-M.svg"
+        src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={styles.final}
-        src="/brand/MIKEHUNT-M.svg"
+        src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
       />

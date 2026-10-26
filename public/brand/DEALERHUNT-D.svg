@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="DealerHunt">
+  <defs>
+    <linearGradient id="dealerhunt-mark" x1="8" y1="6" x2="58" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#15c9ff"/>
+      <stop offset="0.48" stop-color="#0877ff"/>
+      <stop offset="1" stop-color="#6d4cff"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#dealerhunt-mark)"/>
+  <path fill="#fff" fill-rule="evenodd" d="M16 13h16.5C45.5 13 54 20.4 54 32S45.5 51 32.5 51H16V13Zm11 9v20h5.2C39 42 44 38.6 44 32s-5-10-11.8-10H27Z"/>
+</svg>

@@ -60,7 +60,7 @@ export async function sendAlertMatchSMS(options: {
   estimatedProfit: number;
   dealUrl: string;
 }) {
-  const message = `🎯 MikeHunt Alert: ${options.vehicleTitle} - $${options.askPrice.toLocaleString()} (Est. Profit: $${options.estimatedProfit.toLocaleString()}). View: ${options.dealUrl}`;
+  const message = `🎯 DealerHunt Alert: ${options.vehicleTitle} - $${options.askPrice.toLocaleString()} (Est. Profit: $${options.estimatedProfit.toLocaleString()}). View: ${options.dealUrl}`;
 
   return sendSMS({
     to: options.to,

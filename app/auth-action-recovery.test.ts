@@ -4,7 +4,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   signOut: vi.fn(),
-  signInWithOAuth: vi.fn(),
   replace: vi.fn(),
   refresh: vi.fn(),
   push: vi.fn(),
@@ -85,15 +84,41 @@ it("keeps a failed logout in the account and allows retry", async () => {
   expect(mocks.replace).toHaveBeenCalledWith("/login");
   expect(mocks.refresh).toHaveBeenCalledOnce();
 });
-it("recovers from a thrown Google connection error", async () => {
-  mocks.signInWithOAuth.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+it("submits Google login through the cookie-preserving server route", async () => {
   await render(GoogleButton);
-  await click("Continue with Google");
-  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
-    "Check your connection",
-  );
-  expect(host.querySelector("button")?.disabled).toBe(false);
-  expect(host.textContent).not.toContain("Connecting");
+  const form = host.querySelector('form[action="/auth/google"]');
+  const next = form?.querySelector<HTMLInputElement>('input[name="next"]');
+  expect(form?.getAttribute("method")).toBe("get");
+  expect(next?.value).toBe("/discover");
+  expect(
+    Array.from(form?.querySelectorAll("button") ?? []).some((button) =>
+      button.textContent?.includes("Continue with Google"),
+    ),
+  ).toBe(true);
+});
+
+it("sanitizes the Google post-login destination before submission", async () => {
+  await act(async () => {
+    root.render(
+      React.createElement(GoogleButton, {
+        next: "https://attacker.example/steal",
+      }),
+    );
+  });
+  expect(
+    host.querySelector<HTMLInputElement>('input[name="next"]')?.value,
+  ).toBe("/market");
+});
+
+it("shows progress when the Google form is submitted", async () => {
+  await render(GoogleButton);
+  const form = host.querySelector("form")!;
+  form.addEventListener("submit", (event) => event.preventDefault());
+  await act(async () => {
+    form.requestSubmit();
+  });
+  expect(host.textContent).toContain("Connecting");
+  expect(host.querySelector("button")?.disabled).toBe(true);
 });
 it("cancels the auth-provider status request when its form leaves the page", async () => {
   await render(GoogleButton);
@@ -114,7 +139,6 @@ it("offers email recovery without advertising a protected guest preview", async 
   expect(host.querySelector("button")?.disabled).toBe(true);
   expect(host.textContent).toContain("Use the email form below to continue");
   expect(host.querySelector("a")).toBeNull();
-  expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
 });
 it("exposes admin navigation only for the server-verified current identity", async () => {
   vi.stubGlobal(

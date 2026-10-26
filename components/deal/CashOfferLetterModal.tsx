@@ -266,7 +266,7 @@ Please confirm if this works to schedule pickup and payment.`;
               data-testid="cash-offer-draft-note"
               className="text-xs leading-relaxed text-[var(--t3)] print:hidden"
             >
-              This is a draft for you to review before you use it. MikeHunt
+              This is a draft for you to review before you use it. DealerHunt
               doesn&apos;t send this letter to anyone and doesn&apos;t make a
               binding offer on your behalf. Check the terms with your own
               advisor if you need a legally binding agreement.

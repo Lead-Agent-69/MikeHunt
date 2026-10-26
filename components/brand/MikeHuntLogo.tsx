@@ -34,10 +34,9 @@ export function MikeHuntMark({
         className,
       )}
     >
-      {/* The supplied M is embedded raster artwork; do not recreate it in CSS or paths. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/brand/MIKEHUNT-M.svg"
+        src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
         width={56}
@@ -71,7 +70,7 @@ export function MikeHuntLogo({
             wordmarkClassName,
           )}
         >
-          MIKEHUNT
+          DEALERHUNT
         </span>
       )}
     </span>

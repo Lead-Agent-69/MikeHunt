@@ -1546,7 +1546,7 @@ function SmartDataPlanCard({
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
             {scopeStatus?.message ||
-              "MIKEHUNT searches only the markets that match your location, vehicle, budget, and seller preferences, then turns results into photo-backed deal cards."}
+              "DealerHunt searches only the markets that match your location, vehicle, budget, and seller preferences, then turns results into photo-backed deal cards."}
           </p>
           {!configured && (
             <Link
@@ -1623,7 +1623,7 @@ function SmartDataPlanCard({
           </div>
           <p className="mt-1 text-sm leading-relaxed text-[var(--t3)]">
             {scopeStatus?.message ||
-              "The selected lane and seller type conflict, so MikeHunt will not run a broad fallback search."}{" "}
+              "The selected lane and seller type conflict, so DealerHunt will not run a broad fallback search."}{" "}
             {scopeStatus?.nextAction ||
               "Change seller type, lane, or dealer targets to preview sources again."}
           </p>
@@ -1702,10 +1702,10 @@ function SmartDataPlanCard({
               Search promise
             </div>
             <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[var(--t4)]">
-              MikeHunt only looks for inventory that matches this buyer intent,
-              then shows source proof and completeness on the matching rows.
-              This keeps results useful and avoids collecting cars the buyer did
-              not ask for.
+              DealerHunt only looks for inventory that matches this buyer
+              intent, then shows source proof and completeness on the matching
+              rows. This keeps results useful and avoids collecting cars the
+              buyer did not ask for.
             </p>
           </div>
           <Link

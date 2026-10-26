@@ -148,7 +148,7 @@ export default function LoginPage() {
         <Link
           href="/"
           prefetch={false}
-          aria-label="MIKEHUNT home"
+          aria-label="DealerHunt home"
           className="inline-flex items-center gap-2.5"
         >
           <MikeHuntLogo size="md" />
@@ -270,7 +270,7 @@ export default function LoginPage() {
           {/* Footer */}
           <div className="text-center pt-4 border-t border-[var(--b1)]">
             <p className="mb-2 text-sm text-[var(--t3)]">
-              New to MikeHunt?{" "}
+              New to DealerHunt?{" "}
               <Link
                 href="/register"
                 prefetch={false}

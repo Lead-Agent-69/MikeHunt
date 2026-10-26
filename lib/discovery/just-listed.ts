@@ -1,5 +1,5 @@
 /**
- * "New to MikeHunt" rail. We only know when MikeHunt first saw a listing (first_seen_at), not when
+ * "New to DealerHunt" rail. We only know when DealerHunt first saw a listing (first_seen_at), not when
  * the seller posted it, so the rail is bounded on that and labeled that way.
  *
  * JUST_LISTED_WINDOW_HOURS: a row first seen more than this long ago is not "new". Rows with no

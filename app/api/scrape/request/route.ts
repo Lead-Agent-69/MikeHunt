@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
     if (origin && origin !== request.nextUrl.origin)
       return NextResponse.json(
-        { error: "Open this search in MIKEHUNT and try again." },
+        { error: "Open this search in DealerHunt and try again." },
         { status: 403 },
       );
     const {

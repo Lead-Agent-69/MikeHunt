@@ -10,7 +10,7 @@ import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
 const requestErrors: Record<number, string> = {
   400: "Check your location and search criteria, then try again.",
   401: "Sign in again to find new matches.",
-  403: "Open this search in MIKEHUNT and try again.",
+  403: "Open this search in DealerHunt and try again.",
   422: "These sources cannot be refreshed for this search. Choose another source or buying plan.",
   429: "Please wait before requesting another search. Your existing matches remain available.",
   503: "New-match searches are temporarily unavailable. Existing matches remain available.",

@@ -1,5 +1,5 @@
 /**
- * Keeps post-auth navigation inside the MIKEHUNT app.
+ * Keeps post-auth navigation inside the DealerHunt app.
  *
  * `router.push` and OAuth callbacks both accept URLs, so a simple `startsWith("/")`
  * check would also allow protocol-relative URLs such as `//example.com`.

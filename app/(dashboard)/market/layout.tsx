@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Market Explorer | MIKEHUNT",
+  title: "Market Explorer | DealerHunt",
   description:
     "Explore indexed vehicles by location, radius, source, condition, and price evidence.",
 };
