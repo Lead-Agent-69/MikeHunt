@@ -206,3 +206,31 @@ it("prefetches near the footer once, disconnects, and offers manual retry withou
   expect(retry).toHaveBeenCalledTimes(1);
   expect(more).toHaveBeenCalledTimes(1);
 });
+
+it.each([
+  [119, 120],
+  [101, 100],
+])(
+  "offers a real refresh rather than claiming completion when %s shown differs from %s total",
+  (shown, total) => {
+    const refresh = vi.fn();
+    act(() =>
+      root.render(
+        <MarketLoadMore
+          shown={shown}
+          total={total}
+          hasMore={false}
+          loading={false}
+          failed={false}
+          onLoadMore={vi.fn()}
+          onRetry={refresh}
+        />,
+      ),
+    );
+    expect(host.textContent).toContain("Results may have changed");
+    expect(host.textContent).not.toContain("caught up");
+    expect(host.querySelector("button")?.textContent).toBe("Refresh results");
+    act(() => host.querySelector<HTMLButtonElement>("button")!.click());
+    expect(refresh).toHaveBeenCalledOnce();
+  },
+);

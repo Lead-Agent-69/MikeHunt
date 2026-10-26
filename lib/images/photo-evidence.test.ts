@@ -15,8 +15,38 @@ import { completenessScore, missingFields } from "@/lib/data-quality/sanity";
 const placeholder =
   "https://thumb.autotempest.com/cgu/1FDBF2AN6VEC67291_461748235_725a472cc3c53688563f3c07811b3cc0_3_0647371b4de74ad3c65a580fb9d44269.webp";
 const vehicle = "https://dealer.test/one-vehicle-photo.jpg";
+const comingSoon =
+  "https://thumb.autotempest.com/cgu/3GNAXTEG2VL254379_462491482_313a6e27729c693363f3423cf5d3a729_1_c32e3555544e478c346ed8c8106a6155.webp";
 
 describe("known placeholder evidence", () => {
+  it("excludes the visually verified coming-soon graphic without rejecting other supplier vehicle images", () => {
+    const realSupplierPhoto =
+      "https://thumb.autotempest.com/cgu/3GNAXTEG9VL217152_460494295_ca491455ea37c755173650ada42e4cf4_1_818e89cc1f4a055642cd4c290fb57c33.webp";
+    expect(photoEvidence([comingSoon, realSupplierPhoto]).images).toEqual([
+      realSupplierPhoto,
+    ]);
+    expect(
+      isCustomerInventory({
+        images: [comingSoon],
+        last_seen_at: new Date().toISOString(),
+      }),
+    ).toBe(false);
+    expect(
+      isPlaceholderPhotoFingerprint(
+        "d99d31a97c71fb1ea1769ba84bfa787a4c54789b4bfcbf3290c83f92cbafe5ef",
+      ),
+    ).toBe(true);
+    expect(
+      isPlaceholderPhotoFingerprint(
+        "eb2426274104bd5b46cbf6bf7d515fd2cf3a459ee6d572285abaee047c0e8a87",
+      ),
+    ).toBe(false);
+    expect(
+      isPlaceholderPhotoUrl(
+        comingSoon.replace("thumb.autotempest.com", "example.test"),
+      ),
+    ).toBe(false);
+  });
   it("recognizes the verified source asset without broad vehicle/VIN matching", () => {
     expect(isPlaceholderPhotoUrl(placeholder)).toBe(true);
     expect(

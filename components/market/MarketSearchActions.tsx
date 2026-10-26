@@ -1,17 +1,29 @@
 "use client";
 
 import * as Menu from "@radix-ui/react-dropdown-menu";
-import { BookmarkPlus, Copy, Ellipsis, RotateCcw } from "lucide-react";
+import {
+  BookmarkPlus,
+  Copy,
+  Ellipsis,
+  RotateCcw,
+  RefreshCw,
+} from "lucide-react";
 
 export function MarketSearchActions({
   onSave,
   onCopy,
   onReset,
+  onRefresh,
+  refreshing = false,
+  refreshDisabled = false,
   disabled = false,
 }: {
   onSave: () => void;
   onCopy: () => void;
   onReset: () => void;
+  onRefresh: () => void;
+  refreshing?: boolean;
+  refreshDisabled?: boolean;
   disabled?: boolean;
 }) {
   const itemClass =
@@ -29,6 +41,20 @@ export function MarketSearchActions({
         <BookmarkPlus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>
           Save<span className="hidden sm:inline"> search</span>
+        </span>
+      </button>
+      <button
+        type="button"
+        aria-label="Refresh results"
+        title="Refresh results"
+        disabled={disabled || refreshDisabled || refreshing}
+        onClick={onRefresh}
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--b1)] px-2.5 text-xs font-semibold disabled:opacity-50 sm:px-3"
+      >
+        <RefreshCw className="hidden h-4 w-4 sm:block" aria-hidden="true" />
+        <span>
+          {refreshing ? "Refreshing…" : "Refresh"}
+          <span className="hidden sm:inline">{!refreshing && " results"}</span>
         </span>
       </button>
       <button

@@ -155,7 +155,16 @@ const EMPTY: Filters = {
 async function fetchMarket(url: string) {
   // Preserve the shared retry policy while surfacing actionable location validation.
   const response = await fetch(url);
-  if (response.ok) return response.json();
+  if (response.ok) {
+    const body = await response.json();
+    // Keep SWR's last usable batch when a service/configuration failure arrives
+    // with HTTP 200. A failed refresh must not erase cars or announce success.
+    if (body?.configured === false || !Array.isArray(body?.rows))
+      throw Object.assign(new Error("Market data could not be loaded."), {
+        status: 503,
+      });
+    return body;
+  }
   const body = await response.json().catch(() => ({}));
   const error = Object.assign(new Error("Market data could not be loaded."), {
     status: response.status,
@@ -243,6 +252,19 @@ export default function MarketPage() {
   const [ready, setReady] = React.useState(false);
   const [copyStatus, setCopyStatus] = React.useState("");
   const [saveStatus, setSaveStatus] = React.useState("");
+  const [refreshNotice, setRefreshNotice] = React.useState<{
+    query: string;
+    status: "loading" | "success" | "error";
+  } | null>(null);
+  const refreshSequence = React.useRef(0);
+  const refreshInFlight = React.useRef<string | null>(null);
+  React.useEffect(
+    () => () => {
+      refreshSequence.current++;
+      refreshInFlight.current = null;
+    },
+    [],
+  );
   const [showFilters, setShowFilters] = React.useState(false);
   const filterTrigger = React.useRef<HTMLButtonElement>(null);
   const closeFilters = () => {
@@ -493,10 +515,41 @@ export default function MarketPage() {
 
   const rows: MarketListing[] = pendingFilters ? [] : loadedRows;
   const busy = pendingFilters || (isLoading && !rows.length);
+  const currentRefresh =
+    !pendingFilters && refreshNotice?.query === qs
+      ? refreshNotice.status
+      : null;
+  const refreshResults = async () => {
+    if (busy || loadingMore || refreshInFlight.current === qs) return;
+    const sequence = ++refreshSequence.current;
+    refreshInFlight.current = qs;
+    setRefreshNotice({ query: qs, status: "loading" });
+    try {
+      const refreshed = await mutate();
+      if (
+        !refreshed?.length ||
+        refreshed.some((batch) => batch.configured === false)
+      )
+        throw new Error("Results unavailable");
+      if (sequence === refreshSequence.current)
+        setRefreshNotice({ query: qs, status: "success" });
+    } catch {
+      if (sequence === refreshSequence.current)
+        setRefreshNotice({ query: qs, status: "error" });
+    } finally {
+      if (sequence === refreshSequence.current) refreshInFlight.current = null;
+    }
+  };
   const loadNextBatch = React.useCallback(() => {
-    if (!busy && !loadingMore && !loadMoreError && hasMore)
+    if (
+      !busy &&
+      !loadingMore &&
+      !loadMoreError &&
+      currentRefresh !== "loading" &&
+      hasMore
+    )
       setPage((current) => current + 1);
-  }, [busy, loadingMore, loadMoreError, hasMore]);
+  }, [busy, loadingMore, loadMoreError, hasMore, currentRefresh]);
   const facets = data?.facets || {
     states: {},
     lanes: {},
@@ -719,6 +772,9 @@ export default function MarketPage() {
           onSave={saveCurrentSearch}
           disabled={!ready}
           onReset={reset}
+          onRefresh={() => void refreshResults()}
+          refreshing={currentRefresh === "loading"}
+          refreshDisabled={busy || loadingMore}
           onCopy={async () => {
             try {
               await navigator.clipboard.writeText(window.location.href);
@@ -731,6 +787,18 @@ export default function MarketPage() {
         {(copyStatus || saveStatus) && (
           <p role="status" className="w-full text-xs text-[var(--t3)]">
             {saveStatus || copyStatus}
+          </p>
+        )}
+        {currentRefresh && (
+          <p
+            role={currentRefresh === "error" ? "alert" : "status"}
+            className="w-full text-xs text-[var(--t3)]"
+          >
+            {currentRefresh === "loading"
+              ? "Refreshing results. Your filters are kept."
+              : currentRefresh === "success"
+                ? "Results refreshed. Your filters are kept."
+                : "Couldn’t refresh results. Your current vehicles and filters are still here. Try Refresh again."}
           </p>
         )}
       </header>
@@ -1687,8 +1755,9 @@ export default function MarketPage() {
               hasMore={hasMore}
               loading={loadingMore}
               failed={Boolean(loadMoreError)}
+              refreshing={currentRefresh === "loading"}
               onLoadMore={loadNextBatch}
-              onRetry={() => void Promise.resolve(mutate()).catch(() => {})}
+              onRetry={() => void refreshResults()}
             />
           )}
         </section>
