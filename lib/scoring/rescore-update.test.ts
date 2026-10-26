@@ -72,6 +72,13 @@ describe("rescore persistence integrity", () => {
     expect(patch.deal_analysis.acquisitionPriceMissing).toBe(true);
     expect(patch.deal_analysis.costs.total).toBeNull();
   });
+  it("clears legacy inferred cash prices without replacing the reported amount", () => {
+    const patch = rescoreUpdate(
+      { ...row, deal_analysis: { inferredPrice: 48700 } },
+      analysis,
+    );
+    expect(patch.deal_analysis.inferredPrice).toBeNull();
+  });
   it("does not promote a quarantined quality row", () => {
     expect(
       rescoreUpdate(

@@ -51,10 +51,10 @@ export function disclosedPriceEvidence(
       // Never accept a numeric prefix of a range, malformed amount, phone number or "18k".
       /^(?:[,.]\d|\d|[km]\b)/i.test(after) ||
       /^\s*(?:[-–—\/]\s*\$?\s*\d|(?:to|through|or)\s+\$?\s*\d)/i.test(after) ||
-      /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly)\s*$/i.test(
+      /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly|weekly|bi[ -]?weekly)\s*$/i.test(
         before,
       ) ||
-      /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b)/i.test(
+      /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b|\/\s*(?:wk|week)\b|per\s+week\b|a\s+week\b|(?:bi[ -]?)?weekly\b|(?:in\s+)?(?:savings|off|discount|rebate)\b)/i.test(
         after,
       ) ||
       !positivePrice(cash[1].replace(/,/g, ""))
@@ -95,25 +95,33 @@ export function disclosedPriceEvidence(
       evidenceText: disclaimer[0].slice(0, 180),
     };
   const labels =
-    /\b(down[\s-]*payment|monthly\s+(?:payment|(?:sale\s+)?price)|deposit)\s*(?:is|of|:|-)?\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi;
+    /\b(down[\s-]*payment|(?:monthly|weekly|bi[ -]?weekly)\s+(?:payment|(?:sale\s+)?price)|deposit)\s*(?:is|of|:|-)?\s*\$?\s*([\d,]+(?:\.\d{2})?)/gi;
   let labelled: RegExpExecArray | null;
   while ((labelled = labels.exec(text))) {
     if (amount && positivePrice(labelled[2].replace(/,/g, "")) !== amount)
       continue;
     return {
-      kind: /monthly/i.test(labelled[1]) ? "monthly_payment" : "down_payment",
+      kind: /monthly/i.test(labelled[1])
+        ? "monthly_payment"
+        : /weekly/i.test(labelled[1])
+          ? "finance_teaser"
+          : "down_payment",
       listedAmount: amount || positivePrice(labelled[2].replace(/,/g, "")),
       evidenceText: labelled[0].slice(0, 180),
     };
   }
   const moneyTerms =
-    /(?:\$\s*|\b)([\d,]+(?:\.\d{2})?)\s*(down\b|(?:per\s*)?month\b|a\s+month\b|\/\s*mo(?:nth)?\b)/gi;
+    /(?:\$\s*|\b)([\d,]+(?:\.\d{2})?)\s*(down\b|(?:per\s*)?month\b|a\s+month\b|\/\s*mo(?:nth)?\b|per\s+week\b|a\s+week\b|\/\s*(?:wk|week)\b|(?:bi[ -]?)?weekly\b)/gi;
   let match: RegExpExecArray | null;
   while ((match = moneyTerms.exec(text))) {
     const number = positivePrice(match[1].replace(/,/g, ""));
     if (amount && number !== amount) continue;
     return {
-      kind: /down/i.test(match[2]) ? "down_payment" : "monthly_payment",
+      kind: /down/i.test(match[2])
+        ? "down_payment"
+        : /week|wk/i.test(match[2])
+          ? "finance_teaser"
+          : "monthly_payment",
       listedAmount: amount ?? number,
       evidenceText: match[0].slice(0, 180),
     };
@@ -121,6 +129,17 @@ export function disclosedPriceEvidence(
   const referenceLabels =
     /\b(?:savings|you\s+save|discount|rebate|msrp|retail\s+(?:price|value)|original\s+price)(?:\s+(?:off|on|from)(?:\s+the)?(?:\s+(?:cash|sale|full)\s+price)?)?\s*:?\s*\$\s*([\d,]+(?:\.\d{2})?)/gi;
   for (const reference of Array.from(text.matchAll(referenceLabels))) {
+    const value = positivePrice(reference[1].replace(/,/g, ""));
+    if (value && (!amount || value === amount))
+      return {
+        kind: "reference",
+        listedAmount: amount || value,
+        evidenceText: reference[0].slice(0, 180),
+      };
+  }
+  const trailingReference =
+    /\$\s*([\d,]+(?:\.\d{2})?)\s*(?:in\s+)?(?:savings|off|discount|rebate)\b/gi;
+  for (const reference of Array.from(text.matchAll(trailingReference))) {
     const value = positivePrice(reference[1].replace(/,/g, ""));
     if (value && (!amount || value === amount))
       return {

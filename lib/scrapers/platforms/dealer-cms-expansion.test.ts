@@ -32,6 +32,10 @@ const card = (
 describe("bounded source expansion", () => {
   it.each([
     "Sale price: $299/month",
+    "Sale price: $299/week",
+    "Weekly sale price: $299",
+    "Biweekly payment: $299",
+    "$2,180 in savings",
     "Monthly sale price: $299",
     "Savings off sale price: $2,180",
   ])("rejects payment and savings labels in dealer cards: %s", (text) => {
