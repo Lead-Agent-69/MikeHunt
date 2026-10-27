@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import useSWR from "swr";
 import { Check, ExternalLink, Loader2, Plus, X } from "lucide-react";
 import Link from "next/link";
 import { useDealerId } from "@/hooks/useDealerId";
 import { useRecordOwner } from "@/hooks/useRecordOwner";
-import { actualAmount } from "@/lib/outcomes/ledger";
+import { actualAmount, uuid } from "@/lib/outcomes/ledger";
 import { purchaseRetryId } from "@/lib/inventory/purchase-record";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import {
   writeInventory,
   invalidateInventoryViews,
+  ownerInventoryFetcher,
 } from "@/lib/inventory/account-client";
 
 interface AcquireButtonProps {
@@ -66,6 +68,25 @@ function PurchaseRecord({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [acquired, setAcquired] = useState(false);
+  const {
+    data: existingPurchase,
+    isLoading: checkingPurchase,
+    error: purchaseCheckError,
+    mutate: retryPurchaseCheck,
+  } = useSWR(
+    ownerId && uuid(deal.id)
+      ? [`/api/inventory?dealId=${deal.id}&limit=1`, ownerId]
+      : null,
+    ownerInventoryFetcher,
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: true,
+      shouldRetryOnError: false,
+    },
+  );
+  const recorded =
+    acquired ||
+    existingPurchase?.items.some((item) => item.vehicleId === deal.id);
   const [pricePaid, setPricePaid] = useState("");
   const [purchaseDate, setPurchaseDate] = useState(() => {
     const now = new Date();
@@ -152,7 +173,7 @@ function PurchaseRecord({
 
   return (
     <div className="min-w-0">
-      {acquired ? (
+      {recorded ? (
         <Link
           ref={recordedLink}
           href="/fleet"
@@ -166,12 +187,32 @@ function PurchaseRecord({
           ref={opener}
           type="button"
           onClick={() => setOpen(true)}
-          disabled={accountLoading || !ownerId}
+          disabled={
+            accountLoading ||
+            checkingPurchase ||
+            !!purchaseCheckError ||
+            !ownerId
+          }
           className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--b2)] bg-[var(--s0)] px-3 text-sm font-semibold text-[var(--t1)] ${className}`}
         >
           <Plus size={16} aria-hidden="true" />
-          {label}
+          {checkingPurchase ? "Checking purchase record…" : label}
         </button>
+      )}
+      {purchaseCheckError && !recorded && (
+        <div className="mt-2 text-xs text-[var(--t2)]">
+          <p role="alert">
+            Existing purchase status could not be checked. Review Pipeline
+            before recording again.
+          </p>
+          <button
+            type="button"
+            className="mt-1 min-h-11 underline"
+            onClick={() => void retryPurchaseCheck().catch(() => {})}
+          >
+            Retry purchase check
+          </button>
+        </div>
       )}
       {error && !open && (
         <p role="alert" className="mt-2 max-w-sm text-xs text-[var(--red)]">

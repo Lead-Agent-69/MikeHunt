@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  memo,
 } from "react";
 import Link from "next/link";
 import {
@@ -33,7 +34,7 @@ import {
   TITLE_DAMAGE_LABELS,
 } from "@/lib/deals/title-badge-model";
 
-export function MarketListingCard(props: {
+export const MarketListingCard = memo(function MarketListingCard(props: {
   row: MarketListing;
   flipDesk: boolean;
   onPhotosUnavailable?: (id: string) => void;
@@ -44,7 +45,7 @@ export function MarketListingCard(props: {
       {...props}
     />
   );
-}
+});
 
 function ListingCard({
   row,

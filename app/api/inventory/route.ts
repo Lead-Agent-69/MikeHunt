@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { NextRequest, NextResponse } from "next/server";
 import { outcomePredictionSnapshot } from "@/lib/outcomes/snapshot";
 import { canCapturePurchasePrediction } from "@/lib/outcomes/prediction-timing";
-import { actualAmount } from "@/lib/outcomes/ledger";
+import { actualAmount, uuid } from "@/lib/outcomes/ledger";
 import { internalError } from "@/lib/api/http-error";
 import { InventoryService } from "@/lib/data/inventory-service";
 import {
@@ -59,6 +59,12 @@ export async function GET(request: NextRequest) {
     if (mismatch) return mismatch;
 
     const { searchParams } = new URL(request.url);
+    const dealId = searchParams.get("dealId");
+    if (dealId !== null && !uuid(dealId))
+      return NextResponse.json(
+        { error: "Choose a valid vehicle." },
+        { status: 400 },
+      );
     const stage = searchParams.get("stage")?.split(",").filter(Boolean) as any;
     const limit = searchParams.get("limit")
       ? parseInt(searchParams.get("limit")!, 10)
@@ -69,8 +75,9 @@ export async function GET(request: NextRequest) {
 
     const inventoryService = new InventoryService();
     const result = await inventoryService.getInventory(dealerId, {
+      ...(dealId ? { dealId, limit: 1 } : {}),
       stage,
-      limit,
+      limit: dealId ? 1 : limit,
       offset,
     });
 

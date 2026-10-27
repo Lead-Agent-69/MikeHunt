@@ -50,6 +50,7 @@ export type InventoryItem = {
 };
 
 export type InventoryFilters = {
+  dealId?: string;
   stage?: InventoryStage[];
   limit?: number;
   offset?: number;
@@ -112,6 +113,8 @@ export class InventoryService {
       .from("inventory")
       .select("*", { count: "exact" })
       .eq("dealer_id", dealerId);
+
+    if (filters.dealId) query = query.eq("deal_id", filters.dealId);
 
     if (filters.stage?.length) {
       query = query.in("stage", filters.stage);
