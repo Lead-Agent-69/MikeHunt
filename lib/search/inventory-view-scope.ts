@@ -12,6 +12,7 @@ import {
   applySelectedSources,
   applyVehicleDetails,
   applySellerTypes,
+  VEHICLE_CATEGORY_FILTERS,
 } from "./inventory-filters";
 import { DEFAULT_RADIUS_MI, MAX_RADIUS_MI } from "./zip-radius-scope";
 
@@ -29,6 +30,7 @@ export const INVENTORY_SEARCH_KEYS = Array.from(
     "make",
     "makes",
     "model",
+    "categories",
     "lane",
     "sellerType",
     "titleType",
@@ -144,6 +146,19 @@ export function applyInventoryViewScope(query: any, params: URLSearchParams) {
     .replace(/[^a-zA-Z0-9 -]/g, "")
     .trim();
   if (model) q = q.ilike("model", model);
+  const categories = csv("categories");
+  if (categories.length) {
+    const filters = categories.map((category) =>
+      Object.prototype.hasOwnProperty.call(VEHICLE_CATEGORY_FILTERS, category)
+        ? VEHICLE_CATEGORY_FILTERS[
+            category as keyof typeof VEHICLE_CATEGORY_FILTERS
+          ].filter
+        : null,
+    );
+    // An unsupported selection must not silently widen the buyer's search.
+    if (filters.some((filter) => !filter)) q = q.in("id", []);
+    else q = q.or(filters.join(","));
+  }
   const text = (params.get("q") || "")
     .replace(/[^a-zA-Z0-9 -]/g, " ")
     .trim()

@@ -26,7 +26,7 @@ const RE_EV =
 const RE_TRUCK =
   /\b(silverado|sierra|f-?150|f-?250|f-?350|f-?450|ram ?(1500|2500|3500)?|1500|2500|3500|tundra|tacoma|titan|frontier|ranger|colorado|canyon|ridgeline|gladiator|maverick|santa ?cruz|dakota|avalanche)\b/;
 const RE_SUV =
-  /\b(suv|tahoe|suburban|yukon|expedition|explorer|wrangler|4-?runner|highlander|pilot|telluride|palisade|cherokee|durango|sequoia|bronco|escalade|equinox|rav-?4|cr-?v|rogue|escape|edge|traverse|pathfinder|armada|navigator|qx\d{2}|mdx|rdx|rx ?\d|gx ?\d|lx ?\d|tahoe|blazer|trailblazer|ascent|outback|forester|cx-?\d|murano|kicks|trax|encore|envision|gle|glc|gls|x[1-7]\b|q[3578])\b/;
+  /\b(suv|sportage|sorento|seltos|tucson|santa ?fe|venue|corsair|nautilus|aviator|ecosport|flex|atlas|tiguan|taos|touareg|xc[469]0|compass|renegade|terrain|enclave|acadia|tahoe|suburban|yukon|expedition|explorer|wrangler|4-?runner|highlander|pilot|telluride|palisade|cherokee|durango|sequoia|bronco|escalade|equinox|rav-?4|cr-?v|rogue|escape|edge|traverse|pathfinder|armada|navigator|qx\d{2}|mdx|rdx|rx ?\d|gx ?\d|lx ?\d|tahoe|blazer|trailblazer|ascent|outback|forester|cx-?\d|murano|kicks|trax|encore|envision|gle|glc|gls|x[1-7]\b|q[3578])\b/;
 const RE_COUPE =
   /\b(coupe|mustang|camaro|challenger|corvette|supra|gt-?r|\bm[2-8]\b|911|cayman|brz|gr86|frs|370z|350z)\b/;
 const RE_CONV = /\b(convertible|roadster|spyder|cabriolet|miata|boxster|z4)\b/;

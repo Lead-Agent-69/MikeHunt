@@ -41,6 +41,7 @@ vi.mock("@/lib/supabase", () => ({
           lte: () => q,
           eq: () => q,
           order: () => q,
+          range: () => q,
           limit: () => Promise.resolve({ data: [row], error: null }),
           then: (resolve: (value: unknown) => unknown) =>
             resolve({ data: [row], error: null }),

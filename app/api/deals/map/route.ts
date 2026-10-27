@@ -12,6 +12,7 @@ import { STATE_COORDS } from "@/lib/geo";
 import { fetchAllRows } from "@/lib/db/paginate";
 import { hashJitter } from "@/lib/db/stable-id";
 import { applyInventoryViewScope } from "@/lib/search/inventory-view-scope";
+import { inventoryViewPage } from "@/lib/search/inventory-view-page";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
   inventoryLocation,
@@ -84,13 +85,9 @@ export async function GET(req: NextRequest) {
   // (a single .limit() silently dropped everything past 1000).
   let data: any[];
   try {
-    data = await fetchAllRows<any>(
-      (from, to) => {
-        let q = inventoryLocationQuery(
-          supabase,
-          location,
-          `id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource${flipDesk ? ",profit_score" : ""}`,
-        )
+    const page = inventoryViewPage(
+      (columns, details) => {
+        let q = inventoryLocationQuery(supabase, location, columns)
           .eq("active", true)
           // A point needs EITHER precise coords OR a state we can fall back to a centroid for.
           .or("lat.not.is.null,location_state.not.is.null")
@@ -98,9 +95,8 @@ export async function GET(req: NextRequest) {
             ascending: false,
             nullsFirst: false,
           })
-          .order("id", { ascending: true })
-          .range(from, to);
-        q = applyInventoryViewScope(q, location.details);
+          .order("id", { ascending: true });
+        q = applyInventoryViewScope(q, details);
         if (verdictFilter.mode === "eq") {
           q = q.eq("deal_verdict", verdictFilter.values[0]);
         } else if (verdictFilter.mode === "in") {
@@ -108,8 +104,10 @@ export async function GET(req: NextRequest) {
         }
         return q;
       },
-      { max: limit },
+      location.details,
+      `id, year, make, model, images, source, source_url, title, ask_price, price_evidence:options->priceEvidence, true_net_profit, deal_verdict, lat, lng, location_city, location_state, condition, damage_type, last_seen_at, title_source:options->>titleSource${flipDesk ? ",profit_score" : ""}`,
     );
+    data = await fetchAllRows<any>(page, { max: limit });
   } catch (error) {
     // Honest empty map (200) beats a 500 — /find's shared fetcher throws on !ok.
     console.error(

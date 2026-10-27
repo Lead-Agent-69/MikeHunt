@@ -40,6 +40,24 @@ function query() {
 }
 
 describe("inventory filter contract", () => {
+  it("preserves explicit body categories when switching views and applies their OR before paging", () => {
+    const params = inventoryViewParams(
+      new URLSearchParams("categories=suvs,trucks&states=MO,IL"),
+    );
+    const q = query();
+    applyInventoryViewScope(q, params);
+    expect(params.get("categories")).toBe("suvs,trucks");
+    expect(q.or).toHaveBeenCalledWith(
+      "body_class.ilike.%suv%,body_class.ilike.%utility%,body_class.ilike.%pickup%,body_class.ilike.%truck%",
+    );
+    expect(q.in).toHaveBeenCalledWith("location_state", ["MO", "IL"]);
+    const invalid = query();
+    applyInventoryViewScope(
+      invalid,
+      new URLSearchParams("categories=not-real"),
+    );
+    expect(invalid.in).toHaveBeenCalledWith("id", []);
+  });
   it("exposes every registered dealer without widening selection to all independent dealers", () => {
     for (const site of CURATED_SITES) {
       const id = dealerSourceIdFromUrl(site.url) || sourceFromUrl(site.url)!;

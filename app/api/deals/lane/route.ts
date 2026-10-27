@@ -1,3 +1,4 @@
+import { inventoryViewPage } from "@/lib/search/inventory-view-page";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
@@ -115,20 +116,23 @@ export async function GET(req: NextRequest) {
       return withNoStore(
         NextResponse.json({ error: ZIP_LOOKUP_ERROR }, { status: 503 }),
       );
-    let q = applyInventoryViewScope(
-      supabase
-        .from("deals")
-        .select(zipRadius ? `${LANE_COLUMNS}, lat, lng` : LANE_COLUMNS),
-      scope,
-    );
-    if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
-    q = vins
-      ? q.in("vin", vins)
-      : q
-          .eq("active", true)
+    const page = inventoryViewPage(
+      (columns, details) => {
+        let q = applyInventoryViewScope(
+          supabase.from("deals").select(columns),
+          details,
+        );
+        if (zipRadius) q = applyZipRadiusBox(q, zipRadius);
+        if (vins) q = q.in("vin", vins);
+        else q = q.eq("active", true);
+        return q
           .order("updated_at", { ascending: false })
-          .limit(100);
-    const { data, error } = await q;
+          .order("id", { ascending: true });
+      },
+      scope,
+      zipRadius ? `${LANE_COLUMNS}, lat, lng` : LANE_COLUMNS,
+    );
+    const { data, error } = await page(0, vins ? MAX_VINS - 1 : 99);
     if (error) throw error;
     const flipDesk = await resolveCallerFlipDesk();
     return withNoStore(

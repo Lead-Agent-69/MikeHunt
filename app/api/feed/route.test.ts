@@ -116,6 +116,46 @@ async function load(mode: string | null, signedIn = true) {
 }
 
 describe("GET /api/feed desk redaction", () => {
+  it.each([true, false])(
+    "resolves SUV/pickup preferences before paging (signed in: %s)",
+    async (signedIn) => {
+      getServerUser.mockResolvedValue({
+        data: { user: signedIn ? { id: "user-1" } : null },
+      });
+      db.rows = [
+        {
+          ...ROW,
+          id: "pickup",
+          make: "Ford",
+          model: "F-150",
+          title: "2020 Ford F-150",
+        },
+      ];
+      const response = await GET(
+        new NextRequest(
+          "https://app.test/api/feed?browse=all&q=suv+truck&states=MO&limit=12",
+        ),
+      );
+      expect((await response.json()).items[0].id).toBe("pickup");
+      expect(db.calls).toContainEqual(["in", "id", ["pickup"]]);
+      expect(
+        db.calls.some(
+          (call) => call[0] === "or" && String(call[1]).includes("%suv truck%"),
+        ),
+      ).toBe(false);
+      expect(db.calls).toContainEqual(["in", "location_state", ["MO"]]);
+    },
+  );
+  it("stops guest pagination after a short final page", async () => {
+    getServerUser.mockResolvedValue({ data: { user: null } });
+    db.rows = [ROW];
+    const response = await GET(
+      new NextRequest("https://app.test/api/feed?limit=12"),
+    );
+    const body = await response.json();
+    expect(body.items).toHaveLength(1);
+    expect(body.nextOffset).toBeNull();
+  });
   it("rejects unknown nearby ZIPs instead of returning nationwide cars", async () => {
     const response = await GET(
       new NextRequest("https://app.test/api/feed?zip=00000&radius=50"),
