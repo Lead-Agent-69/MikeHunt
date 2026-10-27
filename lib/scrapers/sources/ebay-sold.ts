@@ -4,19 +4,15 @@
 
 import * as cheerio from "cheerio";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { loadSoldItemCache, saveSoldItemCache } from "./local-sold-cache";
 import { getLocalWriteContext } from "../local-write-context";
 import { disclosedPriceEvidence } from "@/lib/deals/acquisition-price";
 import { extractLeadingVehicleIdentity } from "../tools/deal-normalizer";
 
-const execFileAsync = promisify(execFile);
-
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+import { politeFetch } from "../polite/polite-fetch";
+import { recordScrapePersistence } from "../source-run-context";
+import { sourceExecutionSignal } from "../source-execution";
+import type { ScraperArgs } from "../tools/registry";
 
 // The models dealers actually flip — captures sold prices across mainstream + truck/SUV demand.
 const QUERIES = [
@@ -218,176 +214,148 @@ function admin(): SupabaseClient {
   );
 }
 
-// eBay bot-walls the sold SRP and fingerprints the HTTP client — Node's fetch (undici) and even a
-// stealth browser get challenged, but the system `curl` passes (and it's present in CI). So we fetch
-// via curl with a shared cookie jar seeded from the homepage.
-async function curlGet(
+/** Refused access is an unavailable source, never a successful empty inventory. */
+export async function fetchEbaySoldPage(
   url: string,
-  jar: string,
-): Promise<{ html: string; status: number }> {
-  const { stdout } = await execFileAsync(
-    "curl",
-    [
-      "-sL",
-      "-m",
-      "35",
-      "-A",
-      UA,
-      "-b",
-      jar,
-      "-c",
-      jar,
-      "-H",
-      "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "-H",
-      "Accept-Language: en-US,en;q=0.9",
-      "-H",
-      "Referer: https://www.ebay.com/",
-      "-w",
-      "\n__HTTP_STATUS__:%{http_code}",
-      url,
-    ],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
-  const marker = stdout.lastIndexOf("\n__HTTP_STATUS__:");
-  if (marker < 0) return { html: stdout, status: 0 };
-  return {
-    html: stdout.slice(0, marker),
-    status:
-      Number(stdout.slice(marker + "\n__HTTP_STATUS__:".length).trim()) || 0,
-  };
+  signal?: AbortSignal,
+): Promise<string> {
+  const response = await politeFetch(url, {
+    signal,
+    maxRetries: 0,
+    timeoutMs: 15_000,
+  });
+  const barrier =
+    response.challenge ||
+    /captcha|robot check|just a moment|verify you(?:'| a)re human|access denied/i.test(
+      response.body.slice(0, 20_000),
+    );
+  if (!response.ok || barrier) {
+    const reason =
+      response.skipped ||
+      (barrier ? "access challenge" : `HTTP ${response.status}`);
+    getLocalWriteContext()?.onAccessBarrier?.({
+      host: "www.ebay.com",
+      status: response.status,
+      reason,
+    });
+    throw new Error(`eBay completed listings unavailable: ${reason}`);
+  }
+  return response.body;
 }
 
-export async function scrapeEbaySold(): Promise<number> {
-  console.log("[eBay Sold] Starting real-sold-price scrape...");
-  const jar = join(tmpdir(), `ebsold_${process.pid}.jar`);
-  // Warm-up: seed cookies from the homepage.
-  try {
-    await execFileAsync("curl", [
-      "-s",
-      "-m",
-      "15",
-      "-A",
-      UA,
-      "-c",
-      jar,
-      "https://www.ebay.com/",
-      "-o",
-      "/dev/null",
-    ]);
-  } catch {
-    /* warm-up best-effort */
-  }
+type SoldCollectorDeps = {
+  client?: SupabaseClient;
+  queries?: string[];
+  fetchPage?: typeof fetchEbaySoldPage;
+  pause?: () => Promise<void>;
+};
 
-  // Static popular flips + the top models actually in inventory, deduped, so anchoring reaches the cars
-  // users really see (not just 15 hardcoded models).
-  const sb = admin();
-  const dynamic = await dynamicQueries(sb);
-  const queries = Array.from(new Set([...QUERIES, ...dynamic]));
-  console.log(
-    `[eBay Sold] ${queries.length} queries (${QUERIES.length} static + ${dynamic.length} from live inventory)`,
-  );
-
-  const all = new Map<string, SoldRow>();
-  for (const q of queries) {
-    try {
-      const url =
-        `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(q)}` +
-        `&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
-      const { html, status } = await curlGet(url, jar);
-      const blocked =
-        status === 403 ||
-        status === 429 ||
-        /captcha|robot check|just a moment|verify you(?:'| a)re human|access denied/i.test(
-          html.slice(0, 20_000),
-        );
-      if (blocked) {
-        const context = getLocalWriteContext();
-        if (context?.respectAccessBlocks) {
-          context.onAccessBarrier?.({
-            host: "www.ebay.com",
-            status,
-            reason: status ? `HTTP ${status}` : "access barrier detected",
-          });
-          console.warn(
-            "[eBay Sold] access barrier detected; stopping this source for the cycle",
-          );
-          break;
-        }
-      }
-      const parsed = parseEbaySoldHtml(html);
-      for (const r of parsed) all.set(r.item_id, r);
-      await new Promise((r) => setTimeout(r, 1500)); // be polite
-    } catch (e) {
-      console.warn(`[eBay Sold] "${q}" failed:`, (e as Error).message);
-    }
-  }
-
-  const rows = Array.from(all.values());
-  if (!rows.length) {
-    console.log("[eBay Sold] No sold rows parsed");
-    return 0;
-  }
-
-  // Sold rows are immutable market observations. The mounted local cache avoids repeat Supabase
-  // writes; the unique database index remains the cross-machine source of truth.
+export async function scrapeEbaySold(
+  execution?: ScraperArgs,
+  deps: SoldCollectorDeps = {},
+): Promise<number> {
+  const signal = sourceExecutionSignal(execution);
+  signal?.throwIfAborted();
+  const sb = deps.client || getLocalWriteContext()?.supabase || admin();
+  const queries =
+    deps.queries ||
+    Array.from(new Set([...QUERIES, ...(await dynamicQueries(sb))]));
+  const fetchPage = deps.fetchPage || fetchEbaySoldPage;
+  const pause =
+    deps.pause ||
+    (() => new Promise<void>((resolve) => setTimeout(resolve, 1500)));
   const seen = await loadSoldItemCache();
-  const fresh = rows.filter((r) => !seen.has(r.item_id));
-
-  const localContext = getLocalWriteContext();
-  if (localContext?.cacheOnly) {
-    await localContext.cache.rememberOnly(
-      "ebay_sold",
-      fresh.map((row) => ({
-        id: row.item_id,
-        value: row as unknown as Record<string, unknown>,
-      })),
-    );
-    console.log(
-      `[eBay Sold] cache-only mode saved ${fresh.length} local observations; no Supabase writes`,
-    );
-    return 0;
-  }
-
-  if (fresh.length) {
-    const insertRows = fresh.map((r) => ({
-      vin: r.vin ?? null,
-      year: r.year ?? null,
-      make: r.make ?? null,
-      model: r.model ?? null,
-      trim: r.trim ?? null,
-      mileage: r.mileage ?? null,
-      sold_price: r.sold_price,
-      sold_at: r.sold_at ?? null,
-      title: r.title ? shortSoldTitle(r.title) : null,
-      source: r.source,
-      source_item_id: r.item_id,
-      source_url: r.source_url,
-      currency_code: "USD",
-      country_code: "US",
-      location_state: r.location_state ?? null,
-    }));
-    const { data: inserted, error } = await sb
-      .from("sold_listings")
-      .upsert(insertRows, {
-        onConflict: "source,source_item_id",
-        ignoreDuplicates: true,
-      })
-      .select("source_item_id");
-    if (error) {
-      console.warn("[eBay Sold] insert error:", error.message);
-      return 0;
-    }
-    for (const row of fresh) seen.add(row.item_id);
-    await saveSoldItemCache(seen);
-    console.log(
-      `[eBay Sold] parsed ${rows.length} completed listings; inserted ${inserted?.length ?? 0} new price observations`,
-    );
-    return inserted?.length ?? 0;
-  }
-
+  const observed = new Set<string>();
+  const context = getLocalWriteContext();
+  let insertedTotal = 0;
   console.log(
-    `[eBay Sold] parsed ${rows.length} completed listings; ${rows.length} already known locally`,
+    `[eBay Sold] Checking ${queries.length} completed-listing searches`,
   );
-  return 0;
+  for (let index = 0; index < queries.length; index++) {
+    signal?.throwIfAborted();
+    const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(queries[index])}&_sacat=6001&LH_Sold=1&LH_Complete=1&_ipg=120`;
+    const html = await fetchPage(url, signal);
+    signal?.throwIfAborted();
+    const rows = parseEbaySoldHtml(html).filter((row) => {
+      if (observed.has(row.item_id)) return false;
+      observed.add(row.item_id);
+      return true;
+    });
+    const fresh = rows.filter((row) => !seen.has(row.item_id));
+    const retainLocally = async () => {
+      if (context && fresh.length)
+        await context.cache.rememberOnly(
+          "ebay_sold",
+          fresh.map((row) => ({
+            id: row.item_id,
+            value: row as unknown as Record<string, unknown>,
+          })),
+        );
+    };
+    if (context?.cacheOnly) {
+      await retainLocally();
+      recordScrapePersistence(rows.length, 0);
+    } else if (fresh.length) {
+      if (context?.beforeWrite && !(await context.beforeWrite())) {
+        await retainLocally();
+        recordScrapePersistence(rows.length, 0);
+        throw new Error(
+          "Sold observation writes paused by capacity guard; observations retained locally",
+        );
+      }
+      signal?.throwIfAborted();
+      const insertRows = fresh.map((r) => ({
+        vin: r.vin ?? null,
+        year: r.year ?? null,
+        make: r.make ?? null,
+        model: r.model ?? null,
+        trim: r.trim ?? null,
+        mileage: r.mileage ?? null,
+        sold_price: r.sold_price,
+        sold_at: r.sold_at ?? null,
+        title: r.title ? shortSoldTitle(r.title) : null,
+        source: r.source,
+        source_item_id: r.item_id,
+        source_url: r.source_url,
+        currency_code: "USD",
+        country_code: "US",
+        location_state: r.location_state ?? null,
+      }));
+      let result;
+      try {
+        result = await sb
+          .from("sold_listings")
+          .upsert(insertRows, {
+            onConflict: "source,source_item_id",
+            ignoreDuplicates: true,
+          })
+          .select("source_item_id");
+      } catch (error) {
+        await retainLocally();
+        recordScrapePersistence(rows.length, 0);
+        throw error;
+      }
+      if (result.error) {
+        await retainLocally();
+        recordScrapePersistence(rows.length, 0);
+        throw new Error("Completed-listing observations could not be stored");
+      }
+      const inserted = result.data?.length ?? 0;
+      recordScrapePersistence(rows.length, inserted);
+      insertedTotal += inserted;
+      // Advance the local dedupe cache only after the database confirms this batch.
+      for (const row of fresh) seen.add(row.item_id);
+      await saveSoldItemCache(seen);
+    } else {
+      recordScrapePersistence(rows.length, 0);
+    }
+    if (index < queries.length - 1) {
+      signal?.throwIfAborted();
+      await pause();
+    }
+  }
+  console.log(
+    `[eBay Sold] Observed ${observed.size} qualifying completed listings; inserted ${insertedTotal}`,
+  );
+  return insertedTotal;
 }
