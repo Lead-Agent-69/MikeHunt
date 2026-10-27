@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
-import { vehiclePopup } from "./vehicle-popup";
+import { vehiclePopup, watchVehiclePopupPhoto } from "./vehicle-popup";
 
 describe("vehicle map preview", () => {
+  it("replaces a failed remote image with a friendly explanation and releases listeners", () => {
+    const root = document.createElement("div");
+    root.innerHTML = vehiclePopup({
+      name: "Ford",
+      image: "https://photos.example/car.jpg",
+    });
+    const image = root.querySelector("img")!;
+    const fallback = root.querySelector<HTMLElement>(
+      "[data-vehicle-popup-photo-fallback]",
+    )!;
+    const cleanup = watchVehiclePopupPhoto(root);
+    expect(fallback.hidden).toBe(true);
+    image.dispatchEvent(new Event("error"));
+    expect(image.hidden).toBe(true);
+    expect(fallback.hidden).toBe(false);
+    expect(fallback.textContent).toContain("Photo could not load");
+    cleanup();
+    image.hidden = false;
+    fallback.hidden = true;
+    image.dispatchEvent(new Event("error"));
+    expect(fallback.hidden).toBe(true);
+    expect(root.innerHTML).not.toContain("onerror=");
+  });
   it("renders an actual photo, price meaning and vehicle link", () => {
     const html = vehiclePopup({
       name: "Ford F-150",

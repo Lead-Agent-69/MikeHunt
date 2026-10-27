@@ -14,6 +14,29 @@ import { FeedVehicleCard } from "@/components/feed/FeedVehicleCard";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 
 describe("photo-first inventory previews", () => {
+  it.each([
+    ["", false],
+    ["seenWithin=30", true],
+    ["body=Pickup", true],
+  ])(
+    "keeps default browsing compact and exposes selected advanced options (%s)",
+    (query, expanded) => {
+      const html = renderToStaticMarkup(
+        createElement(InventoryViewLinks, {
+          query: String(query),
+          current: "/feed",
+        }),
+      );
+      const host = document.createElement("div");
+      host.innerHTML = html;
+      expect(host.querySelector("details")!.hasAttribute("open")).toBe(
+        expanded,
+      );
+      expect(
+        host.querySelector('summary[aria-label^="Browse options"]'),
+      ).not.toBeNull();
+    },
+  );
   it("keeps the complete search when Feed users open the full filters", () => {
     const html = renderToStaticMarkup(
       createElement(InventoryViewLinks, {
@@ -73,6 +96,11 @@ describe("photo-first inventory previews", () => {
     expect(html).toContain("1/12 photos");
     expect(html).not.toContain("1/8 photos");
     expect(html).toContain("Next photo");
+    const action = host.querySelector('[aria-label="Swipe review action"]');
+    expect(action?.querySelector("button")?.textContent).toContain(
+      "Quick review",
+    );
+    expect(action?.className).not.toContain("overflow-y-auto");
   });
   it("shows source last-seen dates without calling them verified availability", () => {
     const item = {
