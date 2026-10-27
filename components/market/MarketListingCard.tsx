@@ -27,6 +27,7 @@ import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
 import { bidStatusNote } from "@/lib/deals/price-observation";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import {
   titleBadgeModel,
   TITLE_DAMAGE_LABELS,
@@ -115,19 +116,7 @@ function ListingCard({
     lane: undefined,
     trueNetProfit: row.profitEstimate,
   });
-  const seen = row.lastSeenAt ? Date.parse(row.lastSeenAt) : NaN;
-  const hours =
-    Number.isFinite(seen) && seen <= Date.now() + 300000
-      ? Math.max(0, Math.floor((Date.now() - seen) / 3600000))
-      : null;
-  const freshness =
-    hours == null
-      ? "Seen time not reported"
-      : hours < 1
-        ? "Seen within 1h"
-        : hours < 24
-          ? `Seen ${hours}h ago`
-          : `Seen ${Math.floor(hours / 24)}d ago`;
+  const freshness = listingFreshnessLabel(row);
   const price = row.price;
   const priceGapLabel =
     row.priceGap == null
