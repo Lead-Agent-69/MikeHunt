@@ -270,6 +270,12 @@ export function applyInventoryLane(query: any, lane: string) {
 }
 
 export const VEHICLE_CATEGORY_FILTERS = {
+  coupes: { label: "Coupes", filter: "body_class.ilike.%coupe%" },
+  convertibles: {
+    label: "Convertibles",
+    filter: "body_class.ilike.%convertible%",
+  },
+  vans: { label: "Vans", filter: "body_class.ilike.%van%" },
   trucks: {
     label: "Pickup trucks",
     filter: "body_class.ilike.%pickup%,body_class.ilike.%truck%",

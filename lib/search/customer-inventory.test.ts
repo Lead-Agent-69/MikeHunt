@@ -84,6 +84,12 @@ describe("customer inventory eligibility", () => {
     ).toBe(false);
     expect(
       isCustomerInventory(
+        { ...row, options: { photoAudit: { state: "placeholder" } } },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCustomerInventory(
         { ...row, options: { photoAudit: { state: "available" } } },
         now,
       ),

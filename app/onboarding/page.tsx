@@ -16,6 +16,7 @@ import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { toast } from "sonner";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { confirmOnboardingSave } from "@/lib/preferences/confirm-onboarding";
+import { onboardingMarketHref } from "@/lib/preferences/onboarding-market";
 import { safeNextPath } from "@/lib/auth/safe-next-path";
 import { finishOnboardingNavigation } from "@/lib/auth/finish-onboarding-navigation";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
@@ -205,12 +206,7 @@ export default function OnboardingPage() {
   );
 
   const previewHref = useMemo(() => {
-    const params = new URLSearchParams();
-    if (intent.state && US_STATES.includes(intent.state))
-      params.set("states", intent.state);
-    if (intent.minPrice) params.set("priceMin", String(intent.minPrice));
-    if (intent.maxPrice) params.set("priceMax", String(intent.maxPrice));
-    return `/market${params.size ? `?${params.toString()}` : ""}`;
+    return onboardingMarketHref(intent);
   }, [intent]);
 
   const modeDetail =
