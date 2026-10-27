@@ -263,8 +263,7 @@ function StageTracker({
         <button
           onClick={onAdvance}
           disabled={advancing}
-          className="w-full text-xs font-bold py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 border-none text-[var(--coral)] disabled:opacity-50"
-          style={{ background: "var(--clo)" }}
+          className="min-h-11 w-full text-xs font-bold py-2 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 border-none bg-[var(--accent)] text-[var(--on-accent)] disabled:opacity-50"
         >
           {advancing ? (
             <>

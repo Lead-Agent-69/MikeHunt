@@ -41,6 +41,7 @@ describe("inventory primary-action contrast", () => {
     "components/settings/BuyingProfilePrefs.tsx",
     "app/(dashboard)/recon/page.tsx",
     "components/deal/ReportListing.tsx",
+    "app/(dashboard)/fleet/page.tsx",
   ])("%s keeps primary controls readable in both themes", (path) => {
     const source = readFileSync(path, "utf8");
     expect(source).toContain("bg-[var(--accent)]");
