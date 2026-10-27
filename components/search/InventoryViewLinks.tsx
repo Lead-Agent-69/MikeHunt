@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { BrowseFilterShortcut } from "./BrowseFilterShortcut";
 import {
   Archive,
   ArrowRight,
@@ -225,6 +226,9 @@ export function InventoryViewLinks({
         </form>
       )}
       {children}
+      {current !== "/market" && current !== "/discover" && (
+        <BrowseFilterShortcut query={params.toString()} />
+      )}
       {params.get("body") && params.get("body") !== "all" && (
         <div className="flex w-full flex-wrap items-center gap-2 text-xs text-[var(--t2)]">
           <p>Body style is not reported for every listing.</p>

@@ -210,14 +210,21 @@ describe("GET /api/feed desk redaction", () => {
         price_evidence: { kind: "down_payment", listedAmount: 2600 },
         title_source: "Seller reported",
         damage_type: "mechanical",
-        images: ["https://img.example/1.jpg", "https://img.example/2.jpg"],
+        images: Array.from(
+          { length: 12 },
+          (_, index) => `https://img.example/${index + 1}.jpg`,
+        ),
       },
     ];
     const item = await load("personal");
     expect(item.priceLabel).toBe("Possible down payment");
     expect(item.priceNote).toContain("not confirmed");
     expect(item.askPrice).toBe(2600);
-    expect(item.images).toHaveLength(2);
+    expect(item.images).toHaveLength(12);
+    expect(item.priceEvidence).toMatchObject({
+      kind: "down_payment",
+      listedAmount: 2600,
+    });
     expect(item.titleSource).toBe("Seller reported");
     expect(item.damageType).toBe("mechanical");
     expect(item.netProfit).toBeUndefined();

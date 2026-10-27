@@ -4,7 +4,8 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Heart, ExternalLink, ChevronRight } from "lucide-react";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
-import { toast } from "sonner";
+import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
+import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { proxiedImage } from "@/lib/image-url";
 import { sourceLabel } from "@/lib/sources/source-meta";
 import { reportedPrice } from "@/lib/deals/reported-price";
@@ -26,6 +27,7 @@ export interface FeedVehicle {
   askPrice?: number;
   priceLabel?: string;
   priceNote?: string;
+  priceEvidence?: PriceEvidence;
   mileage?: number;
   condition?: string;
   damageType?: string;
@@ -45,33 +47,29 @@ export function FeedVehicleCard({
   priority?: boolean;
   onPhotoUnavailable?: (id: string) => void;
 }) {
-  const [saved, setSaved] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const saved = useDiscoverySave({
+    ...item,
+    images: item.images ?? (item.image ? [item.image] : []),
+    askPrice: item.askPrice ?? 0,
+    priceEvidence: item.priceEvidence ?? {
+      kind: "unknown",
+      listedAmount: item.askPrice,
+    },
+    titleSource:
+      item.titleSource === "listing" || item.titleSource === "source_default"
+        ? item.titleSource
+        : undefined,
+    grade: "unknown",
+    gradeLabel: "",
+    discountPct: 0,
+    alsoOn: [],
+    listingCount: 1,
+  });
   const gallery = useListingPhotos([item.image, ...(item.images || [])]);
   useEffect(() => {
     if (gallery.exhausted) onPhotoUnavailable?.(item.id);
   }, [gallery.exhausted, onPhotoUnavailable, item.id]);
   const [review, setReview] = useState(false);
-  async function save() {
-    if (saving || saved) return;
-    setSaving(true);
-    try {
-      const response = await fetch("/api/saved-cars", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dealId: item.id }),
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      setSaved(true);
-      toast.success("Vehicle saved");
-    } catch {
-      toast.error(
-        "Couldn't save this vehicle. Sign in if needed, then try again.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
   const location = vehicleLocation(item.locationCity, item.locationState);
   if (gallery.exhausted) return null;
   return (
@@ -112,15 +110,16 @@ export function FeedVehicleCard({
           </h2>
           <button
             type="button"
-            onClick={save}
-            disabled={saving || saved}
-            aria-label={saved ? `Saved ${item.title}` : `Save ${item.title}`}
-            title={saved ? "Saved" : "Save vehicle"}
+            onClick={() => void saved.toggle()}
+            disabled={saved.busy}
+            aria-label={`${saved.label}: ${item.title}`}
+            aria-pressed={saved.saved}
+            title={saved.label}
             className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--b1)] text-[var(--blue)] disabled:opacity-60"
           >
             <Heart
               size={20}
-              className={saved ? "fill-current" : ""}
+              className={saved.saved ? "fill-current" : ""}
               aria-hidden="true"
             />
           </button>

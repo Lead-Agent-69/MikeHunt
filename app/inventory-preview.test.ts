@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
+  useDiscoverySave: () => ({
+    saved: false,
+    busy: false,
+    label: "Save to account",
+    toggle: vi.fn(),
+  }),
+}));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SwipeVehicleFace } from "@/components/search/SwipeVehicleFace";
@@ -6,6 +14,31 @@ import { FeedVehicleCard } from "@/components/feed/FeedVehicleCard";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 
 describe("photo-first inventory previews", () => {
+  it("keeps the complete search when Feed users open the full filters", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query:
+          "states=MO%2CIL&zip=63101&radius=100&maxMileage=50000&q=Ford&scope=explicit",
+        current: "/feed",
+      }),
+    );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    const link = Array.from(host.querySelectorAll("a")).find((link) =>
+      link.textContent?.includes("Search & filters"),
+    )!;
+    const url = new URL(link.href);
+    expect(url.pathname).toBe("/market");
+    for (const [key, value] of Object.entries({
+      states: "MO,IL",
+      zip: "63101",
+      radius: "100",
+      maxMileage: "50000",
+      q: "Ford",
+      filters: "open",
+    }))
+      expect(url.searchParams.get(key)).toBe(value);
+  });
   it("discloses missing body-style coverage and clears only the style filter", () => {
     const html = renderToStaticMarkup(
       createElement(InventoryViewLinks, {
