@@ -24,8 +24,38 @@ vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
 }));
 vi.mock("@/lib/image-url", () => ({ proxiedImage: (url: string) => url }));
 import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketListingGrid } from "@/components/market/MarketListingGrid";
 
 let root: Root, host: HTMLDivElement;
+it("hides an exhausted gallery from browsing, retries locally and accepts replacement photos", () => {
+  const row = listing([
+    "https://images.test/first.jpg",
+    "https://images.test/second.jpg",
+  ]);
+  act(() => root.render(<MarketListingGrid rows={[row]} flipDesk={false} />));
+  act(() => host.querySelector("img")!.dispatchEvent(new Event("error")));
+  expect(host.querySelector("img")?.getAttribute("src")).toContain(
+    "second.jpg",
+  );
+  act(() => host.querySelector("img")!.dispatchEvent(new Event("error")));
+  expect(host.querySelector("article")).toBeNull();
+  expect(host.textContent).toContain("1 listing hidden");
+  expect(controls.toggle).not.toHaveBeenCalled();
+  act(() => host.querySelector<HTMLButtonElement>("button")!.click());
+  expect(host.querySelector("img")?.getAttribute("src")).toContain("first.jpg");
+  act(() => host.querySelector("img")!.dispatchEvent(new Event("error")));
+  act(() => host.querySelector("img")!.dispatchEvent(new Event("error")));
+  act(() =>
+    root.render(
+      <MarketListingGrid
+        rows={[{ ...row, images: ["https://images.test/new.jpg"] }]}
+        flipDesk={false}
+      />,
+    ),
+  );
+  expect(host.querySelector("img")?.getAttribute("src")).toContain("new.jpg");
+  expect(host.textContent).not.toContain("listing hidden");
+});
 const listing = (images: string[]): MarketListing => ({
   id: "10000000-0000-4000-8000-000000000001",
   title: "2020 Ford Mustang",

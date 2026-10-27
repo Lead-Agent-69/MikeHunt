@@ -15,7 +15,7 @@ import {
   type MarketFacetKey,
 } from "@/components/market/MarketFacetStudio";
 import { MarketResultsMap } from "@/components/market/MarketResultsMap";
-import { MarketListingCard } from "@/components/market/MarketListingCard";
+import { MarketListingGrid } from "@/components/market/MarketListingGrid";
 import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { ResponsiveWorkspacePanel } from "@/components/shared/ResponsiveWorkspacePanel";
@@ -1764,22 +1764,9 @@ export default function MarketPage() {
             />
           ) : rows.length > 0 ? (
             view === "grid" ? (
-              <div
-                className="grid gap-4"
-                style={{
-                  gridTemplateColumns:
-                    "repeat(auto-fill, minmax(min(100%, 19rem), 1fr))",
-                }}
-              >
+              <MarketListingGrid rows={rows} flipDesk={flipDesk}>
                 {!loadingMore && <MarketReturnPosition />}
-                {rows.map((row) => (
-                  <MarketListingCard
-                    key={row.id}
-                    row={row}
-                    flipDesk={flipDesk}
-                  />
-                ))}
-              </div>
+              </MarketListingGrid>
             ) : (
               <DealTable
                 rows={rows as TableRow[]}

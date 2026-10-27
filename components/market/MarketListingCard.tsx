@@ -1,6 +1,11 @@
 "use client";
 
-import { type MouseEvent as ReactMouseEvent, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -30,6 +35,7 @@ import {
 export function MarketListingCard(props: {
   row: MarketListing;
   flipDesk: boolean;
+  onPhotosUnavailable?: (id: string) => void;
 }) {
   return (
     <ListingCard
@@ -42,9 +48,11 @@ export function MarketListingCard(props: {
 function ListingCard({
   row,
   flipDesk,
+  onPhotosUnavailable,
 }: {
   row: MarketListing;
   flipDesk: boolean;
+  onPhotosUnavailable?: (id: string) => void;
 }) {
   const gallery = useListingPhotos(row.images);
   const setPhoto = gallery.select;
@@ -67,6 +75,9 @@ function ListingCard({
     rememberPosition();
   };
   const photos = gallery.images;
+  useEffect(() => {
+    if (gallery.exhausted) onPhotosUnavailable?.(row.id);
+  }, [gallery.exhausted, onPhotosUnavailable, row.id]);
   const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),
@@ -134,6 +145,7 @@ function ListingCard({
         : row.profitEstimate < 0
           ? "Modeled loss after costs"
           : "Modeled break-even after costs";
+  if (onPhotosUnavailable && gallery.exhausted) return null;
   return (
     <article
       ref={cardRef}
