@@ -240,7 +240,10 @@ export function parsePrice(text: string): number | undefined {
   const ok = (raw: string) => {
     const n = Number(raw.replace(/,/g, ""));
     if (!(n >= 100 && n < 2_000_000)) return undefined;
-    const evidence = disclosedPriceEvidence(text, n);
+    const evidence = disclosedPriceEvidence(
+      text.replace(/\ball[\s-]+in\s+price\b/gi, "full price"),
+      n,
+    );
     if (evidence && evidence.kind !== "asking") return undefined;
     // Shared acquisition math uses whole dollars; retain the source's cents here.
     if (evidence?.kind === "asking" && evidence.askingPrice !== Math.round(n))
@@ -250,8 +253,8 @@ export function parsePrice(text: string): number | undefined {
   // Seller transaction prices outrank savings, payments and reference retail values.
   // DriveNation prints "Savings" first, then "All In Price", then "Retail".
   for (const label of [
-    /\ball[\s-]+in\s+price\s*:?\s*\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.])/i,
-    /\b(?:sale|our|cash|internet|special|asking|selling|pre-owned)\s+price\s*:?\s*\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.])/i,
+    /\ball[\s-]+in\s+price\s*:?\s*\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?!\d|[,.]\d)/i,
+    /\b(?:sale|our|cash|internet|special|asking|selling|pre-owned)\s+price\s*:?\s*\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?!\d|[,.]\d)/i,
   ]) {
     const labelled = text.match(label);
     if (labelled) {
@@ -276,7 +279,7 @@ export function parsePrice(text: string): number | undefined {
   // An unlabelled range is not one asking price; don't fall through to its upper bound.
   if (/\$\s*[\d,.]+\s*(?:[-–—]|to|through|or)\s*\$?\s*\d/i.test(text))
     return undefined;
-  const re = /\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?![\d,.])/g;
+  const re = /\$\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{2})?)(?!\d|[,.]\d)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     const before = text.slice(Math.max(0, m.index - 30), m.index);

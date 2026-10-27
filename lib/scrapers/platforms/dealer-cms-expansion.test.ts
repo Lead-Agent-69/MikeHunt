@@ -30,7 +30,7 @@ const card = (
   `<article><a href="vehiclesDetail.php?${id}">${images}<h3>${title}</h3></a><p>Sale Price: $18,995</p></article>`;
 
 describe("bounded source expansion", () => {
-  it.each(["Sale price: $18,995.50", "$18,995.50"])(
+  it.each(["Sale price: $18,995.50", "$18,995.50", "Sale price: $18,995.50."])(
     "preserves cents in a vehicle amount: %s",
     (text) => {
       expect(parsePrice(text)).toBe(18995.5);
@@ -40,6 +40,8 @@ describe("bounded source expansion", () => {
     "Sale price: $18,000 after $3,000 down",
     "Cash price: $18,000 with $3,000 down payment",
     "Sale price: $18,000 after rebate",
+    "All In Price: $18,000 after $3,000 down",
+    "All-In Price: $18,000 after rebate",
     "$18,000 - $20,000",
     "$18,995.5",
     "$18,99",
