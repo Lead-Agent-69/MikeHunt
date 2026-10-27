@@ -16,7 +16,7 @@ export function applyCustomerInventory<T>(
       .not("images", "is", null)
       .neq("images", "{}")
       .or(
-        "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+        "options->photoAudit->>state.is.null,options->photoAudit->>state.not.in.(placeholder,unavailable)",
       );
   return scoped
     .gte(
@@ -98,6 +98,8 @@ export function customerInventoryExclusion(
     return "source_removed";
   if (row.options?.photoAudit?.state === "unavailable")
     return "photos_unavailable";
+  if (row.options?.photoAudit?.state === "placeholder")
+    return "placeholder_photos";
   if (!reportedListingPhotos(row.images).length) return "missing_photos";
   if (!listingPhotos(row.images, row.options?.photoAudit).length)
     return "placeholder_photos";

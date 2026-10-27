@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { AcquireToPipelineButton } from "@/components/deal/AcquireToPipelineButton";
 import { readFileSync } from "node:fs";
+import { SWRConfig } from "swr";
 const account = vi.hoisted(() => ({
   owner: "owner" as string | null,
   loading: false,
@@ -13,6 +14,56 @@ vi.mock("@/hooks/useDealerId", () => ({
 let host: HTMLDivElement;
 let root: Root;
 let request: ReturnType<typeof vi.fn>;
+it("reopens a purchased listing as a pipeline link without offering another purchase", async () => {
+  const dealId = "a0000000-0000-4000-8000-000000000001";
+  request.mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      ownerId: "owner",
+      items: [{ id: "unit", dealerId: "owner", vehicleId: dealId }],
+      total: 1,
+      hasMore: false,
+    }),
+  });
+  await act(async () => {
+    root.render(
+      React.createElement(
+        SWRConfig,
+        { value: { provider: () => new Map() } },
+        React.createElement(AcquireToPipelineButton, { deal: { id: dealId } }),
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(host.textContent).toContain("Purchase recorded");
+  expect(host.querySelector('a[href="/fleet"]')).not.toBeNull();
+  expect(host.querySelector("button")).toBeNull();
+  expect(request).toHaveBeenCalledWith(
+    `/api/inventory?dealId=${dealId}&limit=1`,
+    expect.objectContaining({ headers: { "x-inventory-owner": "owner" } }),
+  );
+});
+it("does not offer a writable purchase when existing-record verification fails", async () => {
+  request.mockRejectedValue(new Error("Network unavailable"));
+  await act(async () => {
+    root.render(
+      React.createElement(
+        SWRConfig,
+        { value: { provider: () => new Map() } },
+        React.createElement(AcquireToPipelineButton, {
+          deal: { id: "a0000000-0000-4000-8000-000000000002" },
+        }),
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+  expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+    "Existing purchase status could not be checked",
+  );
+  expect(host.querySelector<HTMLButtonElement>("button")?.disabled).toBe(true);
+  expect(host.textContent).toContain("Retry purchase check");
+  expect(host.querySelector("dialog")).toBeNull();
+});
 beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   account.owner = "owner";

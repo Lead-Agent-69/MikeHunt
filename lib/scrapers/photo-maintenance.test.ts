@@ -30,6 +30,8 @@ function client(
           "select",
           "eq",
           "gte",
+          "lte",
+          "or",
           "not",
           "neq",
           "is",
@@ -91,6 +93,11 @@ it("scopes and bounds checks, preserves unrelated evidence, and charges only con
   });
   expect(c.calls).toContainEqual(["eq", "location_state", "MO"]);
   expect(c.calls).toContainEqual(["limit", 5]);
+  expect(c.calls).toContainEqual(["lte", "last_seen_at", expect.any(String)]);
+  expect(c.calls).toContainEqual([
+    "or",
+    expect.stringContaining("photoCheckAttempt->>checkedAt.lt."),
+  ]);
   expect(c.calls).toContainEqual([
     "order",
     "options->photoCheckAttempt->>checkedAt",

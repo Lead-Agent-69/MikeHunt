@@ -113,6 +113,19 @@ describe("inventory account boundaries", () => {
       expect.objectContaining({ limit: 100 }),
     );
   });
+  it("bounds a listing-specific lookup to the authenticated owner and one record", async () => {
+    const dealId = "a0000000-0000-4000-8000-000000000001";
+    expect(
+      (await request("GET", "one", `?dealId=${dealId}&limit=500`)).status,
+    ).toBe(200);
+    expect(state.inventory).toHaveBeenCalledWith(
+      "one",
+      expect.objectContaining({ dealId, limit: 1 }),
+    );
+    state.inventory.mockClear();
+    expect((await request("GET", "one", "?dealId=invalid")).status).toBe(400);
+    expect(state.inventory).not.toHaveBeenCalled();
+  });
   it("derives a purchase's owner from the session and returns the same mapped contract as reads", async () => {
     const response = await request("POST", "one", "", {
       id: "a0000000-0000-4000-8000-000000000001",

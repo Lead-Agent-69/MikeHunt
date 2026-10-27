@@ -7,12 +7,7 @@ describe("onboarding goal scope", () => {
 
     expect(source).toContain("buyerMode");
     expect(source).toContain("repairCapability");
-    expect(source).toContain('params.set("states", intent.state)');
-    expect(source).toContain('params.set("priceMin", String(intent.minPrice))');
-    expect(source).toContain('params.set("priceMax", String(intent.maxPrice))');
-    expect(source).toContain(
-      'return `/market${params.size ? `?${params.toString()}` : ""}`',
-    );
+    expect(source).toContain("return onboardingMarketHref(intent)");
     expect(source).toContain('fetch("/api/preferences"');
     expect(source).not.toContain('fetch("/api/scrape/run"');
     expect(source).toContain("BUYING_WORKSPACE_MODE");

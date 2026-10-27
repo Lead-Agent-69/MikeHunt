@@ -72,7 +72,7 @@ it("uses four bounded reads without scanning listing options, images or valuatio
   expect(calls.filter((x) => x[0] === "signal")).toHaveLength(4);
   expect(calls).toContainEqual([
     "or",
-    "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+    "options->photoAudit->>state.is.null,options->photoAudit->>state.not.in.(placeholder,unavailable)",
   ]);
 });
 

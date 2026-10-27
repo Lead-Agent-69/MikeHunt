@@ -1,6 +1,12 @@
 "use client";
 
-import { type MouseEvent as ReactMouseEvent, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useRef,
+  useState,
+  memo,
+} from "react";
 import Link from "next/link";
 import {
   Bookmark,
@@ -22,14 +28,16 @@ import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { rememberMarketPosition } from "./MarketReturnPosition";
 import { bidStatusNote } from "@/lib/deals/price-observation";
+import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
 import {
   titleBadgeModel,
   TITLE_DAMAGE_LABELS,
 } from "@/lib/deals/title-badge-model";
 
-export function MarketListingCard(props: {
+export const MarketListingCard = memo(function MarketListingCard(props: {
   row: MarketListing;
   flipDesk: boolean;
+  onPhotosUnavailable?: (id: string) => void;
 }) {
   return (
     <ListingCard
@@ -37,14 +45,16 @@ export function MarketListingCard(props: {
       {...props}
     />
   );
-}
+});
 
 function ListingCard({
   row,
   flipDesk,
+  onPhotosUnavailable,
 }: {
   row: MarketListing;
   flipDesk: boolean;
+  onPhotosUnavailable?: (id: string) => void;
 }) {
   const gallery = useListingPhotos(row.images);
   const setPhoto = gallery.select;
@@ -67,6 +77,9 @@ function ListingCard({
     rememberPosition();
   };
   const photos = gallery.images;
+  useEffect(() => {
+    if (gallery.exhausted) onPhotosUnavailable?.(row.id);
+  }, [gallery.exhausted, onPhotosUnavailable, row.id]);
   const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),
@@ -104,19 +117,7 @@ function ListingCard({
     lane: undefined,
     trueNetProfit: row.profitEstimate,
   });
-  const seen = row.lastSeenAt ? Date.parse(row.lastSeenAt) : NaN;
-  const hours =
-    Number.isFinite(seen) && seen <= Date.now() + 300000
-      ? Math.max(0, Math.floor((Date.now() - seen) / 3600000))
-      : null;
-  const freshness =
-    hours == null
-      ? "Seen time not reported"
-      : hours < 1
-        ? "Seen within 1h"
-        : hours < 24
-          ? `Seen ${hours}h ago`
-          : `Seen ${Math.floor(hours / 24)}d ago`;
+  const freshness = listingFreshnessLabel(row);
   const price = row.price;
   const priceGapLabel =
     row.priceGap == null
@@ -134,6 +135,7 @@ function ListingCard({
         : row.profitEstimate < 0
           ? "Modeled loss after costs"
           : "Modeled break-even after costs";
+  if (onPhotosUnavailable && gallery.exhausted) return null;
   return (
     <article
       ref={cardRef}

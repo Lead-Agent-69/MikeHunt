@@ -456,7 +456,7 @@ export default function DealCheckPage() {
                         href={`/deal/${comp.id}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center justify-between p-3 rounded-lg border border-[var(--b2)] bg-[var(--s0)] hover:border-[var(--amber)] transition-colors group"
+                        className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 rounded-lg border border-[var(--b2)] bg-[var(--s0)] hover:border-[var(--amber)] transition-colors group"
                       >
                         <div className="flex flex-col">
                           <span className="text-sm font-bold text-[var(--t1)] group-hover:text-[var(--amber)] transition-colors">
@@ -467,13 +467,18 @@ export default function DealCheckPage() {
                               ? `${comp.mileage.toLocaleString()} mi`
                               : "Mileage unlisted"}
                           </span>
+                          <span className="text-xs text-[var(--t3)]">
+                            {String(
+                              comp.source || "Source not reported",
+                            ).replace(/_/g, " ")}
+                            {comp.location_state
+                              ? ` · ${comp.location_state}`
+                              : ""}
+                            {comp.last_seen_at
+                              ? ` · observed ${new Date(comp.last_seen_at).toLocaleDateString()}`
+                              : " · observation date unavailable"}
+                          </span>
                         </div>
-                        <p className="mt-3 text-xs text-[var(--t3)]">
-                          This sample is not matched for title, condition,
-                          mileage or location and does not establish a fair
-                          purchase price. These are asking prices, not verified
-                          sale outcomes.
-                        </p>
                         <Mono className="text-sm font-bold text-[var(--t2)]">
                           {money(comp.ask_price)}
                         </Mono>
@@ -481,10 +486,28 @@ export default function DealCheckPage() {
                     ))}
                   </div>
                   <p className="mt-3 text-xs text-[var(--t3)]">
-                    Title, damage, fees, and condition may differ. These
-                    listings cannot establish a fair purchase price or a buy
-                    recommendation.
+                    Same make and model, within one model year. Title, damage,
+                    mileage, fees and location may differ. Asking prices are not
+                    verified sale outcomes or a buy recommendation.
                   </p>
+                  <details className="mt-3 text-xs text-[var(--t3)]">
+                    <summary className="cursor-pointer py-2 font-semibold">
+                      How this reference was calculated
+                    </summary>
+                    <p className="mt-2">
+                      Median of {mc.sampleSize} eligible asking prices, reduced
+                      by a modeled 5% asking-to-selling adjustment. That
+                      adjustment is an assumption, not an observed sale.
+                    </p>
+                    <p className="mt-2">
+                      Excluded: {mc.excludedSelf || 0} self matches,{" "}
+                      {mc.excludedDuplicates || 0} duplicate observations,{" "}
+                      {mc.excludedCohort || 0} different models or years, and{" "}
+                      {mc.excludedStale || 0} stale or undated observations. Up
+                      to five examples are shown above; they are not the entire
+                      sample.
+                    </p>
+                  </details>
                 </div>
               )}
             </div>

@@ -42,12 +42,19 @@ export async function maintainListingPhotos(
     conflicts: 0,
     failed: 0,
   };
+  const now = Date.now();
   const { data, error } = await client
     .from("deals")
     .select("id,source,source_deal_id,images,options,updated_at")
     .eq("active", true)
     .eq("location_state", options.state)
-    .gte("last_seen_at", new Date(Date.now() - 72 * 3600_000).toISOString())
+    .gte("last_seen_at", new Date(now - 72 * 3600_000).toISOString())
+    .lte("last_seen_at", new Date(now).toISOString())
+    // Prioritize untested inventory; don't spend the free-tier write budget
+    // checking the same small state pool every hour (including uncertain probes).
+    .or(
+      `options->photoCheckAttempt->>checkedAt.is.null,options->photoCheckAttempt->>checkedAt.lt.${new Date(now - 24 * 3600_000).toISOString()}`,
+    )
     .not("images", "is", null)
     .neq("images", "{}")
     .order("options->photoCheckAttempt->>checkedAt", {

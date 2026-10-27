@@ -122,9 +122,16 @@
       Check your connection and try again. This connection problem does not
       change your account or saved lists.
     </p>
-    <button class="retry" onclick="window.location.reload()">Try Again</button>
+    <button class="retry" onclick="retryConnection()">Try Again</button>
     <div class="status" id="status" role="status">Checking connection...</div>
     <script>
+      function retryConnection() {
+        if (window.location.pathname === "/offline.html") {
+          window.location.assign("/market");
+        } else {
+          window.location.reload();
+        }
+      }
       function updateStatus() {
         const el = document.getElementById("status");
         const title = document.getElementById("title");

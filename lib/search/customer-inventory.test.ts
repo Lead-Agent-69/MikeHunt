@@ -84,6 +84,12 @@ describe("customer inventory eligibility", () => {
     ).toBe(false);
     expect(
       isCustomerInventory(
+        { ...row, options: { photoAudit: { state: "placeholder" } } },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isCustomerInventory(
         { ...row, options: { photoAudit: { state: "available" } } },
         now,
       ),
@@ -126,7 +132,7 @@ describe("customer inventory eligibility", () => {
     expect(query.not).toHaveBeenCalledWith("images", "is", null);
     expect(query.neq).toHaveBeenCalledWith("images", "{}");
     expect(query.or).toHaveBeenCalledWith(
-      "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+      "options->photoAudit->>state.is.null,options->photoAudit->>state.not.in.(placeholder,unavailable)",
     );
     expect(query.gte).toHaveBeenCalledWith(
       "last_seen_at",

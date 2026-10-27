@@ -9,6 +9,14 @@ const NOW = Date.parse("2026-10-09T23:55:00Z");
 const h = (n: number) => new Date(NOW - n * 3_600_000).toISOString();
 
 describe("listingFreshnessLabel", () => {
+  it("does not label future or reversed observations as fresh inventory", () => {
+    expect(
+      listingFreshnessLabel({ firstSeenAt: h(-3), lastSeenAt: h(-1) }, NOW),
+    ).toBe("Freshness unknown");
+    expect(
+      listingFreshnessLabel({ firstSeenAt: h(1), lastSeenAt: h(2) }, NOW),
+    ).toBe("Checked 2h ago");
+  });
   it("does not call a week-old listing that was just re-checked 'just now'", () => {
     // Shape of the MO prod rows: first seen Oct 2, last_seen bumped by this cycle's scrape.
     const label = listingFreshnessLabel(

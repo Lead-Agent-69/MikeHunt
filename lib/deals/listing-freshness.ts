@@ -40,8 +40,16 @@ export function listingFreshnessLabel(
   input: ListingSeenInput,
   now: number = Date.now(),
 ): string {
-  const first = toMs(input.firstSeenAt);
-  const last = toMs(input.lastSeenAt);
+  const reportedFirst = toMs(input.firstSeenAt);
+  const reportedLast = toMs(input.lastSeenAt);
+  const last =
+    reportedLast != null && reportedLast <= now ? reportedLast : null;
+  const first =
+    reportedFirst != null &&
+    reportedFirst <= now &&
+    (last == null || reportedFirst <= last)
+      ? reportedFirst
+      : null;
   if (first == null && last == null) return "Freshness unknown";
   if (first == null) return `Checked ${ago(last as number, now)}`;
   const listed = `First seen ${ago(first, now)}`;

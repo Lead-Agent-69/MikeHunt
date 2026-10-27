@@ -263,8 +263,7 @@ function StageTracker({
         <button
           onClick={onAdvance}
           disabled={advancing}
-          className="w-full text-xs font-bold py-2 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 border-none text-[var(--coral)] disabled:opacity-50"
-          style={{ background: "var(--clo)" }}
+          className="min-h-11 w-full text-xs font-bold py-2 rounded-xl transition-colors duration-200 flex items-center justify-center gap-2 border-none bg-[var(--accent)] text-[var(--on-accent)] disabled:opacity-50"
         >
           {advancing ? (
             <>
@@ -1283,74 +1282,89 @@ function FleetWorkspace({
     <div className="space-y-5 pb-24">
       <FleetPageHeader count={!loading && !error ? fleet.length : 0} />
 
-      {/* Deep KPI rollup — margin, days-to-sell, recon, live ghost cost, bottleneck (the flip loop) */}
-      {!loading && !error && fleet.length > 0 && <FleetKPIs fleet={fleet} />}
-
-      {/* Capital velocity: days-in-stage, capital deployed, floor-plan burn (uses /api/inventory + /api/outcomes) */}
       {!loading && !error && fleet.length > 0 && (
-        <CapitalVelocityTracker inventory={fleet} />
-      )}
+        <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[var(--t1)]">
+            Costs and performance · {fleet.length}{" "}
+            {fleet.length === 1 ? "vehicle" : "vehicles"} · $
+            {stats.totalInvested.toLocaleString()} recorded costs
+          </summary>
+          <div className="mt-4 space-y-5">
+            {/* Deep KPI rollup — margin, days-to-sell, recon, live ghost cost, bottleneck (the flip loop) */}
+            {!loading && !error && fleet.length > 0 && (
+              <FleetKPIs fleet={fleet} />
+            )}
 
-      {/* Stats row */}
-      {!loading && !error && fleet.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {[
-            {
-              label: "Total Units",
-              value: stats.total,
-              color: "var(--t1)",
-              fmt: "num",
-            },
-            {
-              label: "In Recon",
-              value: stats.recon,
-              color: "var(--blue)",
-              fmt: "num",
-            },
-            {
-              label: "Listed / Offer",
-              value: stats.listed,
-              color: "var(--amber)",
-              fmt: "num",
-            },
-            {
-              label: "Recorded costs",
-              value: stats.totalInvested,
-              color: "var(--t1)",
-              fmt: "money",
-              detail: "Excludes unrecorded expenses",
-            },
-            {
-              label: "Reference spread",
-              value: stats.referenceSpread,
-              color: "var(--t1)",
-              fmt: "money",
-              detail: `${stats.referenceCount} of ${stats.activeCount} active units · before unrecorded costs`,
-            },
-          ].map((s) => (
-            <Panel key={s.label} padding="sm" className="text-center">
-              <p
-                className="text-[10px] uppercase font-semibold mb-1"
-                style={{ color: "var(--t5)", letterSpacing: "0.07em" }}
-              >
-                {s.label}
-              </p>
-              <Mono
-                className="text-lg font-black"
-                style={{ color: s.color } as React.CSSProperties}
-              >
-                {s.value === null
-                  ? "—"
-                  : s.fmt === "money"
-                    ? `${s.value < 0 ? "-" : ""}$${Math.abs(s.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : s.value}
-              </Mono>
-              {s.detail && (
-                <p className="mt-1 text-[10px] text-[var(--t4)]">{s.detail}</p>
-              )}
-            </Panel>
-          ))}
-        </div>
+            {/* Capital velocity: days-in-stage, capital deployed, floor-plan burn (uses /api/inventory + /api/outcomes) */}
+            {!loading && !error && fleet.length > 0 && (
+              <CapitalVelocityTracker inventory={fleet} />
+            )}
+
+            {/* Stats row */}
+            {!loading && !error && fleet.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {[
+                  {
+                    label: "Total Units",
+                    value: stats.total,
+                    color: "var(--t1)",
+                    fmt: "num",
+                  },
+                  {
+                    label: "In Recon",
+                    value: stats.recon,
+                    color: "var(--blue)",
+                    fmt: "num",
+                  },
+                  {
+                    label: "Listed / Offer",
+                    value: stats.listed,
+                    color: "var(--amber)",
+                    fmt: "num",
+                  },
+                  {
+                    label: "Recorded costs",
+                    value: stats.totalInvested,
+                    color: "var(--t1)",
+                    fmt: "money",
+                    detail: "Excludes unrecorded expenses",
+                  },
+                  {
+                    label: "Reference spread",
+                    value: stats.referenceSpread,
+                    color: "var(--t1)",
+                    fmt: "money",
+                    detail: `${stats.referenceCount} of ${stats.activeCount} active units · before unrecorded costs`,
+                  },
+                ].map((s) => (
+                  <Panel key={s.label} padding="sm" className="text-center">
+                    <p
+                      className="text-[10px] uppercase font-semibold mb-1"
+                      style={{ color: "var(--t5)", letterSpacing: "0.07em" }}
+                    >
+                      {s.label}
+                    </p>
+                    <Mono
+                      className="text-lg font-black"
+                      style={{ color: s.color } as React.CSSProperties}
+                    >
+                      {s.value === null
+                        ? "—"
+                        : s.fmt === "money"
+                          ? `${s.value < 0 ? "-" : ""}$${Math.abs(s.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : s.value}
+                    </Mono>
+                    {s.detail && (
+                      <p className="mt-1 text-[10px] text-[var(--t4)]">
+                        {s.detail}
+                      </p>
+                    )}
+                  </Panel>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
       )}
 
       {/* Filter tabs */}

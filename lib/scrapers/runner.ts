@@ -325,8 +325,8 @@ export function createScraperRegistry(
     estimatedDealsPerRun: 0,
   });
 
-  // eBay SOLD — real completed-sale prices (not asking) into sold_listings. Honest transaction data
-  // for the budget/salvage segment. Fetched via system curl (passes eBay's sold-page bot wall).
+  // Source-reported completed listings; hidden offers and ambiguous amounts are excluded.
+  // The polite transport reports access barriers without attempting to bypass them.
   registry.register({
     id: "ebay_sold",
     name: "eBay Sold (real prices)",

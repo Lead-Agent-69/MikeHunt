@@ -22,8 +22,9 @@ describe("buyer card stamps", () => {
     expect(copy).toContain("Market value not on file.");
     expect(discovery).not.toContain("Worth a look");
     expect(discovery).not.toContain("Act now");
-    expect(discovery).toContain("Ask-based estimate");
-    expect(discovery).toContain("Comp-backed resale");
+    expect(discovery).toContain("discoveryValuation(deal)");
+    expect(discovery).toContain("valuation.supported");
+    expect(discovery).not.toContain("Comp-backed resale");
     expect(swipe).not.toContain('label: "BUY"');
     expect(swipe).not.toContain("Est. net profit");
     expect(swipe).not.toContain("sortBy=profitScore");
