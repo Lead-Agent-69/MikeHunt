@@ -1,0 +1,132 @@
+.surface {
+  --map-panel: #12161e;
+  --map-photo: #090c12;
+  --map-text: #f3f5fa;
+  --map-muted: #b6c0cf;
+  --map-link: #9cc4ff;
+  --map-line: #384454;
+  color-scheme: dark;
+  background: #101216;
+}
+
+/* Style only the basemap. Inverting the map container would also alter car photos,
+   warning badges and controls. Keep the existing provider and attribution intact. */
+.surface :global(.leaflet-tile-pane) {
+  filter: grayscale(1) invert(1) contrast(0.88) brightness(0.95);
+}
+
+.surface :global(.leaflet-container) {
+  background: #101216;
+  font-family: inherit;
+}
+
+.surface :global(.leaflet-bar),
+.surface :global(.leaflet-popup-content-wrapper) {
+  border: 1px solid var(--map-line);
+  background: var(--map-panel);
+  color: var(--map-text);
+  box-shadow: 0 8px 28px #0008;
+}
+
+.surface :global(.leaflet-bar) {
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.surface :global(.leaflet-bar a) {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  border-color: var(--map-line);
+  background: var(--map-panel);
+  color: var(--map-text);
+}
+
+.surface :global(.leaflet-bar a:hover),
+.surface :global(.leaflet-bar a:focus-visible) {
+  background: #243146;
+}
+
+.surface :global(.leaflet-bar a.leaflet-disabled) {
+  background: var(--map-panel);
+  color: #8794a7;
+}
+
+.surface :global(.leaflet-popup-content-wrapper) {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 14px;
+}
+
+.surface :global(.leaflet-popup-content) {
+  margin: 0;
+}
+
+.surface :global(.leaflet-popup-scrolled) {
+  border: 0;
+  scrollbar-color: #67758b var(--map-panel);
+}
+
+.surface :global(.leaflet-popup-tip) {
+  background: var(--map-panel);
+}
+
+.surface :global(.leaflet-container a.leaflet-popup-close-button) {
+  top: 6px;
+  right: 6px;
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  border: 1px solid var(--map-line);
+  border-radius: 10px;
+  background: #12161ef2;
+  color: var(--map-text);
+  font-size: 24px;
+}
+
+.surface :global(.leaflet-control-attribution) {
+  padding: 3px 7px;
+  background: #11161ef2;
+  color: #d4dce8;
+  font-size: 11px;
+}
+
+.surface :global(.leaflet-control-attribution a) {
+  color: var(--map-link);
+  text-decoration: underline;
+}
+
+.surface :global(.marker-cluster) {
+  background: #b9c8e829;
+  box-shadow:
+    0 0 0 1px #b6c5df7a,
+    0 3px 12px #0008;
+}
+
+.surface :global(.marker-cluster div) {
+  background: #171f2c;
+  color: #f4f7fc;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface :global(.marker-cluster:hover),
+.surface :global(.marker-cluster:focus-visible) {
+  background: #4385ed73;
+}
+
+.surface :global(.leaflet-marker-icon:focus-visible),
+.surface :global(.leaflet-bar a:focus-visible),
+.surface :global(.leaflet-popup a:focus-visible) {
+  outline: 3px solid #a4c9ff;
+  outline-offset: 3px;
+}
+
+@media (forced-colors: active) {
+  .surface :global(.leaflet-bar a),
+  .surface :global(.leaflet-popup-close-button) {
+    background: Canvas;
+    color: CanvasText;
+    border-color: CanvasText;
+  }
+}

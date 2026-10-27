@@ -9,6 +9,7 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
 import "leaflet.markercluster";
+import styles from "./DealerMap.module.css";
 
 // Fix Leaflet's default icon paths in Next.js
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -124,7 +125,7 @@ function pillIcon(p: MapPoint): L.DivIcon {
         : "•");
   return new L.DivIcon({
     className: "deal-pin",
-    html: `<div style="background:${color};color:#fff;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.45)">${esc(text)}</div>`,
+    html: `<div style="background:#141c28;color:#f3f6fb;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid ${color};box-shadow:0 2px 8px rgba(0,0,0,.6)">${esc(text)}</div>`,
     iconSize: [1, 1],
     iconAnchor: [0, 0],
   });
@@ -150,15 +151,15 @@ function cardPopup(p: MapPoint): string {
   return `<div style="width:208px;font-family:system-ui">
     ${img}
     <div style="padding:8px 10px">
-      <div style="font-weight:800;font-size:15px;color:#111">${price}</div>
-      <div style="font-weight:600;font-size:12px;color:#555;margin-top:2px">${esc(p.name)}</div>
+      <div style="font-weight:800;font-size:15px;color:var(--map-text,#111)">${price}</div>
+      <div style="font-weight:600;font-size:12px;color:var(--map-muted,#555);margin-top:2px">${esc(p.name)}</div>
       ${pinTitleBadge(p)}
-      ${p.label ? `<div style="font-size:12px;color:#555;margin-top:4px">${esc(p.label)}</div>` : ""}
-      ${p.approx ? '<div style="font-size:12px;color:#555;margin-top:4px">Approximate state-level location. Verify the seller address.</div>' : ""}
-      ${meta ? `<div style="font-size:11px;color:#777;margin-top:2px">${meta}</div>` : ""}
+      ${p.label ? `<div style="font-size:12px;color:var(--map-muted,#555);margin-top:4px">${esc(p.label)}</div>` : ""}
+      ${p.approx ? '<div style="font-size:12px;color:var(--map-muted,#555);margin-top:4px">Approximate state-level location. Verify the seller address.</div>' : ""}
+      ${meta ? `<div style="font-size:11px;color:var(--map-muted,#777);margin-top:2px">${meta}</div>` : ""}
       ${
         p.owner
-          ? `<div style="font-size:11px;color:#555;margin-top:3px">👤 ${esc(p.owner)}${
+          ? `<div style="font-size:11px;color:var(--map-muted,#555);margin-top:3px">👤 ${esc(p.owner)}${
               (p.ownerCount ?? 0) >= 5
                 ? ` · 🏢 ${p.ownerCount!.toLocaleString()}`
                 : ""
@@ -172,7 +173,7 @@ function cardPopup(p: MapPoint): string {
             }${p.score != null && p.verdict ? " · " : ""}${esc(p.verdict || "")}</div>`
           : ""
       }
-      ${p.url ? `<a href="${esc(p.url)}" style="display:flex;align-items:center;min-height:48px;margin-top:7px;font-weight:700;font-size:14px;color:#0d9488;text-decoration:none">View details →</a>` : ""}
+      ${p.url ? `<a href="${esc(p.url)}" style="display:flex;align-items:center;min-height:48px;margin-top:7px;font-weight:700;font-size:14px;color:var(--map-link,#0d9488);text-decoration:none">View details →</a>` : ""}
     </div>
   </div>`;
 }
@@ -200,6 +201,16 @@ function ClusteredMarkers({
     });
     const markers: L.Marker[] = [];
     const photoDisposers: (() => void)[] = [];
+    let openMarker: L.Marker | null = null;
+    // Reserve the full two-button zoom rail, including on a short phone viewport.
+    const popupMaxHeight = () => Math.max(100, map.getSize().y - 160);
+    const resizePreview = () => {
+      const popup = openMarker?.getPopup();
+      if (!popup) return;
+      popup.options.maxHeight = popupMaxHeight();
+      popup.update();
+    };
+    map.on("resize", resizePreview);
     for (const p of points) {
       const rich =
         (p.price != null && p.price > 0) || p.image || p.score != null;
@@ -214,7 +225,13 @@ function ClusteredMarkers({
             ? cardPopup(p)
             : vehiclePopup(p)
           : `<div style="padding:2px"><strong>${esc(p.name)}</strong>${p.label ? `<br/><span style="font-size:11px;color:#888">${esc(p.label)}</span>` : ""}${pinTitleBadge(p)}</div>`,
-        rich ? { minWidth: 208, maxWidth: 240 } : undefined,
+        {
+          ...(rich ? { minWidth: 208, maxWidth: 240 } : {}),
+          maxHeight: popupMaxHeight(),
+          autoPanPaddingTopLeft: [12, 112],
+          autoPanPaddingBottomRight: [12, 16],
+          keepInView: true,
+        },
       );
       // bindPopup toggles on click/Enter, which closes an already-open hover/focus preview.
       // This newly-created marker has no other click/keypress listeners to preserve yet.
@@ -235,11 +252,15 @@ function ClusteredMarkers({
       const clearPhoto = () => disposePhoto();
       photoDisposers.push(clearPhoto);
       marker.on("popupopen", () => {
+        openMarker = marker;
         clearPhoto();
         const root = marker.getPopup()?.getElement();
         if (root) disposePhoto = watchVehiclePopupPhoto(root);
       });
-      marker.on("popupclose", clearPhoto);
+      marker.on("popupclose", () => {
+        if (openMarker === marker) openMarker = null;
+        clearPhoto();
+      });
       marker.on("keypress", (event) => {
         if ((event.originalEvent as KeyboardEvent).key === "Enter") activate();
       });
@@ -260,6 +281,7 @@ function ClusteredMarkers({
         { padding: [32, 32], maxZoom: 9, animate: false },
       );
     return () => {
+      map.off("resize", resizePreview);
       photoDisposers.forEach((dispose) => dispose());
       group.clearLayers();
       map.removeLayer(group);
@@ -298,7 +320,7 @@ export default function DealerMap({
 
   return (
     <div
-      className={`w-full h-full ${compact ? "min-h-0" : "min-h-[400px] md:min-h-[500px]"} rounded-[var(--r4)] overflow-hidden border border-[var(--b1)] shadow-inner z-0 relative`}
+      className={`${styles.surface} w-full h-full ${compact ? "min-h-0" : "min-h-[400px] md:min-h-[500px]"} rounded-[var(--r4)] overflow-hidden border border-[var(--b1)] shadow-inner z-0 relative`}
     >
       <MapContainer
         key={mapKey}

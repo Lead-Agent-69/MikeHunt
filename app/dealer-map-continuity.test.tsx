@@ -4,7 +4,14 @@ import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  map: { addLayer: vi.fn(), removeLayer: vi.fn(), fitBounds: vi.fn() },
+  map: {
+    addLayer: vi.fn(),
+    removeLayer: vi.fn(),
+    fitBounds: vi.fn(),
+    getSize: () => ({ x: 390, y: 500 }),
+    on: vi.fn(),
+    off: vi.fn(),
+  },
   marker: vi.fn(),
   clusterOptions: [] as Array<Record<string, unknown>>,
   clusterAdds: [] as Array<unknown[]>,
@@ -13,7 +20,7 @@ const state = vi.hoisted(() => ({
     open: boolean;
     handlers: Map<string, (event?: any) => void>;
     element: HTMLElement;
-    options: { autoPan: boolean };
+    options: { autoPan: boolean; maxHeight?: number };
     updates: number;
   }>,
 }));
@@ -47,7 +54,8 @@ vi.mock("leaflet", () => ({
       };
       state.previews.push(preview);
       const marker = {
-        bindPopup: vi.fn(() => {
+        bindPopup: vi.fn((_html: string, options: Record<string, unknown>) => {
+          Object.assign(preview.options, options);
           preview.handlers.set("click", () => {
             preview.open = !preview.open;
           });
@@ -69,6 +77,7 @@ vi.mock("leaflet", () => ({
         getElement: () => preview.element,
         isPopupOpen: () => preview.open,
         getPopup: () => ({
+          getElement: () => preview.element,
           options: preview.options,
           update: () => {
             preview.updates++;
@@ -155,6 +164,25 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
       ),
     );
     const preview = state.previews.at(-1)!;
+    expect(preview.options).toMatchObject({
+      autoPanPaddingTopLeft: [12, 112],
+      autoPanPaddingBottomRight: [12, 16],
+      keepInView: true,
+      maxHeight: 340,
+    });
+    preview.handlers.get("popupopen")!();
+    const resize = state.map.on.mock.calls.at(-1)![1] as () => void;
+    const beforeResize = preview.updates;
+    const size = vi
+      .spyOn(state.map, "getSize")
+      .mockReturnValue({ x: 320, y: 400 });
+    try {
+      resize();
+      expect(preview.options.maxHeight).toBe(240);
+    } finally {
+      size.mockRestore();
+    }
+    expect(preview.updates).toBe(beforeResize + 1);
     preview.handlers.get("add")!();
     preview.element.dispatchEvent(new Event("focus"));
     expect(preview.open).toBe(true);
@@ -173,6 +201,10 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
     expect(preview.updates).toBe(beforeClick + 1);
     expect(preview.open).toBe(true);
     expect(selected).toHaveBeenLastCalledWith("car");
+    preview.handlers.get("popupclose")!();
+    const afterClose = preview.updates;
+    resize();
+    expect(preview.updates).toBe(afterClose);
   } finally {
     await act(async () => root.unmount());
   }
