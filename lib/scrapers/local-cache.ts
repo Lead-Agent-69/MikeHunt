@@ -31,6 +31,7 @@ interface CacheFile {
   entries: Record<string, CachedListing>;
   quota: { day: string; inserts: number; updates: number; touches?: number };
   photoMaintenance?: { nextAt: number; stateIndex: number };
+  pendingRecovery?: { nextAt: number };
 }
 
 export interface LocalCacheOptions {
@@ -476,6 +477,24 @@ export class LocalScraperCache {
       const quota = this.getQuota();
       this.onQuota?.(quota, writeCapacity(quota).paused);
       return count;
+    });
+  }
+
+  pendingRecoveryDue(now = Date.now()) {
+    return (
+      !this.cacheOnly &&
+      writeCapacity(this.getQuota()).insertsRemaining > 0 &&
+      now >= (this.state.pendingRecovery?.nextAt || 0)
+    );
+  }
+
+  /** Idle intake is hourly across restarts; a cached observation is never a refresh. */
+  async claimPendingRecovery() {
+    return this.exclusive(async () => {
+      if (!this.pendingRecoveryDue()) return false;
+      this.state.pendingRecovery = { nextAt: Date.now() + 60 * 60_000 };
+      await this.save();
+      return true;
     });
   }
 

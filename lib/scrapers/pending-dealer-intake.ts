@@ -84,9 +84,12 @@ export function pendingDealerIntake(
       ["typo", "implausible"].includes(row.deal_analysis?.priceSanity)
     )
       continue;
-    const group = groups.get(host) || [];
+    // The caller orders buyer markets before surrounding states. Preserve that
+    // priority instead of letting an alphabetically early neighbour consume intake.
+    const groupKey = `${row.location_state}|${host}`;
+    const group = groups.get(groupKey) || [];
     group.push(row);
-    groups.set(host, group);
+    groups.set(groupKey, group);
   }
   // Give small local dealers a slot before a large site's retained inventory fills the batch.
   for (const rows of Array.from(groups.values()))
@@ -95,8 +98,13 @@ export function pendingDealerIntake(
         Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at) ||
         String(a.source_deal_id).localeCompare(String(b.source_deal_id)),
     );
+  const stateOrder = Array.from(wanted);
   const queues = Array.from(groups)
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(
+      ([a], [b]) =>
+        stateOrder.indexOf(a.split("|")[0]) -
+          stateOrder.indexOf(b.split("|")[0]) || a.localeCompare(b),
+    )
     .map(([, rows]) => rows);
   const selected: Record<string, any>[] = [];
   for (let offset = 0; selected.length < cap; offset++) {

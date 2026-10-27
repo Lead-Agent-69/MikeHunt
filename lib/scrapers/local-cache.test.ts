@@ -289,6 +289,26 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("persists hourly pending-intake claims before work, including after restart or failure", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-27T10:00:00Z"));
+    const { cache, dir } = await makeCache();
+    expect(cache.pendingRecoveryDue()).toBe(true);
+    expect(await cache.claimPendingRecovery()).toBe(true);
+    expect(await cache.claimPendingRecovery()).toBe(false);
+    const restarted = new LocalScraperCache({ path: dir });
+    await restarted.load();
+    expect(restarted.pendingRecoveryDue()).toBe(false);
+    vi.setSystemTime(new Date("2026-10-27T11:00:00Z"));
+    expect(await restarted.claimPendingRecovery()).toBe(true);
+  });
+  it("does not claim idle intake in cache-only mode or after exhausting insert capacity", async () => {
+    const offline = await makeCache({ cacheOnly: true });
+    expect(await offline.cache.claimPendingRecovery()).toBe(false);
+    const { cache } = await makeCache({ maxDailyInserts: 1 });
+    await cache.persistRows([row("fills-budget")], fakeSupabase().client, "*");
+    expect(await cache.claimPendingRecovery()).toBe(false);
+  });
   const pendingDealer = (id: string) => ({
     ...row(id),
     source: "independent_dealer",
