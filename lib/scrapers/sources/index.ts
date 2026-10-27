@@ -14,6 +14,8 @@ import {
   type ScraperConfig,
 } from "../engine";
 import { upsertDeals } from "../pipeline";
+import { sourceExecutionSignal } from "../source-execution";
+import type { ScraperArgs } from "../tools/registry";
 import {
   dealerDetailMileage,
   dealerDetailPriceEvidence,
@@ -157,11 +159,16 @@ export function craigslistGalleryImages(
 
 export async function enrichCraigslistDetail(
   url: string,
+  signal?: AbortSignal,
 ): Promise<Partial<Deal>> {
   try {
     // SSRF: never axios.get(url) directly — same public-URL gate as save-from-url /
     // image-proxy. fetchPublicHtml asserts each hop + pins sockets to public IPs.
-    const fetched = await fetchPublicHtml(url);
+    signal?.throwIfAborted();
+    const fetched = await (signal
+      ? fetchPublicHtml(url, { signal })
+      : fetchPublicHtml(url));
+    signal?.throwIfAborted();
     if (!fetched) return {};
     const cheerio = await import("cheerio");
     const $ = cheerio.load(fetched.html);
@@ -232,14 +239,23 @@ export async function enrichCraigslistDetail(
 
     return out;
   } catch (error) {
+    signal?.throwIfAborted();
     if (error instanceof UrlNotAllowedError) throw error;
     return {};
   }
 }
 
-async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
-  if (process.env.CL_ENRICH === "false") return;
-  const max = parseInt(process.env.CL_ENRICH_MAX || "60");
+async function enrichDeals(
+  deals: Partial<Deal>[],
+  maxOverride?: number,
+  signal?: AbortSignal,
+): Promise<number> {
+  signal?.throwIfAborted();
+  if (process.env.CL_ENRICH === "false") return 0;
+  const max =
+    maxOverride ??
+    Math.max(0, parseInt(process.env.CL_ENRICH_MAX || "60") || 0);
+  if (!max) return 0;
   const concurrency = parseInt(process.env.CL_ENRICH_CONCURRENCY || "4");
   // Enrich listings that still lack a VIN, highest deal-potential first, up to the cap — so the
   // bounded detail-fetch budget lands on the likely-GO deals (auto-tuned, not first-come). The
@@ -261,14 +277,18 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
         enrichPriority(b, profitableMakes) - enrichPriority(a, profitableMakes),
     )
     .slice(0, max);
-  if (!targets.length) return;
+  if (!targets.length) return 0;
   const limit = pLimit(concurrency);
   let enriched = 0;
   await Promise.all(
     targets.map((d) =>
       limit(async () => {
         try {
-          const extra = await enrichCraigslistDetail(d.source_url as string);
+          signal?.throwIfAborted();
+          const extra = await enrichCraigslistDetail(
+            d.source_url as string,
+            signal,
+          );
           if (Object.keys(extra).length) {
             Object.assign(d, extra, {
               metadata: { ...d.metadata, ...extra.metadata },
@@ -277,6 +297,7 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
             enriched++;
           }
         } catch (error) {
+          signal?.throwIfAborted();
           if (!(error instanceof UrlNotAllowedError)) throw error;
         }
       }),
@@ -285,6 +306,7 @@ async function enrichDeals(deals: Partial<Deal>[]): Promise<void> {
   console.log(
     `[Craigslist] Enriched ${enriched}/${targets.length} detail pages (VIN/mileage/title)`,
   );
+  return targets.length;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -473,7 +495,10 @@ export async function scrapeCraigslist(
   query = process.env.CL_QUERY || "",
   minPrice = 500,
   maxPrice = 35000,
+  execution?: ScraperArgs,
 ) {
+  const signal = sourceExecutionSignal(execution);
+  signal?.throwIfAborted();
   const plan = getSweepPlan();
   const scope = getScrapeRunScope();
   const cities = craigslistSitesForRun(plan);
@@ -489,14 +514,21 @@ export async function scrapeCraigslist(
         ...CL_CONFIG,
         maxPages: Math.max(1, parseInt(process.env.CL_SWEEP_PAGES || "2") || 2),
       }
-    : CL_CONFIG;
+    : { ...CL_CONFIG };
+  config.abortSignal = signal;
   console.log(
     `[Craigslist] Scanning ${cities.length} cities × ${channels.length} channels...`,
   );
-  const allDeals: Partial<Deal>[] = [];
+  let totalSaved = 0;
+  let enrichmentRemaining = Math.max(
+    0,
+    parseInt(process.env.CL_ENRICH_MAX || "60") || 0,
+  );
+  const seen = new Set<string>();
 
   for (const city of cities) {
     for (const channel of channels) {
+      signal?.throwIfAborted();
       const gen = paginate<Partial<Deal>>(
         config,
         (page) =>
@@ -511,14 +543,28 @@ export async function scrapeCraigslist(
         ($raw) => parseCraigslistResults($raw, city, channel),
       );
 
-      for await (const batch of gen) allDeals.push(...batch);
+      for await (const batch of gen) {
+        signal?.throwIfAborted();
+        const fresh = batch.filter((row) => {
+          const key = `${row.source}:${row.source_deal_id || row.source_url}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        if (!fresh.length) continue;
+        enrichmentRemaining -= await enrichDeals(
+          fresh,
+          enrichmentRemaining,
+          signal,
+        );
+        signal?.throwIfAborted();
+        totalSaved += await upsertDeals(fresh);
+      }
     }
   }
 
-  console.log(`[Craigslist] Found ${allDeals.length} deals`);
-  // Pull VIN / true mileage / title status from detail pages (bounded, $0).
-  await enrichDeals(allDeals);
-  return await upsertDeals(allDeals);
+  console.log(`[Craigslist] Persisted ${totalSaved} deals`);
+  return totalSaved;
 }
 
 // ════════════════════════════════════════════════════════════

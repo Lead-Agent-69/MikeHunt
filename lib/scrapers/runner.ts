@@ -45,7 +45,11 @@ import {
   type OrchestratorOptions,
 } from "./orchestrators";
 export type OrchestratorType =
-  "sequential" | "concurrent" | "priority" | "queue" | "realtime";
+  | "sequential"
+  | "concurrent"
+  | "priority"
+  | "queue"
+  | "realtime";
 
 export interface RunScraperOptions {
   orchestrator?: OrchestratorType;
@@ -97,7 +101,8 @@ export function createScraperRegistry(
     frequencyMinutes: 30,
     requiresAuth: false,
     stealthRequired: false,
-    fn: () => scrapeCraigslist(),
+    fn: (execution) =>
+      scrapeCraigslist(undefined, undefined, undefined, execution),
     enabled: true,
     estimatedDealsPerRun: 500,
   });
@@ -175,7 +180,7 @@ export function createScraperRegistry(
     frequencyMinutes: 240,
     requiresAuth: false,
     stealthRequired: false,
-    fn: () => scrapeEbayMotors(),
+    fn: (execution) => scrapeEbayMotors(undefined, execution),
     enabled: true,
     estimatedDealsPerRun: 300,
   });
