@@ -6,6 +6,10 @@
 // pipeline's normalizeDeal re-derives make/model from the title and gates unknown makes.
 
 import type { Deal } from "@/types";
+import {
+  disclosedPriceEvidence,
+  type PriceEvidence,
+} from "@/lib/deals/acquisition-price";
 import { retailTitleCondition } from "./retail-evidence";
 import * as cheerio from "cheerio";
 import {
@@ -15,6 +19,10 @@ import {
   type ScraperConfig,
 } from "../engine";
 import { upsertDeals } from "../pipeline";
+import { sourceExecutionSignal } from "../source-execution";
+import type { ScraperArgs } from "../tools/registry";
+import { getScrapeRunScope } from "../run-scope-context";
+import { buyerListingSearchText } from "../buyer-scope";
 
 export const EBAY_MOTORS_CONFIG: ScraperConfig = {
   name: "eBay Motors",
@@ -68,17 +76,32 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
     if (!ym) return;
     const year = parseInt(ym[0], 10);
 
-    const price = extractPrice(
-      row.find(".s-card__price").first().text().trim(),
-    );
+    const priceText = row.find(".s-card__price").first().text().trim();
+    // A range, foreign currency or monthly amount is not one full purchase price.
+    if (!/^(?:US\s*)?\$\s*\d[\d,]*(?:\.\d{2})?$/.test(priceText)) return;
+    const price = extractPrice(priceText);
     if (!price || price < 1000 || price > 300000) return; // filters parts/accessories
 
     const link =
       row.find("a.s-card__link").attr("href") ||
       row.find('a[href*="/itm/"]').first().attr("href") ||
       "";
-    const itemId = link.match(/\/itm\/(\d+)/)?.[1] || "";
+    let listingUrl: URL;
+    try {
+      listingUrl = new URL(link, "https://www.ebay.com");
+      if (
+        listingUrl.protocol !== "https:" ||
+        !/^(?:www\.)?ebay\.com$/.test(listingUrl.hostname)
+      )
+        return;
+    } catch {
+      return;
+    }
+    const itemId =
+      listingUrl.pathname.match(/\/itm\/(?:[^/]+\/)?(\d+)(?:\/|$)/)?.[1] || "";
     if (!itemId) return;
+    listingUrl.search = "";
+    listingUrl.hash = "";
 
     const subtitle = row
       .find(".s-card__subtitle, .su-card-container__attributes")
@@ -98,22 +121,38 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
     const model = after.slice(1, 3).join(" ");
     const statedCondition = retailTitleCondition(title);
 
+    const text = row.text();
+    const disclosed = disclosedPriceEvidence(text, price);
+    const bidding = /\b\d+\s+bids?\b|\b(?:current|starting)\s+bid\b/i.test(
+      text,
+    );
+    const buyNow = /\bbuy\s+it\s+now\b/i.test(text);
+    const evidence: PriceEvidence =
+      disclosed ||
+      (bidding
+        ? { kind: "current_bid", currentBid: price, listedAmount: price }
+        : buyNow
+          ? { kind: "buy_now", buyNow: price, listedAmount: price }
+          : { kind: "unknown", listedAmount: price });
     items.push({
       source: "ebay_motors",
       source_deal_id: itemId,
-      source_url: link.startsWith("http")
-        ? link.split("?")[0]
-        : `https://www.ebay.com${link}`,
+      source_url: listingUrl.toString(),
       title,
       year,
       make,
       model,
-      ask_price: price,
+      ask_price: ["asking", "buy_now", "unknown"].includes(evidence.kind)
+        ? (evidence.askingPrice ?? evidence.buyNow ?? price)
+        : 0,
+      ...(evidence.buyNow ? { buy_now_price: evidence.buyNow } : {}),
+      options: {
+        priceEvidence: { ...evidence, checkedAt: new Date().toISOString() },
+      },
       mileage: extractMileage(subtitle),
       condition: statedCondition,
       ...(statedCondition ? { title_source: "listing" as const } : {}),
       images: img ? [img] : [],
-      seller_type: "dealer",
       scraped_at: new Date().toISOString(),
     });
   });
@@ -123,12 +162,23 @@ export function parseEbayHtml(html: string): Partial<Deal>[] {
 
 export async function scrapeEbayMotors(
   maxPagesPerSearch = EBAY_MOTORS_CONFIG.maxPages,
+  execution?: ScraperArgs,
 ) {
   console.log("[eBay Motors] Starting scrape...");
-  const allDeals: Partial<Deal>[] = [];
-
-  for (const query of SEARCHES) {
-    const config = { ...EBAY_MOTORS_CONFIG, maxPages: maxPagesPerSearch };
+  const signal = sourceExecutionSignal(execution);
+  signal?.throwIfAborted();
+  const scope = getScrapeRunScope();
+  // An explicit buyer search must not expand into eight unrelated popular models.
+  const queries = scope ? [buyerListingSearchText(scope)] : SEARCHES;
+  const seen = new Set<string>();
+  let totalFound = 0;
+  for (const query of queries) {
+    signal?.throwIfAborted();
+    const config = {
+      ...EBAY_MOTORS_CONFIG,
+      maxPages: maxPagesPerSearch,
+      abortSignal: signal,
+    };
     const gen = paginate<Partial<Deal>>(
       config,
       (page) =>
@@ -143,10 +193,21 @@ export async function scrapeEbayMotors(
         return { items, hasMore: items.length >= 20 };
       },
     );
-    for await (const batch of gen) allDeals.push(...batch);
+    for await (const batch of gen) {
+      signal?.throwIfAborted();
+      const fresh = batch.filter((row) => {
+        const id = row.source_deal_id;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+      if (!fresh.length) continue;
+      // Persist each confirmed page before requesting another: a later failure keeps this receipt.
+      await upsertDeals(fresh);
+      totalFound += fresh.length;
+    }
   }
 
-  console.log(`[eBay Motors] Found ${allDeals.length} deals`);
-  if (allDeals.length > 0) await upsertDeals(allDeals);
-  return allDeals.length;
+  console.log(`[eBay Motors] Found ${totalFound} deals`);
+  return totalFound;
 }
