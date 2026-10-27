@@ -153,18 +153,19 @@ export function DiscoverySaveProvider({
                 await mutate().catch(() => undefined);
               }
               if (currentOwner.current !== owner) return;
+              await invalidate(
+                ["saved-membership", owner, deal.id],
+                {
+                  ownerId: owner,
+                  dealId: deal.id,
+                  savedId: row ? null : result.id,
+                },
+                { revalidate: false },
+              );
               // Refresh other Saved views, but do not turn a refresh failure into a failed mutation.
               void invalidateSavedCollections(invalidate, owner).catch(
                 () => undefined,
               );
-              void invalidate(
-                (key) =>
-                  typeof key === "string" &&
-                  key.startsWith("/api/saved-cars?") &&
-                  key.endsWith(`dealerId=${owner}`),
-                undefined,
-                { revalidate: true },
-              ).catch(() => undefined);
               const deviceRemoved =
                 !row || !local.has(deal.id) || local.remove(deal.id);
               const deviceBackup = row || local.save(toLocalSavedVehicle(deal));

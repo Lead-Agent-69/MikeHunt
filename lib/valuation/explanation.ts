@@ -112,9 +112,9 @@ export function valuationExplanation(input?: ValuationInputs) {
       v.soldCount == null ? "Not recorded" : String(v.soldCount),
     ],
     [
-      "Enough independent value evidence",
+      "Recorded model threshold",
       v.resaleEvidence === true
-        ? "Yes, according to the recorded model"
+        ? "Met in the stored model; underlying observations still need verification"
         : v.resaleEvidence === false
           ? "No"
           : "Not recorded",

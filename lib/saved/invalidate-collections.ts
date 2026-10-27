@@ -6,6 +6,17 @@ export async function invalidateSavedCollections(
   mutate: ScopedMutator,
   ownerId: string,
 ) {
+  // The persistent card provider also holds an owner-scoped legacy collection.
+  await Promise.resolve(
+    mutate(
+      (key) =>
+        typeof key === "string" &&
+        key.startsWith("/api/saved-cars?") &&
+        new URLSearchParams(key.split("?")[1]).get("dealerId") === ownerId,
+      undefined,
+      { revalidate: true },
+    ),
+  ).catch(() => undefined);
   // Infinite collections cache individual pages and a separate aggregate key.
   await mutate(
     (key) =>

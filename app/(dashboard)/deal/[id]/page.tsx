@@ -855,8 +855,44 @@ export default function DealPage({
         </div>
       </div>
 
+      <nav
+        aria-label="Vehicle detail sections"
+        className="sticky top-14 z-20 grid grid-cols-4 gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-1 shadow-sm"
+      >
+        <button
+          type="button"
+          className="premium-focus min-h-11 min-w-0 rounded-lg px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--t1)] hover:bg-[var(--s2)]"
+          onClick={() => {
+            const overview = document.getElementById("vehicle-overview");
+            overview?.scrollIntoView({ block: "start", behavior: "instant" });
+            overview?.focus({ preventScroll: true });
+          }}
+        >
+          Overview
+        </button>
+        {(
+          [
+            ["condition", "Condition"],
+            ["market", "Market evidence"],
+            ["plan", "Costs & notes"],
+          ] as const
+        ).map(([section, label]) => (
+          <button
+            key={section}
+            type="button"
+            onClick={() => openVerificationSection(section)}
+            className="premium-focus min-h-11 min-w-0 rounded-lg px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s2)]"
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+
       <div
         className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(20rem,1fr)] lg:gap-6"
+        style={{ scrollMarginTop: "8rem" }}
+        id="vehicle-overview"
+        tabIndex={-1}
         data-testid="vehicle-overview"
       >
         {/* Keep the actual vehicle visible before secondary checklists and analysis. */}
@@ -965,6 +1001,26 @@ export default function DealPage({
             </div>
           </section>
 
+          {serverDeal && detailQuality && (
+            <ListingVerification
+              present={detailQuality.present}
+              missing={detailQuality.missing}
+              evidence={serverDeal.decisionEvidence}
+              priceKind={serverDeal.priceEvidence?.kind}
+              source={serverDeal.source}
+              sourceUrl={serverDeal.sourceUrl}
+              availabilityWarning={listingAvailabilityWarning({
+                lastSeenAt: serverDeal.lastSeenAt,
+              })}
+              observationLabel={listingFreshnessLabel({
+                firstSeenAt: serverDeal.firstSeenAt,
+                lastSeenAt: serverDeal.lastSeenAt,
+              })}
+              dealerMode={store.userType === "dealer"}
+              onOpenSection={openVerificationSection}
+            />
+          )}
+
           <VehicleFacts
             compact
             deal={{
@@ -1000,25 +1056,6 @@ export default function DealPage({
           />
         )}
 
-      {serverDeal && detailQuality && (
-        <ListingVerification
-          present={detailQuality.present}
-          missing={detailQuality.missing}
-          evidence={serverDeal.decisionEvidence}
-          priceKind={serverDeal.priceEvidence?.kind}
-          source={serverDeal.source}
-          sourceUrl={serverDeal.sourceUrl}
-          availabilityWarning={listingAvailabilityWarning({
-            lastSeenAt: serverDeal.lastSeenAt,
-          })}
-          observationLabel={listingFreshnessLabel({
-            firstSeenAt: serverDeal.firstSeenAt,
-            lastSeenAt: serverDeal.lastSeenAt,
-          })}
-          dealerMode={store.userType === "dealer"}
-          onOpenSection={openVerificationSection}
-        />
-      )}
       {serverDeal?.sourceUrl && isSourceLandingPage(serverDeal.sourceUrl) && (
         <p role="status" className="text-sm text-[var(--t3)]">
           Only the seller website is saved. Confirm the exact vehicle with the

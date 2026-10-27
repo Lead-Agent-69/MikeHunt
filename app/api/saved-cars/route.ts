@@ -1,5 +1,6 @@
 // app/api/saved-cars/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { withLatestObservations } from "@/lib/saved/latest-observation";
 import { titleSourceOf } from "@/lib/deals/title-category";
 import {
   isSupabaseConfigured,
@@ -267,7 +268,10 @@ export async function GET(request: NextRequest) {
         rows:
           pagedView === "checklist-page"
             ? rows.map(toChecklistRow)
-            : savedCarsForDesk(rows, await resolveCallerFlipDesk()),
+            : savedCarsForDesk(
+                await withLatestObservations(supabase, rows),
+                await resolveCallerFlipDesk(),
+              ),
         nextCursor,
       });
     }
@@ -316,7 +320,13 @@ export async function GET(request: NextRequest) {
     // Redact on READ (not on save) so a desk switch is honored for existing snapshots.
     const flipDesk = await resolveCallerFlipDesk();
     return NextResponse.json(
-      savedCarsForDesk((data || []) as Record<string, any>[], flipDesk),
+      savedCarsForDesk(
+        await withLatestObservations(
+          supabase,
+          (data || []) as Record<string, any>[],
+        ),
+        flipDesk,
+      ),
     );
   } catch (error: any) {
     console.error("[SAVED-CARS-API] GET error:", error);

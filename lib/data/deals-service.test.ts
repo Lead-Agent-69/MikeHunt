@@ -122,6 +122,26 @@ describe("DealsService.mapDbToDeal this-binding via list mappers", () => {
     options: { seller: "Bob's Yard", sellerType: "dealer" },
   };
 
+  it("preserves reported specifications through the service without guessing missing ones", async () => {
+    listChain.__result = {
+      data: {
+        ...sampleRow,
+        transmission: " Automatic ",
+        drivetrain: "AWD",
+        fuel_type: "Gasoline",
+        engine: null,
+      },
+      error: null,
+    };
+    const deal = await serviceWithListMock().getDealById("d1");
+    expect(deal).toMatchObject({
+      transmission: "Automatic",
+      drivetrain: "AWD",
+      fuelType: "Gasoline",
+    });
+    expect(deal?.engine).toBeUndefined();
+  });
+
   it("getHotDeals maps rows without losing this (rowOptions / seller)", async () => {
     listChain.__result = { data: [sampleRow], error: null };
     const deals = await serviceWithListMock().getHotDeals(5);

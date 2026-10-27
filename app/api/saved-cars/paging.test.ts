@@ -94,6 +94,38 @@ beforeEach(() => {
   });
 });
 describe("owned saved collection paging", () => {
+  it("adds accessible observations to owned rows without changing their saved snapshot", async () => {
+    state.rows = [
+      {
+        id: uuid(1),
+        deal_id: uuid(2),
+        user_id: "one",
+        saved_at: "2026-01-01T00:00:00Z",
+        status: "unavailable",
+        snapshot: { lastSeenAt: "2026-01-01T00:00:00Z", askingPrice: 3000 },
+      },
+    ];
+    const base = from.getMockImplementation()!;
+    const read: any = {};
+    for (const name of ["select", "in", "limit"])
+      read[name] = vi.fn(() => read);
+    read.abortSignal = vi.fn(async () => ({
+      data: [{ id: uuid(2), last_seen_at: "2026-10-01T00:00:00Z" }],
+      error: null,
+    }));
+    from.mockImplementation((table) =>
+      table === "deals" ? read : base(table),
+    );
+    const result = await (await GET(req())).json();
+    expect(result.rows[0]).toMatchObject({
+      latestObservation: { lastSeenAt: "2026-10-01T00:00:00.000Z" },
+      snapshot: { lastSeenAt: "2026-01-01T00:00:00Z", askingPrice: 3000 },
+      status: "unavailable",
+    });
+    expect(state.rows[0]).not.toHaveProperty("latestObservation");
+    expect(state.filters).toContainEqual(["user_id", "one"]);
+  });
+
   it("walks more than 500 tied-date records without omissions or duplicates", async () => {
     const seen = new Set<string>();
     let cursor: string | undefined;

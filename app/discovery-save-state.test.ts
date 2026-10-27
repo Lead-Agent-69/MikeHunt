@@ -99,6 +99,22 @@ afterEach(() => {
 });
 
 describe("Discovery bookmark account continuity", () => {
+  it("publishes confirmed removal to the detail membership cache", async () => {
+    state.rows = [{ id: "saved-one", deal_id: "deal-one", user_id: "one" }];
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ success: true, id: "saved-one" }), {
+        status: 200,
+      }),
+    );
+    render();
+    await toggle();
+    expect(mocks.invalidate).toHaveBeenCalledWith(
+      ["saved-membership", "one", "deal-one"],
+      { ownerId: "one", dealId: "deal-one", savedId: null },
+      { revalidate: false },
+    );
+  });
+
   it("scopes saved cache to the account and does not reuse previous-account state", () => {
     render();
     expect(mocks.swr.mock.lastCall?.[0]).toBe(

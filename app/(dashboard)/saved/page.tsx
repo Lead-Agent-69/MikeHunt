@@ -1,6 +1,8 @@
 ﻿// app/(dashboard)/saved/page.tsx
 "use client";
 
+import { useSWRConfig } from "swr";
+import { invalidateSavedCollections } from "@/lib/saved/invalidate-collections";
 import React, { useState } from "react";
 import Link from "next/link";
 import { useSavedCollection } from "@/hooks/useSavedCollection";
@@ -158,6 +160,8 @@ export default function SavedCarsPage() {
   const loading = supabaseStatus === "checking";
   const signedIn = Boolean(dealerId);
 
+  const { mutate: invalidate } = useSWRConfig();
+
   const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to remove this saved vehicle?")) return;
 
@@ -178,6 +182,15 @@ export default function SavedCarsPage() {
         );
         // Reco: the save was logged server-side; record the unsave (best-effort).
         signalUnsave(dealId);
+        if (dealId)
+          void invalidate(
+            ["saved-membership", dealerId, dealId],
+            { ownerId: dealerId, dealId, savedId: null },
+            { revalidate: false },
+          ).catch(() => undefined);
+        void invalidateSavedCollections(invalidate, dealerId).catch(
+          () => undefined,
+        );
         // Revalidate from server
         mutate();
       } else {

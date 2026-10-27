@@ -85,6 +85,7 @@ it("shows the updated result header when filters changed instead of restoring an
   window.history.replaceState(null, "", "/market?makes=Ford");
   const target = document.createElement("section");
   target.id = "market-results";
+  target.tabIndex = -1;
   target.scrollIntoView = vi.fn();
   document.body.append(target);
   act(() => f.controls.capture());
@@ -97,6 +98,7 @@ it("shows the updated result header when filters changed instead of restoring an
     behavior: "instant",
   });
   expect(f.scroll).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(target);
   target.remove();
   f.cleanup();
 });
@@ -106,6 +108,7 @@ it("returns to results after changing presentation even when the query is unchan
   window.history.replaceState(null, "", "/market?makes=Ford");
   const target = document.createElement("section");
   target.id = "market-results";
+  target.tabIndex = -1;
   target.scrollIntoView = vi.fn();
   document.body.append(target);
   document.body.scrollTop = 20000;
@@ -118,6 +121,7 @@ it("returns to results after changing presentation even when the query is unchan
     behavior: "instant",
   });
   expect(f.scroll).not.toHaveBeenCalled();
+  expect(document.activeElement).toBe(target);
   target.remove();
   f.cleanup();
 });

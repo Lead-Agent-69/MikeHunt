@@ -18,6 +18,10 @@ type ListingFacts = {
   make?: string;
   model?: string;
   trim?: string;
+  transmission?: string | null;
+  drivetrain?: string | null;
+  engine?: string | null;
+  fuelType?: string | null;
   askPrice?: number | null;
   priceEvidence?: PriceEvidence;
   source?: string;
@@ -97,6 +101,11 @@ export function VehicleSummary({
           </p>
         </div>
       </div>
+      {deal.trim &&
+        reportedTitle &&
+        !reportedTitle.toLowerCase().includes(deal.trim.toLowerCase()) && (
+          <p className="text-sm text-[var(--t3)]">Trim reported: {deal.trim}</p>
+        )}
       {identityWarning && (
         <p
           role="status"
@@ -162,6 +171,16 @@ export function VehicleFacts({
     ...(auctionFacts || typeof deal.hasKeys === "boolean"
       ? [["Keys", reportedStatus(deal.hasKeys)]]
       : []),
+    ...(
+      [
+        ["Transmission", deal.transmission],
+        ["Drivetrain", deal.drivetrain],
+        ["Engine", deal.engine],
+        ["Fuel", deal.fuelType],
+      ] as const
+    )
+      .filter(([, value]) => typeof value === "string" && value.trim())
+      .map(([label, value]) => [label, value!]),
     ["VIN", deal.vin || "Not reported"],
     ["Last seen", reportedDate(deal.lastSeenAt)],
     ...(deal.auctionEndAt

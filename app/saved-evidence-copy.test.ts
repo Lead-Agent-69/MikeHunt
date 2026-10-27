@@ -102,3 +102,23 @@ it("keeps payment meaning and withholds legacy saved profit and repair guesses",
   ])
     expect(html).not.toContain(claim);
 });
+
+it("separates a new observation from saved prices and preserves unavailable status", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SavedCarCard, {
+      save: {
+        ...save,
+        status: "unavailable",
+        snapshot: { ...save.snapshot, lastSeenAt: "2026-01-01T00:00:00Z" },
+        latestObservation: { lastSeenAt: new Date().toISOString() },
+      },
+      onDelete: () => {},
+      onUpdateStatus: () => {},
+    }),
+  );
+  expect(html).toContain("Saved snapshot:");
+  expect(html).toContain("Latest inventory observation:");
+  expect(html).toContain("review the vehicle for current price and condition");
+  expect(html).toContain("Listing is no longer available");
+  expect(html).not.toContain("Ready to review");
+});

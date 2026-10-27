@@ -55,6 +55,11 @@ export class ScraperExecutor {
       circuitBreaker || new CircuitBreakerRegistry(circuitBreakerOptions);
     const start = Date.now();
     let lastError: Error | null = null;
+    let partialReceipt: ScrapePersistenceReceipt = {
+      calls: 0,
+      dealsFound: 0,
+      dealsSaved: 0,
+    };
 
     const budget = guard.check("time");
     if (!budget.allowed) {
@@ -106,6 +111,9 @@ export class ScraperExecutor {
           scraper,
           timeoutMs,
           abortSignal,
+          (receipt) => {
+            partialReceipt = receipt;
+          },
         );
         const durationMs = Date.now() - start;
 
@@ -129,6 +137,7 @@ export class ScraperExecutor {
         // Timed-out work may still be closing network/browser resources. Never overlap it with a retry.
         if (
           abortSignal?.aborted ||
+          partialReceipt.calls > 0 ||
           lastError.message.startsWith(`Scraper ${scraper.id} timed out`)
         )
           break;
@@ -143,11 +152,16 @@ export class ScraperExecutor {
     }
 
     const durationMs = Date.now() - start;
+    const foundBeforeFailure = Math.min(
+      partialReceipt.dealsFound,
+      guard.snapshot().remainingDeals,
+    );
+    guard.trackDeals(foundBeforeFailure);
     breaker.recordFailure(scraper.id);
     return {
       success: false,
-      dealsFound: 0,
-      dealsSaved: 0,
+      dealsFound: foundBeforeFailure,
+      dealsSaved: partialReceipt.dealsSaved,
       durationMs,
       error: abortSignal?.aborted
         ? "Aborted by user"
@@ -159,6 +173,7 @@ export class ScraperExecutor {
     scraper: RegisteredScraper,
     timeoutMs: number,
     abortSignal?: AbortSignal,
+    onPersistence?: (receipt: ScrapePersistenceReceipt) => void,
   ): Promise<{
     result: number | Deal[];
     receipt: ScrapePersistenceReceipt;
@@ -186,12 +201,15 @@ export class ScraperExecutor {
         stopped,
         Promise.resolve().then(() => {
           controller.signal.throwIfAborted();
-          return withScrapeRunReceipt(scraper.id, () =>
-            scraper.fn({
-              ...scraper.args,
-              abortSignal: controller.signal,
-              deadlineAt: Date.now() + timeoutMs,
-            }),
+          return withScrapeRunReceipt(
+            scraper.id,
+            () =>
+              scraper.fn({
+                ...scraper.args,
+                abortSignal: controller.signal,
+                deadlineAt: Date.now() + timeoutMs,
+              }),
+            onPersistence,
           );
         }),
       ]);
