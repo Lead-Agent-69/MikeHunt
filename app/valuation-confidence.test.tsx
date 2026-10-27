@@ -34,6 +34,9 @@ describe("vehicle valuation confidence display", () => {
     expect(content.textContent).toContain("Low confidence");
     expect(content.textContent).not.toContain("Good confidence");
     expect(content.textContent).toContain("Seller asking prices, not sales");
+    expect(content.textContent).toContain("Asking-price reference");
+    expect(content.textContent).not.toContain("Resale estimate");
+    expect(content.textContent).not.toContain("Clean market value");
   });
   it("does not label a missing confidence record as high from a legacy sold flag", () => {
     const legacy = {
@@ -48,5 +51,35 @@ describe("vehicle valuation confidence display", () => {
     content.innerHTML = html;
     expect(content.textContent).toContain("Unrated confidence");
     expect(content.textContent).not.toContain("High confidence");
+  });
+  it("requires current dated clean-sale evidence before labeling a resale estimate", () => {
+    const sale = {
+      ...example,
+      confidence: "high" as const,
+      soldCount: 3,
+      soldAnchored: true,
+      soldLane: "clean" as const,
+      soldAt: new Date().toISOString(),
+      compKind: "sold" as const,
+    };
+    expect(
+      renderToStaticMarkup(
+        <ValuationBreakdown v={sale} sellEstimate={34054} />,
+      ),
+    ).toContain("Resale estimate");
+    for (const change of [
+      { soldAt: null },
+      { soldAt: "2000-01-01" },
+      { soldLane: "salvage" as const },
+      { soldCount: 0 },
+    ])
+      expect(
+        renderToStaticMarkup(
+          <ValuationBreakdown
+            v={{ ...sale, ...change }}
+            sellEstimate={34054}
+          />,
+        ),
+      ).not.toContain("Resale estimate");
   });
 });

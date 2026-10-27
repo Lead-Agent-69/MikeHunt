@@ -9,13 +9,18 @@ export interface ScrapePersistenceReceipt {
 interface ScrapeRunContext {
   sourceId: string;
   persistence: ScrapePersistenceReceipt;
+  onPersistence?: (receipt: ScrapePersistenceReceipt) => void;
 }
 
 const storage = new AsyncLocalStorage<ScrapeRunContext>();
 
-function createContext(sourceId: string): ScrapeRunContext {
+function createContext(
+  sourceId: string,
+  onPersistence?: (receipt: ScrapePersistenceReceipt) => void,
+): ScrapeRunContext {
   return {
     sourceId,
+    onPersistence,
     persistence: { calls: 0, dealsFound: 0, dealsSaved: 0 },
   };
 }
@@ -32,8 +37,9 @@ export function withScrapeSourceId<T>(
 export function withScrapeRunReceipt<T>(
   sourceId: string,
   run: () => Promise<T>,
+  onPersistence?: (receipt: ScrapePersistenceReceipt) => void,
 ): Promise<{ result: T; receipt: ScrapePersistenceReceipt }> {
-  const context = createContext(sourceId);
+  const context = createContext(sourceId, onPersistence);
   return storage.run(context, async () => {
     const result = await run();
     return { result, receipt: { ...context.persistence } };
@@ -52,6 +58,7 @@ export function recordScrapePersistence(
   persistence.calls += 1;
   persistence.dealsFound += count(dealsFound);
   persistence.dealsSaved += count(dealsSaved);
+  storage.getStore()?.onPersistence?.({ ...persistence });
 }
 
 export function getScrapeSourceId(): string | undefined {

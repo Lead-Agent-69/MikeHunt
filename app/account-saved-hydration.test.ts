@@ -1,6 +1,6 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { SWRConfig, type Cache } from "swr";
+import useSWR, { SWRConfig, type Cache } from "swr";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import { useAccountSavedVehicles } from "@/hooks/useAccountSavedVehicles";
 
@@ -44,6 +44,64 @@ const response = (data: unknown = membership) =>
   new Response(JSON.stringify(data), { status: 200 });
 
 describe("account saved status on a fresh device", () => {
+  it("refreshes the owner's card collection after detail confirmation without refreshing another owner", async () => {
+    let created = false;
+    vi.mocked(fetch).mockImplementation(async (url) => {
+      const target = String(url);
+      if (target.includes("view=membership"))
+        return response({ ownerId: "one", dealId: "car", savedId: null });
+      return response(
+        created
+          ? [
+              {
+                id: "confirmed",
+                deal_id: "car",
+                user_id: target.includes("dealerId=two") ? "two" : "one",
+              },
+            ]
+          : [],
+      );
+    });
+    function Collection({ owner }: { owner: string }) {
+      const key = `/api/saved-cars?filter=all&dealerId=${owner}`;
+      const { data } = useSWR(key, async () => {
+        const r = await fetch(key);
+        return r.json();
+      });
+      return React.createElement(
+        "p",
+        { id: owner },
+        String(data?.length ?? "loading"),
+      );
+    }
+    await act(async () =>
+      root.render(
+        React.createElement(
+          SWRConfig,
+          { value: { provider: () => cache } },
+          React.createElement(State, { owner: "one" }),
+          React.createElement(Collection, { owner: "one" }),
+          React.createElement(Collection, { owner: "two" }),
+        ),
+      ),
+    );
+    await vi.waitFor(() =>
+      expect(host.querySelector("#one")?.textContent).toBe("0"),
+    );
+    await vi.waitFor(() =>
+      expect(host.querySelector("#two")?.textContent).toBe("0"),
+    );
+    created = true;
+    await act(async () => {
+      await control.confirm("car", "confirmed");
+    });
+    await vi.waitFor(() =>
+      expect(host.querySelector("#one")?.textContent).toBe("1"),
+    );
+    expect(host.querySelector("#two")?.textContent).toBe("0");
+    expect(control.has("car")).toBe(true);
+  });
+
   it("hydrates exact membership without loading a collection or local snapshot", async () => {
     vi.mocked(fetch).mockResolvedValue(response());
     await render("one");

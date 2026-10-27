@@ -1,6 +1,7 @@
 "use client";
 
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
+import { invalidateSavedCollections } from "@/lib/saved/invalidate-collections";
 import {
   fetchSavedMembership,
   type SavedMembership,
@@ -11,6 +12,7 @@ export function useAccountSavedVehicles(
   ownerId: string | null,
   dealId: string,
 ) {
+  const { mutate: invalidate } = useSWRConfig();
   const { data, error, isLoading, mutate } = useSWR<SavedMembership>(
     ownerId && dealId ? ["saved-membership", ownerId, dealId] : null,
     ([, owner, deal]: [string, string, string]) =>
@@ -32,9 +34,13 @@ export function useAccountSavedVehicles(
       ),
     isLoading: Boolean(ownerId && isLoading),
     error: ownerId ? error : undefined,
-    confirm: (confirmedDealId: string, savedId: string) =>
-      ownerId && confirmedDealId === dealId && savedId
-        ? mutate({ ownerId, dealId, savedId }, { revalidate: false })
-        : Promise.resolve(),
+    confirm: async (confirmedDealId: string, savedId: string) => {
+      if (!ownerId || confirmedDealId !== dealId || !savedId) return;
+      await mutate({ ownerId, dealId, savedId }, { revalidate: false });
+      // Revalidation failure cannot undo an already confirmed save.
+      void invalidateSavedCollections(invalidate, ownerId).catch(
+        () => undefined,
+      );
+    },
   };
 }

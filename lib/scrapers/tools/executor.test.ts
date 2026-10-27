@@ -35,6 +35,48 @@ describe("ScraperExecutor", () => {
     expect(scraper.fn).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["timeout", "later-page-error"])(
+    "keeps committed batches visible after %s without replaying them",
+    async (failure) => {
+      const scraper = new ScraperRegistry().register({
+        id: "partial",
+        estimatedDealsPerRun: 30,
+        name: "Partial",
+        type: "dealer",
+        priority: "medium",
+        frequencyMinutes: 60,
+        requiresAuth: false,
+        stealthRequired: false,
+        enabled: true,
+        fn: vi.fn(async (args) => {
+          recordScrapePersistence(30, 7);
+          if (failure === "later-page-error")
+            throw new Error("Next page failed");
+          await new Promise((resolve) =>
+            args?.abortSignal?.addEventListener("abort", resolve, {
+              once: true,
+            }),
+          );
+          args?.abortSignal?.throwIfAborted();
+          return 30;
+        }),
+      });
+      const result = await new ScraperExecutor().execute(scraper, {
+        timeoutMs: 20,
+        maxRetries: 2,
+      });
+      expect(result).toMatchObject({
+        success: false,
+        dealsFound: 30,
+        dealsSaved: 7,
+      });
+      expect(result.error).toContain(
+        failure === "timeout" ? "timed out" : "Next page failed",
+      );
+      expect(scraper.fn).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("executes a successful scraper and returns count", async () => {
     const executor = new ScraperExecutor();
     const scraper = new ScraperRegistry().register({

@@ -31,7 +31,8 @@ export function DetailDisclosure({
   return (
     <details
       ref={details}
-      className="scroll-mt-24 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)]"
+      name="vehicle-research-sections"
+      className="scroll-mt-36 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)]"
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary

@@ -50,6 +50,7 @@ interface SavedCarCardProps {
     id: string;
     deal_id: string;
     status: SavedCarStatus;
+    latestObservation?: { lastSeenAt?: string };
     snapshot: {
       vin: string;
       year: number;
@@ -142,6 +143,11 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   const lastSeenTime = snapshot.lastSeenAt
     ? new Date(snapshot.lastSeenAt).getTime()
     : NaN;
+  const latestSeenTime = Date.parse(save.latestObservation?.lastSeenAt || "");
+  const hasNewerObservation =
+    Number.isFinite(latestSeenTime) &&
+    (!Number.isFinite(lastSeenTime) ||
+      latestSeenTime - lastSeenTime >= 3_600_000);
   const freshnessHours = Number.isFinite(lastSeenTime)
     ? Math.max(0, Math.round((Date.now() - lastSeenTime) / 3_600_000))
     : null;
@@ -402,10 +408,18 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               {snapshot.vin ? ` - VIN: ${snapshot.vin}` : ""}
             </p>
             <p className="text-[11px] leading-relaxed text-[var(--t4)]">
-              Source proof:{" "}
+              Saved snapshot:{" "}
               {sourceHref ? "original link saved" : "source link missing"} ·{" "}
               {formatFreshness(snapshot.lastSeenAt)}
             </p>
+            {hasNewerObservation && save.latestObservation?.lastSeenAt && (
+              <p className="rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-2 text-xs leading-relaxed text-[var(--t2)]">
+                Latest inventory observation:{" "}
+                {formatFreshness(save.latestObservation.lastSeenAt)}. Saved
+                details and amounts above are retained from your watchlist;
+                review the vehicle for current price and condition.
+              </p>
+            )}
             {(snapshot.seller || hasSellerContact) && (
               <div className="relative z-20 flex flex-wrap items-center gap-2 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-[11px] text-[var(--t3)]">
                 <span className="font-black uppercase tracking-wide text-[var(--t5)]">

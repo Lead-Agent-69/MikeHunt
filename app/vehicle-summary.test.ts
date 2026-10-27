@@ -41,6 +41,25 @@ describe("first-screen listing facts", () => {
       expect(titleFact?.nextElementSibling?.textContent).toBe(expected);
     },
   );
+  it("shows reported specs and trim without inventing unreported equipment", () => {
+    const html = renderToStaticMarkup(
+      React.createElement(VehicleSummary, {
+        deal: {
+          title: "2024 Ford Bronco",
+          trim: "Big Bend",
+          transmission: "Automatic",
+          drivetrain: "4WD",
+          fuelType: "Gasoline",
+        },
+      }),
+    );
+    expect(html).toContain("Trim reported: Big Bend");
+    expect(html).toContain("Automatic");
+    expect(html).toContain("4WD");
+    expect(html).toContain("Gasoline");
+    expect(html).not.toContain(">Engine<");
+  });
+
   it("never labels an unverified dealer amount as a confirmed asking price", () => {
     const html = renderToStaticMarkup(
       React.createElement(VehicleSummary, {

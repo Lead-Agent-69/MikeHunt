@@ -43,9 +43,9 @@ export function useScrollReturn(resultsId?: string) {
           resultsId &&
           (showResults || window.location.search !== saved.search)
         ) {
-          document
-            .getElementById(resultsId)
-            ?.scrollIntoView({ block: "start", behavior: "instant" });
+          const results = document.getElementById(resultsId);
+          results?.scrollIntoView({ block: "start", behavior: "instant" });
+          results?.focus({ preventScroll: true });
           return;
         }
         window.scrollTo({ top: saved.windowY, behavior: "instant" });

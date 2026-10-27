@@ -22,7 +22,7 @@ describe("recorded valuation inputs", () => {
     );
     expect(rows["Mileage adjustment"]).toBe("-3% (x0.970)");
     expect(rows["Comparable reference price"]).toBe("$20,000");
-    expect(rows["Enough independent value evidence"]).toBe("No");
+    expect(rows["Recorded model threshold"]).toBe("No");
   });
   it("leaves unavailable measurements unknown, not zero or a fabricated multiplier", () => {
     const rows = Object.fromEntries(

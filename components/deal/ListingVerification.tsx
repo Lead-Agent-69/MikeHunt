@@ -87,10 +87,7 @@ export function ListingVerification({
     "auction",
   ];
   return (
-    <section
-      aria-label="Before you decide"
-      className="min-w-0 border-y border-[var(--b1)] py-4"
-    >
+    <section aria-label="Before you decide" className="min-w-0">
       <h2 className="text-base font-bold text-[var(--t1)]">
         Before you decide
       </h2>
@@ -102,52 +99,91 @@ export function ListingVerification({
           {availabilityWarning}
         </p>
       )}
+      <p className="mt-2 text-xs text-[var(--t4)]">
+        {observationLabel || "Freshness unknown"}
+      </p>
       <p
-        className={`mt-2 text-sm font-semibold ${evidence?.acquisitionReady ? "text-[var(--green)]" : "text-[var(--amber-d)]"}`}
+        className={`mt-2 inline-flex rounded-full px-3 py-1 text-sm font-bold ${evidence?.acquisitionReady ? "bg-[var(--s2)] text-[var(--green)]" : "bg-[var(--s2)] text-[var(--amber-d)]"}`}
       >
         {evidence?.label || "Evidence incomplete"}
       </p>
-      <p className="mt-1 text-sm text-[var(--t3)]">
-        {evidence?.summary ||
-          "The listing alone does not establish condition or fair value."}
-      </p>
-      <p className="mt-3 rounded-lg bg-[var(--s1)] p-3 text-sm text-[var(--t2)]">
-        <span className="font-semibold">Next check: </span>
-        {evidence?.nextCheck ||
-          "Confirm VIN, title, mileage, seller identity, availability, and any damage or repairs."}
-      </p>
-      <ol className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <li className="flex min-w-0 flex-col rounded-lg border border-[var(--b1)] p-3">
-          <h3 className="text-sm font-semibold text-[var(--t1)]">
-            Price and availability
-          </h3>
-          {observationLabel && (
-            <p className="mt-1 text-xs text-[var(--t4)]">{observationLabel}</p>
-          )}
-          <p className="mt-1 mb-3 flex-1 text-sm text-[var(--t3)]">
-            {priceCheck}
+      <div className="mt-3 rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-[var(--t4)]">
+          Next check:
+        </p>
+        <p className="mt-1 text-sm font-semibold leading-relaxed text-[var(--t1)]">
+          {evidence?.nextCheck ||
+            "Confirm VIN, title, mileage, seller identity, availability, and any damage or repairs."}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => onOpenSection("plan")}
+        className="premium-focus mt-3 flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[var(--b1)] px-3 py-2 text-left"
+      >
+        <span className="text-sm font-semibold text-[var(--t1)]">
+          All-in cost
+        </span>
+        <span className="text-xs font-semibold text-[var(--blue)]">
+          {evidence?.acquisitionReady
+            ? "Review recorded costs →"
+            : "Needs confirmation →"}
+        </span>
+      </button>
+      <div className="mt-3 divide-y divide-[var(--b1)] rounded-xl border border-[var(--b1)]">
+        <details className="group px-3">
+          <summary className="premium-focus min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t1)]">
+            Why this verdict?
+          </summary>
+          <p className="pb-3 text-sm leading-relaxed text-[var(--t3)]">
+            {evidence?.summary ||
+              "The listing alone does not establish condition or fair value."}
           </p>
-          <VehicleSourceAction sourceUrl={sourceUrl} auction={auction} />
-        </li>
-        {actions.map(({ section, title, detail, action }) => (
-          <li
-            key={section}
-            className="flex min-w-0 flex-col rounded-lg border border-[var(--b1)] p-3"
-          >
-            <h3 className="text-sm font-semibold text-[var(--t1)]">{title}</h3>
-            <p className="mt-1 mb-3 flex-1 text-sm text-[var(--t3)]">
-              {detail}
+        </details>
+        <details className="group px-3">
+          <summary className="premium-focus min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t1)]">
+            What would make this a buy?
+          </summary>
+          <div className="space-y-2 pb-3 text-sm leading-relaxed text-[var(--t3)]">
+            <p>{priceCheck}</p>
+            <p>
+              {evidence?.acquisitionReady
+                ? "Review the final terms against your budget and confirm that the recorded evidence is still current."
+                : "Confirm title and condition, obtain a complete cost plan, and compare relevant market evidence. A low advertised amount alone is not enough."}
             </p>
-            <button
-              type="button"
-              onClick={() => onOpenSection(section)}
-              className="premium-focus min-h-11 rounded-lg border border-[var(--b2)] px-3 py-2 text-left text-sm font-semibold text-[var(--blue)]"
-            >
-              {action}
-            </button>
-          </li>
-        ))}
-      </ol>
+            <VehicleSourceAction sourceUrl={sourceUrl} auction={auction} />
+          </div>
+        </details>
+        <details className="group px-3">
+          <summary className="premium-focus min-h-11 cursor-pointer py-3 text-sm font-semibold text-[var(--t1)]">
+            What still needs checking?
+          </summary>
+          <p className="pb-2 text-sm text-[var(--t3)]">
+            {missing.length
+              ? `Missing or unusable: ${missing.map(fieldLabel).join(", ")}.`
+              : "Recorded fields do not replace an inspection or confirmation of the final terms."}
+          </p>
+          <ol className="space-y-3 pb-3">
+            {actions.map(({ section, title, detail, action }) => (
+              <li key={section}>
+                <h3 className="text-sm font-semibold text-[var(--t1)]">
+                  {title}
+                </h3>
+                <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+                  {detail}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onOpenSection(section)}
+                  className="premium-focus mt-2 min-h-11 w-full rounded-lg border border-[var(--b2)] px-3 py-2 text-left text-sm font-semibold text-[var(--blue)]"
+                >
+                  {action}
+                </button>
+              </li>
+            ))}
+          </ol>
+        </details>
+      </div>
       <details className="mt-3 group">
         <summary className="min-h-11 cursor-pointer rounded-lg px-2 py-3 text-sm font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
           Listing evidence and missing details

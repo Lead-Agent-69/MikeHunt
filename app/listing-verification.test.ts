@@ -30,8 +30,10 @@ describe("ListingVerification", () => {
     expect(html).toContain("does not establish its severity or repair cost");
     expect(html).toContain("Missing or unusable:");
     expect(html).not.toContain("<details open");
-    expect(html).not.toContain("Why this verdict?");
-    expect(html).not.toContain("What would make this a buy?");
+    expect(html).toContain("Why this verdict?");
+    expect(html).toContain("What would make this a buy?");
+    expect(html).toContain("What still needs checking?");
+    expect(html).toContain("All-in cost");
     expect(html).not.toContain("auction date");
   });
   it("preserves per-vehicle reasons once and does not invent an incomplete status for a candidate", () => {

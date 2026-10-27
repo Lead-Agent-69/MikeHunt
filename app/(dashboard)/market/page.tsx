@@ -1709,6 +1709,7 @@ export default function MarketPage() {
       {!showFilters && !showInsights && (
         <section
           id="market-results"
+          tabIndex={-1}
           aria-label="Market results"
           className="min-w-0 scroll-mt-20"
         >

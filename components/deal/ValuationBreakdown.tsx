@@ -5,6 +5,7 @@ import { Mono } from "@/components/shared/Mono";
 import { Ico } from "@/components/shared/Ico";
 import { valueConfidence, CONFIDENCE_META } from "@/lib/valuation/confidence";
 import type { ValuationBreakdown as VB } from "@/lib/scoring/deal-analyzer";
+import { hasRecentSoldEvidence } from "@/lib/valuation/evidence-confidence";
 import { ValuationInputs } from "./ValuationInputs";
 
 // "How we valued this" — the moat made transparent. Shows the EVIDENCE behind the resale number (real
@@ -43,7 +44,15 @@ export function ValuationBreakdown({
   const hasTitleAdj = Math.abs(v.titleMult - 1) > 0.005;
   const hasReportedMileage =
     typeof mileage === "number" && Number.isFinite(mileage) && mileage >= 0;
-  const evidenceReady = v.resaleEvidence === true;
+  const evidenceReady =
+    v.resaleEvidence === true &&
+    hasRecentSoldEvidence(v) &&
+    v.soldLane === "clean";
+  const estimateLabel = evidenceReady
+    ? "Resale estimate"
+    : v.compKind === "ask"
+      ? "Asking-price reference"
+      : "Modeled reference";
 
   // Evidence chips — only what actually backs this number.
   const evidence: { icon: any; label: string }[] = [];
@@ -60,7 +69,7 @@ export function ValuationBreakdown({
       icon: "calculator",
       label: `Attached market guide ${money(v.kbbValue)}`,
     });
-  if (v.soldCount >= 3) {
+  if (hasRecentSoldEvidence(v)) {
     const soldOn = v.soldAt
       ? new Date(v.soldAt).toLocaleDateString("en-US", {
           timeZone: "America/Chicago",
@@ -71,7 +80,7 @@ export function ValuationBreakdown({
       : null;
     evidence.push({
       icon: "check-circle",
-      label: `${v.soldCount} ${v.soldLane === "salvage" ? "salvage" : "clean"} sales${
+      label: `${v.soldCount} source-reported ${v.soldLane === "salvage" ? "salvage" : "clean"} sales${
         soldOn ? ` · ${soldOn}` : ""
       }`,
     });
@@ -107,7 +116,7 @@ export function ValuationBreakdown({
       {/* Headline resale estimate */}
       <div className="flex items-baseline justify-between mb-4">
         <span className="text-sm text-[var(--t3)] font-semibold">
-          {evidenceReady ? "Resale estimate" : "Modeled reference"}
+          {estimateLabel}
         </span>
         <Mono className="text-3xl font-black text-[var(--t1)]">
           {money(sellEstimate)}
@@ -150,7 +159,14 @@ export function ValuationBreakdown({
             className="rounded-[var(--r2)] p-3 text-sm space-y-1.5"
             style={{ background: "var(--s0)" }}
           >
-            <Row label="Clean market value" value={money(clean)} />
+            <Row
+              label={
+                v.compKind === "ask"
+                  ? "Comparable asking reference"
+                  : "Comparable reference"
+              }
+              value={money(clean)}
+            />
             {hasMileageAdj && (
               <Row
                 label={
@@ -171,7 +187,7 @@ export function ValuationBreakdown({
               <Row
                 label={
                   <span className="font-bold text-[var(--t1)]">
-                    {evidenceReady ? "Resale estimate" : "Modeled reference"}
+                    {estimateLabel}
                   </span>
                 }
                 value={

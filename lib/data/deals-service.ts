@@ -81,6 +81,10 @@ export type Deal = {
   make: string;
   model: string;
   trim?: string;
+  transmission?: string;
+  drivetrain?: string;
+  engine?: string;
+  fuelType?: string;
   vin?: string;
   mileage?: number;
   condition: string;
@@ -209,6 +213,22 @@ export class DealsService {
       make: row.make,
       model: row.model,
       trim: row.trim,
+      transmission:
+        typeof row.transmission === "string"
+          ? row.transmission.trim() || undefined
+          : undefined,
+      drivetrain:
+        typeof row.drivetrain === "string"
+          ? row.drivetrain.trim() || undefined
+          : undefined,
+      engine:
+        typeof row.engine === "string"
+          ? row.engine.trim() || undefined
+          : undefined,
+      fuelType:
+        typeof row.fuel_type === "string"
+          ? row.fuel_type.trim() || undefined
+          : undefined,
       vin: row.vin,
       mileage: row.mileage,
       condition: row.condition,
