@@ -13,6 +13,25 @@ const row = {
 };
 
 describe("source publication proof", () => {
+  it("accounts for removed listings and ended auctions before calling rows browse candidates", () => {
+    const removed = {
+      ...row,
+      options: { sourceAvailability: { state: "removed" } },
+    };
+    const ended = { ...row, auction_end_at: new Date(now - 1).toISOString() };
+    const proof = sourcePublicationAudit(
+      "dealer.example",
+      [],
+      [row, removed, ended],
+      now,
+    );
+    expect(proof.defaultInventoryCandidates).toBe(1);
+    expect(proof.exclusions).toEqual({ source_removed: 1, ended_auction: 1 });
+    expect(
+      Object.values(proof.exclusions).reduce((sum, n) => sum + n, 0) +
+        proof.defaultInventoryCandidates,
+    ).toBe(proof.storedRowsInSample);
+  });
   it("does not turn a deferred cache observation into a published vehicle", () => {
     expect(
       sourcePublicationAudit(

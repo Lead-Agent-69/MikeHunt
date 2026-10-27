@@ -16,6 +16,26 @@ const row = (fields: Partial<SourcePriceRow> = {}): SourcePriceRow => ({
   ...fields,
 });
 describe("cross-source price meaning", () => {
+  it("keeps a legacy contingent price visible but excludes it from cash comparisons", () => {
+    expect(
+      sourcePriceContext(
+        row({
+          price_evidence: {
+            kind: "asking",
+            askingPrice: 15000,
+            evidenceText: "Sale price $15,000 after $3,000 down",
+          },
+        }),
+        now,
+      ),
+    ).toMatchObject({
+      amount: 15000,
+      label: "Unverified advertised amount",
+      cashPrice: null,
+      comparisonEligible: false,
+      canCompareToAskingCurve: false,
+    });
+  });
   it.each([undefined, "invalid", "2026-10-12T12:00:00Z"])(
     "qualifies a bid whose closing time is %s",
     (auction_end_at) => {

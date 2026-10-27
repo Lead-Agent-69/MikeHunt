@@ -7,6 +7,38 @@ import {
 } from "./acquisition-price";
 
 describe("reported acquisition price", () => {
+  it.each([
+    "Sale price $18,000 after $3,000 down",
+    "Cash price $18,000 with $3,000 down payment",
+    "Sale price $18,000 plus a $3,000 down payment",
+    "Sale price $18,000 after rebate",
+    "Sale price $18,000 with qualifying trade-in",
+    "Starting at cash price $18,000",
+    "Estimated cash price $18,000",
+  ])("withholds contingent purchase pricing: %s", (description) => {
+    expect(reportedAcquisitionPrice({ ask_price: 18000, description })).toBe(0);
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 18000,
+        options: {
+          priceEvidence: {
+            kind: "asking",
+            askingPrice: 18000,
+            evidenceText: description,
+          },
+        },
+      }),
+    ).toBe(0);
+  });
+  it("keeps ordinary fees and unrelated financing separate from a disclosed cash price", () => {
+    expect(
+      reportedAcquisitionPrice({
+        ask_price: 18000,
+        description:
+          "Cash price $18,000 plus tax and title. Financing available with $3,000 down.",
+      }),
+    ).toBe(18000);
+  });
   it("does not choose one of conflicting seller-stated purchase prices", () => {
     const description = "Cash price $18,000. Sale price $22,000.";
     expect(disclosedPriceEvidence(description, 18000)).toMatchObject({

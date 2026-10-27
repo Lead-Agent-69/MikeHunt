@@ -45,14 +45,20 @@ export function disclosedPriceEvidence(
     const before = text.slice(Math.max(0, cash.index - 60), cash.index);
     const after = text.slice(
       cash.index + cash[0].length,
-      cash.index + cash[0].length + 35,
+      cash.index + cash[0].length + 120,
     );
     if (
       // Never accept a numeric prefix of a range, malformed amount, phone number or "18k".
       /^(?:[,.]\d|\d|[km]\b)/i.test(after) ||
       /^\s*(?:[-–—\/]\s*\$?\s*\d|(?:to|through|or)\s+\$?\s*\d)/i.test(after) ||
-      /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly|weekly|bi[ -]?weekly)\s*$/i.test(
+      /\b(?:(?:not|isn't|is not)(?:\s+the)?|estimated|estimate of|starting at|as low as|from|(?:savings|discount|rebate|reduction)\s+(?:off|on|from)(?:\s+the)?|monthly|weekly|bi[ -]?weekly)\s*$/i.test(
         before,
+      ) ||
+      // A price conditional on cash down, incentives or a trade is not the full
+      // purchase amount. Keep this adjacent to the amount so unrelated financing
+      // sentences do not invalidate a separately disclosed cash price.
+      /^\s*(?:after|with|plus|including|assuming)\s+(?:(?:a|an|the|qualifying|qualified|required)\s+)*(?:\$\s*[\d,.]+\s+)?(?:down(?:[ -]payment)?\b|deposit\b|rebates?\b|incentives?\b|trade[ -]?in\b)/i.test(
+        after,
       ) ||
       /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b|\/\s*(?:wk|week)\b|per\s+week\b|a\s+week\b|(?:bi[ -]?)?weekly\b|(?:in\s+)?(?:savings|off|discount|rebate)\b)/i.test(
         after,
