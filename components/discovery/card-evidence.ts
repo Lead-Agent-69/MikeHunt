@@ -4,6 +4,12 @@ import { sourceMeta } from "@/lib/sources/source-meta";
 import type { ConditionRead } from "@/lib/intelligence/condition";
 import { conditionDisplayLabel } from "@/lib/deals/condition-display";
 import { nonCashPriceLabel } from "@/lib/deals/acquisition-price";
+import { marketValuation } from "@/lib/market/valuation";
+
+/** A legacy soldAnchored flag or a baseline number is not inspectable market evidence. */
+export function discoveryValuation(deal: DiscoveryDeal) {
+  return marketValuation(deal.valuation, deal.sellEstimate);
+}
 
 export function discoveryConditionLabel(
   condition: ConditionRead,

@@ -23,6 +23,7 @@ import {
   discoveryConditionLabel,
   discoveryEvidence,
   discoveryReason,
+  discoveryValuation,
 } from "./card-evidence";
 import { Bookmark } from "lucide-react";
 import { listingFreshnessLabel } from "@/lib/deals/listing-freshness";
@@ -81,6 +82,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   deal: DiscoveryDeal;
 }) {
   const gallery = useListingPhotos(deal.images);
+  const valuation = discoveryValuation(deal);
   const bookmark = useDiscoverySave(deal);
   const img = proxiedImage(gallery.image);
   const showImg = Boolean(img);
@@ -421,15 +423,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 ? `${priceLabel} $${displayAmount.toLocaleString()}`
                 : "Price not reported"}
               {" · "}
-              {deal.soldAnchored &&
-              deal.sellEstimate &&
-              (deal.compCount || 0) > 0
-                ? `Comp-backed resale $${Math.round(deal.sellEstimate).toLocaleString()} · ${deal.compCount} comps`
-                : deal.sellEstimate && !deal.soldAnchored
-                  ? `Ask-based estimate $${Math.round(deal.sellEstimate).toLocaleString()}${
-                      deal.compCount ? ` · ${deal.compCount} listing asks` : ""
-                    }`
-                  : "Resale basis not on file."}
+              {valuation.supported && deal.sellEstimate
+                ? `Reference $${Math.round(deal.sellEstimate).toLocaleString()} · ${valuation.label}`
+                : valuation.label}
               {` · ${listingFreshnessLabel(deal)}`}
               {deal.valueAsOf
                 ? ` · as of ${new Date(deal.valueAsOf).toLocaleDateString()}`
@@ -452,8 +448,8 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                   style={{ background: "var(--s1)" }}
                 >
                   <span className="flex items-center gap-1 font-semibold text-[var(--t4)]">
-                    Sell est
-                    {deal.valueConfidence && (
+                    Reference only
+                    {valuation.supported && deal.valueConfidence && (
                       <span
                         className="inline-block h-1.5 w-1.5 rounded-full"
                         style={{
@@ -469,9 +465,9 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                     )}
                   </span>
                   <span className="font-mono font-bold text-[var(--t2)]">
-                    {deal.sellEstimate
+                    {valuation.supported && deal.sellEstimate
                       ? `$${Math.round(deal.sellEstimate).toLocaleString()}`
-                      : "Not available"}
+                      : "Needs evidence"}
                   </span>
                 </div>
                 <div

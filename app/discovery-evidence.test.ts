@@ -3,6 +3,7 @@ import {
   discoveryEvidence,
   discoveryReason,
   discoveryConditionLabel,
+  discoveryValuation,
 } from "@/components/discovery/card-evidence";
 import { readCondition } from "@/lib/intelligence/condition";
 import type { DiscoveryDeal } from "@/components/discovery/types";
@@ -18,6 +19,39 @@ const listing = {
 } as DiscoveryDeal;
 
 describe("discovery purchase evidence", () => {
+  it("does not promote legacy sale flags or baselines into supported resale", () => {
+    expect(
+      discoveryValuation({ ...listing, soldAnchored: true, compCount: 20 })
+        .supported,
+    ).toBe(false);
+    expect(
+      discoveryValuation({
+        ...listing,
+        valuation: {
+          source: "comparables",
+          resaleEvidence: true,
+          compKind: "ask",
+          compCount: 4,
+          confidence: "low",
+        } as any,
+      }).label,
+    ).toContain("asking-price");
+    expect(
+      discoveryValuation({
+        ...listing,
+        valuation: {
+          source: "comparables",
+          resaleEvidence: true,
+          compKind: "sold",
+          compCount: 5,
+          confidence: "high",
+          soldAnchored: true,
+          soldCount: 5,
+          soldAt: "2020-01-01",
+        } as any,
+      }).supported,
+    ).toBe(false);
+  });
   it("does not turn model profit into a buy recommendation", () => {
     expect(discoveryEvidence(listing).acquisitionReady).toBe(false);
     expect(discoveryEvidence(listing).label).toBe("Needs evidence");
