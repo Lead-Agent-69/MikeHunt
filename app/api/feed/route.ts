@@ -6,6 +6,7 @@ import {
   applyInventoryViewScope,
   inventoryViewParams,
 } from "@/lib/search/inventory-view-scope";
+import { inventoryViewPage } from "@/lib/search/inventory-view-page";
 import { validateInventoryRanges } from "@/lib/search/inventory-filters";
 import {
   inventoryLocation,
@@ -159,15 +160,21 @@ async function getFeed(req: NextRequest) {
         { headers: { "Cache-Control": "private, no-store" } },
       );
     const pageLimit = Math.min(limit, FEED_MAX_SIGNED_OFFSET - offset);
-    let q = inventoryLocationQuery(supabase, location, COLS)
-      .eq("active", true)
-      // Nonempty image arrays sort before empty arrays; keep photo-less rows in the stream.
-      .order("images", { ascending: false, nullsFirst: false })
-      .order("last_seen_at", { ascending: false, nullsFirst: false })
-      .order("id", { ascending: true })
-      .range(offset, offset + pageLimit - 1);
-    q = applyInventoryViewScope(q, location.details);
-    const { data, error } = await q;
+    const page = inventoryViewPage(
+      (columns, details) => {
+        const q = inventoryLocationQuery(supabase, location, columns)
+          .eq("active", true)
+          // Shared buyable-inventory scope enforces the requested photo policy.
+          .order("images", { ascending: false, nullsFirst: false })
+          .order("last_seen_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: true });
+        return applyInventoryViewScope(q, details);
+      },
+      location.details,
+      COLS,
+      `feed-browse:${user.id}:${scopeKey}`,
+    );
+    const { data, error } = await page(offset, offset + pageLimit - 1);
     if (error) throw error;
     const rows = data || [];
     return NextResponse.json(
@@ -194,19 +201,24 @@ async function getFeed(req: NextRequest) {
       60_000,
       async () => {
         const profile = await buildInterestProfile(supabase, user.id);
-        let q = inventoryLocationQuery(supabase, location, COLS)
-          .eq("active", true)
-          .not("images", "is", null)
-          .neq("images", "{}")
-          .order(flipDesk ? "profit_score" : "last_seen_at", {
-            ascending: false,
-            nullsFirst: false,
-          })
-          .order("last_seen_at", { ascending: false })
-          .order("id", { ascending: true })
-          .limit(250);
-        q = applyInventoryViewScope(q, location.details);
-        const { data, error } = await q;
+        const page = inventoryViewPage(
+          (columns, details) => {
+            const q = inventoryLocationQuery(supabase, location, columns)
+              .eq("active", true)
+              .not("images", "is", null)
+              .neq("images", "{}")
+              .order(flipDesk ? "profit_score" : "last_seen_at", {
+                ascending: false,
+                nullsFirst: false,
+              })
+              .order("last_seen_at", { ascending: false })
+              .order("id", { ascending: true });
+            return applyInventoryViewScope(q, details);
+          },
+          location.details,
+          COLS,
+        );
+        const { data, error } = await page(0, 249);
         if (error) throw error;
         const items: ReturnType<typeof mapItem>[] = (data || [])
           .filter((d: any) => Array.isArray(d.images) && d.images[0])
@@ -252,16 +264,22 @@ async function getFeed(req: NextRequest) {
   if (offset >= FEED_MAX_OFFSET)
     return NextResponse.json({ items: [], nextOffset: null, capped: true });
   const pageLimit = Math.min(limit, FEED_MAX_OFFSET - offset);
-  let q = inventoryLocationQuery(supabase, location, COLS)
-    .eq("active", true)
-    .not("images", "is", null)
-    .neq("images", "{}")
-    .order("last_seen_at", { ascending: false, nullsFirst: false })
-    .order("id", { ascending: true })
-    .range(offset, offset + pageLimit - 1);
-  q = applyInventoryViewScope(q, location.details);
+  const page = inventoryViewPage(
+    (columns, details) => {
+      const q = inventoryLocationQuery(supabase, location, columns)
+        .eq("active", true)
+        .not("images", "is", null)
+        .neq("images", "{}")
+        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true });
+      return applyInventoryViewScope(q, details);
+    },
+    location.details,
+    COLS,
+    `feed-guest:${scopeKey}`,
+  );
 
-  const { data, error } = await q;
+  const { data, error } = await page(offset, offset + pageLimit - 1);
   if (error) throw error;
 
   const items = (data || [])
@@ -270,6 +288,7 @@ async function getFeed(req: NextRequest) {
   const next = offset + pageLimit;
   return NextResponse.json({
     items: forDesk(items),
-    nextOffset: next < FEED_MAX_OFFSET ? next : null,
+    nextOffset:
+      (data || []).length === pageLimit && next < FEED_MAX_OFFSET ? next : null,
   });
 }

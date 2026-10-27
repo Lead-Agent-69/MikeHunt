@@ -85,6 +85,17 @@ const request = (search: string) =>
   GET(new NextRequest(`https://app.test/api/deals/map?${search}`));
 
 describe("Map scope and role safety", () => {
+  it("finds pickups from category preferences without a literal title phrase", async () => {
+    const response = await request("q=suv+truck&states=MO");
+    expect((await response.json()).count).toBe(2);
+    expect(state.calls).toContainEqual(["in", "id", ["one", "two"]]);
+    expect(
+      state.calls.some(
+        (call) => call[0] === "or" && String(call[1]).includes("%suv truck%"),
+      ),
+    ).toBe(false);
+    expect(state.calls).toContainEqual(["in", "location_state", ["MO"]]);
+  });
   beforeEach(() => {
     state.flip = false;
     state.empty = false;
