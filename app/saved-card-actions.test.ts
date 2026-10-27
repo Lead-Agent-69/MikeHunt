@@ -97,7 +97,7 @@ describe("saved-card actions", () => {
     ).toContain("$12,000");
     expect(
       host.innerHTML.indexOf('aria-label="Saved vehicle price"'),
-    ).toBeLessThan(host.innerHTML.indexOf("Source proof:"));
+    ).toBeLessThan(host.innerHTML.indexOf("Saved snapshot:"));
     expect(
       host.innerHTML.indexOf('aria-label="Saved vehicle price"'),
     ).toBeLessThan(host.innerHTML.indexOf("<img"));
