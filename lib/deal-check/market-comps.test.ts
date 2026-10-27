@@ -25,6 +25,40 @@ const ask = (
 });
 
 describe("dealCheckMarketValue", () => {
+  it("rejects prefix-only model matches, different makes and missing years", () => {
+    const rows = [
+      ask("a", 20000, { make: "FORD", model: "F-150", year: 2020 }),
+      ask("b", 21000, { make: "Ford", model: "F 150", year: 2021 }),
+      ask("c", 22000, { make: "Ford", model: "F150", year: 2019 }),
+      ask("other-model", 1000, { make: "Ford", model: "F250", year: 2020 }),
+      ask("other-make", 1000, { make: "Other", model: "F150", year: 2020 }),
+      ask("missing-year", 1000, { make: "Ford", model: "F150" }),
+    ];
+    const market = dealCheckMarketValue({
+      target: { make: "Ford", model: "F-150", year: 2020 },
+      askRows: rows,
+      now: NOW,
+    });
+    expect(market.aggregate.n).toBe(3);
+    expect(market.aggregate.value).toBe(19950);
+    expect(market.excludedCohort).toBe(3);
+  });
+
+  it("does not turn one syndicated car into three independent comparisons", () => {
+    const vin = "1FMSK8DH5LGA12345";
+    const market = dealCheckMarketValue({
+      target: {},
+      now: NOW,
+      askRows: [
+        ask("a", 20000, { vin }),
+        ask("b", 21000, { vin: vin.toLowerCase() }),
+        ask("c", 22000, { source_url: "https://cars.com/vehicledetail/a" }),
+      ],
+    });
+    expect(market.aggregate.value).toBeNull();
+    expect(market.excludedDuplicates).toBe(2);
+    expect(market.askRows).toHaveLength(1);
+  });
   it("excludes the deal being checked by id, so it cannot grade itself", () => {
     const rows = [
       ask("a", 10000),

@@ -23,6 +23,8 @@ export const SOLD_COMP_WINDOW_DAYS = 180;
 const DAY_MS = 86_400_000;
 
 export interface DealCheckCompRow {
+  make?: string | null;
+  model?: string | null;
   id?: string | null;
   source?: string | null;
   source_deal_id?: string | null;
@@ -38,6 +40,9 @@ export interface DealCheckCompRow {
 }
 
 export interface DealCheckTarget {
+  make?: string | null;
+  model?: string | null;
+  year?: number | null;
   id?: string | null;
   source?: string | null;
   sourceDealId?: string | null;
@@ -52,6 +57,8 @@ export interface DealCheckMarket {
   excludedSelf: number;
   /** Rows dropped as stale (ask not seen in 7 days, sale older than 180 days or undated). */
   excludedStale: number;
+  excludedCohort: number;
+  excludedDuplicates: number;
   /** Ask rows that survived self/stale exclusion, for the "other listings" panel. */
   askRows: DealCheckCompRow[];
 }
@@ -104,14 +111,31 @@ export function dealCheckMarketValue(input: {
   const { target } = input;
   let excludedSelf = 0;
   let excludedStale = 0;
+  let excludedCohort = 0;
+  let excludedDuplicates = 0;
   const comps: CompObservation[] = [];
   const keptAsks: DealCheckCompRow[] = [];
+  const observed = new Set<string>();
+  const token = (value?: string | null) =>
+    String(value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
 
   const consider = (row: DealCheckCompRow, kind: "sold" | "ask") => {
     const price = Number(kind === "sold" ? row.sold_price : row.ask_price);
     if (!(Number.isFinite(price) && price > 0)) return;
     if (isSameVehicleOrListing(row, target)) {
       excludedSelf++;
+      return;
+    }
+    // SQL broadens retrieval only. A model prefix must never establish comparability.
+    if (
+      (target.make && token(row.make) !== token(target.make)) ||
+      (target.model && token(row.model) !== token(target.model)) ||
+      (target.year != null &&
+        (row.year == null || Math.abs(row.year - target.year) > 1))
+    ) {
+      excludedCohort++;
       return;
     }
     const stamp = kind === "sold" ? row.sold_at : row.last_seen_at;
@@ -125,6 +149,20 @@ export function dealCheckMarketValue(input: {
       excludedStale++;
       return;
     }
+    const identities = [
+      normVin(row.vin) && `vin:${normVin(row.vin)}`,
+      normUrl(row.source_url) && `url:${normUrl(row.source_url)}`,
+      row.source &&
+        row.source_deal_id &&
+        `source:${row.source.toLowerCase()}:${row.source_deal_id.toLowerCase()}`,
+      row.id && `id:${row.id}`,
+    ].filter(Boolean) as string[];
+    // Keep asks and completed-sale observations separate; syndication isn't a new sample.
+    if (identities.some((key) => observed.has(`${kind}:${key}`))) {
+      excludedDuplicates++;
+      return;
+    }
+    identities.forEach((key) => observed.add(`${kind}:${key}`));
     comps.push({
       price,
       kind,
@@ -160,6 +198,8 @@ export function dealCheckMarketValue(input: {
     aggregate,
     excludedSelf: excludedSelf + aggregate.excludedSelf,
     excludedStale,
+    excludedCohort,
+    excludedDuplicates,
     askRows: keptAsks.filter(
       (r) =>
         !isSelfComp(

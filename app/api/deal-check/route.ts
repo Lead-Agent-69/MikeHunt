@@ -278,6 +278,9 @@ export async function POST(req: NextRequest) {
           : null;
       const market = dealCheckMarketValue({
         target: {
+          make: v.make,
+          model: v.model,
+          year: v.year ? Number(v.year) : null,
           id:
             typeof body.dealId === "string" && UUID_RE.test(body.dealId)
               ? body.dealId
@@ -307,6 +310,8 @@ export async function POST(req: NextRequest) {
             damage_type: r.damage_type,
             title: r.title,
             auction_end_at: r.auction_end_at,
+            last_seen_at: r.last_seen_at,
+            location_state: r.location_state,
           }));
         marketComparison = {
           // Kept as `marketAvg` for existing clients; it is the aggregateComps value (median,
@@ -321,6 +326,9 @@ export async function POST(req: NextRequest) {
           basisLabel: marketBasisLabel(agg),
           confidence: agg.confidence,
           excludedSelf: market.excludedSelf,
+          excludedCohort: market.excludedCohort,
+          excludedDuplicates: market.excludedDuplicates,
+          excludedStale: market.excludedStale,
         };
         marketValue = {
           known: true,
