@@ -6,6 +6,10 @@ const scopeState = vi.hoisted(() => ({
   query: "state=TX",
   displayedStates: undefined as string[] | undefined,
 }));
+vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
+  DiscoverySaveProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 vi.mock("@/hooks/useInventoryViewScope", () => ({
   useInventoryViewScope: () => ({ query: scopeState.query, ready: true }),
 }));

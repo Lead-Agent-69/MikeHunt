@@ -3,6 +3,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase", () => ({ createClientComponentClient: () => ({}) }));
+vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
+  DiscoverySaveProvider: ({ children }: { children: React.ReactNode }) =>
+    children,
+}));
 vi.mock("@/hooks/usePreferences", () => ({
   usePreferences: () => ({ prefs: {}, isLoading: false }),
 }));

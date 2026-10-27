@@ -58,11 +58,28 @@ function mapItem(d: any) {
     image: Array.isArray(d.images) ? d.images[0] : null,
     askPrice: price.amount ?? 0,
     priceLabel: price.label,
+    priceEvidence: {
+      kind: price.kind,
+      listedAmount: price.amount ?? undefined,
+      ...(price.kind === "asking" && {
+        askingPrice: price.cashPrice ?? undefined,
+      }),
+      ...(price.kind === "current_bid" && {
+        currentBid: price.amount ?? undefined,
+      }),
+      ...(price.kind === "buy_now" && { buyNow: price.cashPrice ?? undefined }),
+      ...(price.kind === "reference" && {
+        referenceValue: price.amount ?? undefined,
+      }),
+      ...(typeof d.price_evidence?.checkedAt === "string" && {
+        checkedAt: d.price_evidence.checkedAt,
+      }),
+    },
     priceNote:
       price.cashPrice == null
         ? "Full cash price is not confirmed. This amount may be a bid, payment or reference value."
         : "Confirm availability, fees and condition with the seller before buying.",
-    images: Array.isArray(d.images) ? d.images.slice(0, 8) : [],
+    images: Array.isArray(d.images) ? d.images.slice(0, 20) : [],
     sellEstimate: d.sell_estimate != null ? Number(d.sell_estimate) : null,
     netProfit: d.true_net_profit != null ? Number(d.true_net_profit) : null,
     score: d.profit_score != null ? Number(d.profit_score) : null,

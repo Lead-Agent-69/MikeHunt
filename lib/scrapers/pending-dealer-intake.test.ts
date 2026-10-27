@@ -27,6 +27,22 @@ const entry = (
 });
 
 describe("pending dealer intake", () => {
+  it("gives the buyer's primary market the first slot before surrounding states", () => {
+    const entries = [
+      entry("neighbour", "billsmithauto.com"),
+      entry("home", "dgautollc.com", { location_state: "MO" }),
+    ];
+    expect(
+      pendingDealerIntake(entries, ["MO", "IL"], 1, now).map(
+        (row) => row.source_deal_id,
+      ),
+    ).toEqual(["home"]);
+    expect(
+      pendingDealerIntake(entries, ["IL", "MO"], 1, now).map(
+        (row) => row.source_deal_id,
+      ),
+    ).toEqual(["neighbour"]);
+  });
   it("preserves observation timestamps and gives small dealers a slot", () => {
     const entries = [
       entry("a1"),

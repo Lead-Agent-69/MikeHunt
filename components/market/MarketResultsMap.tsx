@@ -76,6 +76,7 @@ export function marketMapPoints(
       url: `/deal/${encodeURIComponent(row.id)}`,
       condition: row.condition,
       damageType: row.damageType,
+      titleSource: row.titleSource,
     }));
 }
 

@@ -213,6 +213,20 @@ describe("smart market exploration", () => {
       profitEstimate: undefined,
     };
     const profitPoints = marketMapPoints([negative, zero, unknown], "profit");
+    expect(
+      marketMapPoints([
+        { ...negative, condition: "clean_title", titleSource: "listing" },
+      ])[0].titleSource,
+    ).toBe("listing");
+    expect(
+      marketMapPoints([
+        {
+          ...negative,
+          condition: "clean_title",
+          titleSource: "source_default",
+        },
+      ])[0].titleSource,
+    ).toBe("source_default");
     expect(profitPoints.map((point) => point.valueText)).toEqual([
       "-$1,500",
       "$0",

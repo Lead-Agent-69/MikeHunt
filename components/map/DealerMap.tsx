@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { titleBadgeHtml, titleBadgeModel } from "@/lib/deals/title-badge-model";
 import { MapContainer, TileLayer, ZoomControl, useMap } from "react-leaflet";
-import { vehiclePopup } from "@/lib/map/vehicle-popup";
+import { vehiclePopup, watchVehiclePopupPhoto } from "@/lib/map/vehicle-popup";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
@@ -199,6 +199,7 @@ function ClusteredMarkers({
       chunkDelay: 24,
     });
     const markers: L.Marker[] = [];
+    const photoDisposers: (() => void)[] = [];
     for (const p of points) {
       const rich =
         (p.price != null && p.price > 0) || p.image || p.score != null;
@@ -218,18 +219,34 @@ function ClusteredMarkers({
       // bindPopup toggles on click/Enter, which closes an already-open hover/focus preview.
       // This newly-created marker has no other click/keypress listeners to preserve yet.
       marker.off("click keypress");
-      const activate = () => {
+      const activate = (autoPan = true) => {
+        const popup = marker.getPopup();
+        const alreadyOpen = marker.isPopupOpen();
+        if (popup) popup.options.autoPan = autoPan;
         marker.openPopup();
+        if (autoPan && alreadyOpen) popup?.update();
         selected.current?.(p.id);
       };
-      marker.on("click mouseover", activate);
+      // Hover must not move the pointer target before a click lands. Deliberate
+      // activation may pan an already-open preview into the map's visible area.
+      marker.on("mouseover", () => activate(false));
+      marker.on("click", () => activate(true));
+      let disposePhoto = () => {};
+      const clearPhoto = () => disposePhoto();
+      photoDisposers.push(clearPhoto);
+      marker.on("popupopen", () => {
+        clearPhoto();
+        const root = marker.getPopup()?.getElement();
+        if (root) disposePhoto = watchVehiclePopupPhoto(root);
+      });
+      marker.on("popupclose", clearPhoto);
       marker.on("keypress", (event) => {
         if ((event.originalEvent as KeyboardEvent).key === "Enter") activate();
       });
       marker.on("add", () => {
         const element = marker.getElement();
         element?.setAttribute("aria-label", p.name);
-        element?.addEventListener("focus", activate);
+        element?.addEventListener("focus", () => activate(false));
       });
       markers.push(marker);
     }
@@ -243,6 +260,7 @@ function ClusteredMarkers({
         { padding: [32, 32], maxZoom: 9, animate: false },
       );
     return () => {
+      photoDisposers.forEach((dispose) => dispose());
       group.clearLayers();
       map.removeLayer(group);
     };

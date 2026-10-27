@@ -149,11 +149,17 @@ export function SwipeVehicleFace({
           damageType={deal.damageType}
           titleSource={deal.titleSource}
         />
+      </div>
+      <div
+        role="region"
+        aria-label="Swipe review action"
+        className="shrink-0 border-t border-[var(--b1)] bg-[var(--s0)] p-2"
+      >
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => setReview(true)}
-          className="mt-auto min-h-11 shrink-0 rounded-lg border border-[var(--b1)] text-sm font-semibold text-[var(--blue)]"
+          className="min-h-11 w-full rounded-lg border border-[var(--b1)] text-sm font-semibold text-[var(--blue)]"
         >
           Quick review
         </button>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import { DiscoverySaveProvider } from "@/components/discovery/DiscoverySaveProvider";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { usePreferences } from "@/hooks/usePreferences";
 import { savedScopeStates } from "@/lib/preferences/location-form";
@@ -21,6 +22,14 @@ import {
 } from "@/components/feed/FeedVehicleCard";
 
 export default function FeedPage() {
+  return (
+    <DiscoverySaveProvider>
+      <FeedContents />
+    </DiscoverySaveProvider>
+  );
+}
+
+function FeedContents() {
   const { query: sharedQuery, ready: viewReady } = useInventoryViewScope();
   const { prefs, isLoading: prefsLoading } = usePreferences();
   const savedScopeKey = JSON.stringify(savedScopeStates(prefs) || []);

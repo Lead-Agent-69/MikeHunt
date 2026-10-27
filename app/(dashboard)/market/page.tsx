@@ -324,6 +324,10 @@ export default function MarketPage() {
     if (prefsLoading) return;
     const restore = () => {
       const params = new URLSearchParams(window.location.search);
+      if (params.get("filters") === "open") {
+        setFloatingFilters(true);
+        setShowFilters(true);
+      }
       normalizeLegacyMarketParams(params);
       const next = { ...EMPTY };
       if (!params.toString()) {

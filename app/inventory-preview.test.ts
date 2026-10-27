@@ -1,4 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
+  useDiscoverySave: () => ({
+    saved: false,
+    busy: false,
+    label: "Save to account",
+    toggle: vi.fn(),
+  }),
+}));
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SwipeVehicleFace } from "@/components/search/SwipeVehicleFace";
@@ -6,6 +14,54 @@ import { FeedVehicleCard } from "@/components/feed/FeedVehicleCard";
 import { InventoryViewLinks } from "@/components/search/InventoryViewLinks";
 
 describe("photo-first inventory previews", () => {
+  it.each([
+    ["", false],
+    ["seenWithin=30", true],
+    ["body=Pickup", true],
+  ])(
+    "keeps default browsing compact and exposes selected advanced options (%s)",
+    (query, expanded) => {
+      const html = renderToStaticMarkup(
+        createElement(InventoryViewLinks, {
+          query: String(query),
+          current: "/feed",
+        }),
+      );
+      const host = document.createElement("div");
+      host.innerHTML = html;
+      expect(host.querySelector("details")!.hasAttribute("open")).toBe(
+        expanded,
+      );
+      expect(
+        host.querySelector('summary[aria-label^="Browse options"]'),
+      ).not.toBeNull();
+    },
+  );
+  it("keeps the complete search when Feed users open the full filters", () => {
+    const html = renderToStaticMarkup(
+      createElement(InventoryViewLinks, {
+        query:
+          "states=MO%2CIL&zip=63101&radius=100&maxMileage=50000&q=Ford&scope=explicit",
+        current: "/feed",
+      }),
+    );
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    const link = Array.from(host.querySelectorAll("a")).find((link) =>
+      link.textContent?.includes("Search & filters"),
+    )!;
+    const url = new URL(link.href);
+    expect(url.pathname).toBe("/market");
+    for (const [key, value] of Object.entries({
+      states: "MO,IL",
+      zip: "63101",
+      radius: "100",
+      maxMileage: "50000",
+      q: "Ford",
+      filters: "open",
+    }))
+      expect(url.searchParams.get(key)).toBe(value);
+  });
   it("discloses missing body-style coverage and clears only the style filter", () => {
     const html = renderToStaticMarkup(
       createElement(InventoryViewLinks, {
@@ -40,6 +96,11 @@ describe("photo-first inventory previews", () => {
     expect(html).toContain("1/12 photos");
     expect(html).not.toContain("1/8 photos");
     expect(html).toContain("Next photo");
+    const action = host.querySelector('[aria-label="Swipe review action"]');
+    expect(action?.querySelector("button")?.textContent).toContain(
+      "Quick review",
+    );
+    expect(action?.className).not.toContain("overflow-y-auto");
   });
   it("shows source last-seen dates without calling them verified availability", () => {
     const item = {

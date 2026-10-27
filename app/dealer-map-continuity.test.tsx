@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
     open: boolean;
     handlers: Map<string, (event?: any) => void>;
     element: HTMLElement;
+    options: { autoPan: boolean };
+    updates: number;
   }>,
 }));
 vi.mock("react-leaflet", () => ({
@@ -40,6 +42,8 @@ vi.mock("leaflet", () => ({
         open: false,
         handlers: new Map<string, (event?: any) => void>(),
         element: document.createElement("div"),
+        options: { autoPan: true },
+        updates: 0,
       };
       state.previews.push(preview);
       const marker = {
@@ -63,6 +67,13 @@ vi.mock("leaflet", () => ({
           preview.open = true;
         }),
         getElement: () => preview.element,
+        isPopupOpen: () => preview.open,
+        getPopup: () => ({
+          options: preview.options,
+          update: () => {
+            preview.updates++;
+          },
+        }),
       };
       return marker;
     },
@@ -155,7 +166,11 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
     preview.handlers.get("keypress")!({ originalEvent: { key: "x" } });
     expect(preview.open).toBe(false);
     preview.handlers.get("mouseover")!();
+    expect(preview.options.autoPan).toBe(false);
+    const beforeClick = preview.updates;
     preview.handlers.get("click")!();
+    expect(preview.options.autoPan).toBe(true);
+    expect(preview.updates).toBe(beforeClick + 1);
     expect(preview.open).toBe(true);
     expect(selected).toHaveBeenLastCalledWith("car");
   } finally {

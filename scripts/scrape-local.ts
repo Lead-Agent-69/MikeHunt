@@ -872,6 +872,38 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
         await writeStatus();
       }
     }
+    if (
+      !job &&
+      mode === "hybrid" &&
+      !manualPaused &&
+      cache.pendingRecoveryDue() &&
+      (await cache.claimPendingRecovery())
+    ) {
+      currentStatus.currentSources = ["pending_dealer_recovery"];
+      await writeStatus();
+      try {
+        // Only actual buyer demand (or the last successful demand plan) supplies markets.
+        let states = currentStatus.sweep?.demandStates ?? [];
+        const { data, error } = await supabase
+          .rpc("scrape_demand", { p_active_days: 30 })
+          .abortSignal(AbortSignal.timeout(5_000));
+        if (!error)
+          states = summarizeDemand(data as DemandRow[]).anchors ?? states;
+        const published = await cache.publishPendingDealers(
+          supabase,
+          curatedRingStates(states),
+        );
+        if (published)
+          console.log(
+            `[pending-intake] published ${published} recent dealer listings; source dates retained`,
+          );
+      } catch {
+        console.warn("[pending-intake] deferred; continuing normal collection");
+      } finally {
+        currentStatus.currentSources = [];
+        await writeStatus();
+      }
+    }
     if (!job && mode === "hybrid" && !manualPaused) {
       try {
         if (await runSweepTick(supabase)) continue;
