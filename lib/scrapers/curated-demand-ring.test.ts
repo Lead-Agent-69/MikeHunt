@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CURATED_SITES } from "./curated-sites";
 import {
   CURATED_RING_SIZE,
+  curatedRoutingState,
   curatedRingStates,
   scopeDemandStates,
   selectCuratedSitesForDemand,
@@ -19,6 +20,16 @@ const empty = {
 };
 
 describe("per-state curated demand ring", () => {
+  it("includes the Missouri rebuilders whose catalog tags previously omitted the state", () => {
+    const selected = selectCuratedSitesForDemand(CURATED_SITES, empty, ["MO"]);
+    for (const host of ["74auto.com", "rebuilders.stjamesautoparts.com"]) {
+      const site = selected.find(
+        (site) => new URL(site.url).hostname.replace(/^www\./, "") === host,
+      );
+      expect(site).toBeDefined();
+      expect(curatedRoutingState(site!)).toBe("MO");
+    }
+  });
   it("reads the state(s) a location-demand kick put on the job scope", () => {
     expect(scopeDemandStates({ state: "ks" })).toEqual(["KS"]);
     expect(

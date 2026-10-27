@@ -14,6 +14,21 @@ export function curatedSiteKey(site: Pick<CuratedSite, "url">) {
   return new URL(site.url).hostname.toLowerCase().replace(/^www\./, "");
 }
 
+/** Known single-location Missouri dealers omitted by legacy catalog state tags.
+ * Routing metadata only; this does not establish a particular vehicle's location or title.
+ */
+export function curatedRoutingState(site: Pick<CuratedSite, "url" | "state">) {
+  return (
+    site.state ||
+    (
+      {
+        "74auto.com": "MO",
+        "rebuilders.stjamesautoparts.com": "MO",
+      } as Record<string, string>
+    )[curatedSiteKey(site)]
+  );
+}
+
 /** Prefer actual buyer anchors, not the sweep's additional national-coverage slots. */
 export function curatedPriorityStates(plan?: {
   states?: unknown;
@@ -51,10 +66,10 @@ export function planCuratedRotation<
   const preferredStates = new Set(states.map((state) => state.toUpperCase()));
   if (!preferredStates.size) return ordered;
   const preferred = ordered.filter((site) =>
-    preferredStates.has(site.state || ""),
+    preferredStates.has(curatedRoutingState(site) || ""),
   );
   const wider = ordered.filter(
-    (site) => !preferredStates.has(site.state || ""),
+    (site) => !preferredStates.has(curatedRoutingState(site) || ""),
   );
   const result: T[] = [];
   let streak = validStreak(rotation.preferredStreak);
@@ -90,7 +105,7 @@ export function recordCuratedAttempt(
   rotation.lastAttempted[curatedSiteKey(site)] = now;
   if (states.length)
     rotation.preferredStreak = states.some(
-      (state) => state.toUpperCase() === site.state,
+      (state) => state.toUpperCase() === curatedRoutingState(site),
     )
       ? Math.min(2, validStreak(rotation.preferredStreak) + 1)
       : 0;
@@ -208,7 +223,7 @@ export function selectCuratedSitesForDemand<
   const ring = curatedRingStates(anchors);
   const rank = new Map(ring.map((s, i) => [s, i]));
   const inRing = sites.filter((site) =>
-    rank.has(String(site.state || "").toUpperCase()),
+    rank.has(String(curatedRoutingState(site) || "").toUpperCase()),
   );
   if (!inRing.length) return planCuratedRotation(sites, rotation, ring);
   return planCuratedRotation(inRing, rotation, anchors);

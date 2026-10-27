@@ -335,7 +335,7 @@ export function createScraperRegistry(
     frequencyMinutes: 720,
     requiresAuth: false,
     stealthRequired: false,
-    fn: () => scrapeEbaySold(),
+    fn: (execution) => scrapeEbaySold(execution),
     enabled: true,
     estimatedDealsPerRun: 800,
   });
