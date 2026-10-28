@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerUser } from "@/lib/server-supabase";
 import { createServerComponentClient } from "@/lib/supabase";
 
+import { savePreferencesAtomically } from "@/lib/preferences/atomic-save";
+
 export const dynamic = "force-dynamic";
 
 // Free customer access only. Never writes billing, identity, roles or admin claims.
@@ -27,39 +29,19 @@ export async function PUT(req: NextRequest) {
       { status: 400 },
     );
   const sb = createServerComponentClient();
-  const { data: existing, error: readError } = await sb
-    .from("user_preferences")
-    .select("prefs")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (readError)
-    return NextResponse.json(
-      { error: "Your workspace could not be loaded. Try again." },
-      { status: 503 },
-    );
-  const prefs = {
-    ...(existing?.prefs || {}),
-    workspaceMode: mode,
-    workspaceAccess: "community",
-  };
-  const { data, error } = await sb
-    .from("user_preferences")
-    .upsert(
-      {
-        user_id: user.id,
-        prefs,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
+  try {
+    const saved = await savePreferencesAtomically(sb, user.id, (existing) => ({
+      ...existing,
+      workspaceMode: mode,
+      workspaceAccess: "community",
+    }));
+    if (
+      saved.prefs.workspaceMode !== mode ||
+      saved.prefs.workspaceAccess !== "community"
     )
-    .select("user_id,prefs")
-    .single();
-  if (
-    error ||
-    data?.user_id !== user.id ||
-    data?.prefs?.workspaceMode !== mode ||
-    data?.prefs?.workspaceAccess !== "community"
-  )
+      throw new Error("Unconfirmed workspace");
+    return NextResponse.json({ prefs: saved.prefs, authed: true });
+  } catch {
     return NextResponse.json(
       {
         error:
@@ -67,5 +49,5 @@ export async function PUT(req: NextRequest) {
       },
       { status: 503 },
     );
-  return NextResponse.json({ prefs: data.prefs, authed: true });
+  }
 }

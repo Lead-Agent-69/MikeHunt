@@ -11,13 +11,17 @@ import {
 import { getServerUser } from "@/lib/server-supabase";
 import { sanitizeWatchListPatch } from "@/lib/preferences/watched-dealers";
 import { sanitizeLocationPatch } from "@/lib/preferences/locations";
-import {
-  kickLocationDemand,
-  locationDemandPrefsStamp,
-  locationPatchTouchesDemand,
-} from "@/lib/preferences/kick-location-demand";
+import { locationPatchTouchesDemand } from "@/lib/preferences/kick-location-demand";
 import { syncPrefsHomeLocationToProfile } from "@/lib/preferences/sync-home-state";
 import { mergePreferencePatch } from "@/lib/preferences/merge-patch";
+import {
+  savePreferencesAtomically,
+  PreferencePersistenceError,
+} from "@/lib/preferences/atomic-save";
+import {
+  clearLocationDemand,
+  queueConfirmedLocationDemand,
+} from "@/lib/preferences/confirmed-location-demand";
 
 export const dynamic = "force-dynamic";
 
@@ -31,21 +35,6 @@ function readGuestPrefs(req: NextRequest) {
   } catch {
     return {};
   }
-}
-
-function guestPrefsResponse(prefs: Record<string, unknown>) {
-  const res = NextResponse.json({ prefs, authed: false, local: true });
-  res.cookies.set(
-    GUEST_PREFS_COOKIE,
-    Buffer.from(JSON.stringify(prefs), "utf8").toString("base64url"),
-    {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 180,
-    },
-  );
-  return res;
 }
 
 export async function GET(req: NextRequest) {
@@ -164,65 +153,31 @@ export async function PUT(req: NextRequest) {
   }
 
   const sb = createServerComponentClient();
-  // Merge server-side so one app's save never drops another's keys.
-  const { data: existing, error: readError } = await sb
-    .from("user_preferences")
-    .select("prefs")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (readError)
-    return NextResponse.json(
-      { error: "Preferences unavailable" },
-      { status: 503 },
-    );
-  let merged: Record<string, unknown> = mergePreferencePatch(
-    (existing?.prefs as Record<string, unknown>) || {},
-    patch,
-  );
-
-  let locationDemand: {
-    states: string[];
-    queued: boolean;
-    deduplicated: boolean;
-    jobId: string | null;
-  } | null = null;
-
-  if (locationPatchTouchesDemand(patch)) {
-    const kick = await kickLocationDemand({
-      supabase: sb,
-      userId: user.id,
-      prefs: merged,
+  let confirmed;
+  const affectsDemand = locationPatchTouchesDemand(patch);
+  try {
+    confirmed = await savePreferencesAtomically(sb, user.id, (existing) => {
+      const next = mergePreferencePatch(existing, patch);
+      return affectsDemand ? clearLocationDemand(next) : next;
     });
-    if (kick) {
-      merged = { ...merged, ...locationDemandPrefsStamp(kick) };
-      locationDemand = {
-        states: kick.states,
-        queued: kick.queued,
-        deduplicated: kick.deduplicated,
-        jobId: kick.jobId,
-      };
-    }
-  }
-
-  const { data: saved, error } = await sb
-    .from("user_preferences")
-    .upsert(
-      {
-        user_id: user.id,
-        prefs: merged,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    )
-    .select("user_id,prefs")
-    .single();
-  if (error || saved?.user_id !== user.id || !saved?.prefs) {
-    console.error("[preferences]", error?.message || "Unconfirmed save");
+  } catch (error) {
     return NextResponse.json(
       { error: "Preferences unavailable" },
-      { status: 500 },
+      {
+        status:
+          error instanceof PreferencePersistenceError && error.stage === "read"
+            ? 503
+            : 500,
+      },
     );
   }
+  const queued = affectsDemand
+    ? await queueConfirmedLocationDemand({
+        supabase: sb,
+        userId: user.id,
+        prefs: confirmed.prefs,
+      })
+    : { prefs: confirmed.prefs, locationDemand: null };
 
   // Keep legacy user_profiles.home_state aligned with prefs.homeLocation (Arbitrage / Settings).
   if ("homeLocation" in patch) {
@@ -234,8 +189,8 @@ export async function PUT(req: NextRequest) {
   }
 
   return NextResponse.json({
-    prefs: saved.prefs,
+    prefs: queued.prefs,
     authed: true,
-    ...(locationDemand ? { locationDemand } : {}),
+    ...(queued.locationDemand ? { locationDemand: queued.locationDemand } : {}),
   });
 }

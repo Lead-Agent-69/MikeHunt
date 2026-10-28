@@ -42,20 +42,28 @@ describe("syncProfileHomeStateToPrefs", () => {
   });
 
   it("upserts prefs.homeLocation and kicks demand", async () => {
-    const upsert = vi.fn().mockResolvedValue({ error: null });
+    const rpc = vi.fn((_name: string, input: any) => ({
+      abortSignal: async () => ({
+        data: [{ user_id: "u1", prefs: input.p_next_prefs }],
+        error: null,
+      }),
+    }));
     const sb = {
+      rpc,
       from: vi.fn((table: string) => {
-        if (table === "user_preferences") {
-          return {
-            select: () => ({
-              eq: () => ({
-                maybeSingle: async () => ({ data: { prefs: {} }, error: null }),
+        if (table !== "user_preferences") throw new Error(table);
+        return {
+          select: () => ({
+            eq: () => ({
+              abortSignal: () => ({
+                maybeSingle: async () => ({
+                  data: { user_id: "u1", prefs: {} },
+                  error: null,
+                }),
               }),
             }),
-            upsert,
-          };
-        }
-        throw new Error(table);
+          }),
+        };
       }),
     } as any;
     const out = await syncProfileHomeStateToPrefs({
@@ -67,16 +75,19 @@ describe("syncProfileHomeStateToPrefs", () => {
     expect(out.synced).toBe(true);
     expect(out.kicked).toBe(true);
     expect(kick).toHaveBeenCalled();
-    expect(upsert).toHaveBeenCalledWith(
+    expect(rpc).toHaveBeenCalledWith(
+      "compare_and_set_user_preferences",
       expect.objectContaining({
-        user_id: "u1",
-        prefs: expect.objectContaining({
+        p_user_id: "u1",
+        p_next_prefs: expect.objectContaining({
           homeLocation: expect.objectContaining({ state: "MO", zip: "63101" }),
           carsState: "MO",
           locationDemandStates: ["MO"],
         }),
       }),
-      { onConflict: "user_id" },
+    );
+    expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(
+      kick.mock.invocationCallOrder[0],
     );
   });
 });

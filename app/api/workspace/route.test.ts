@@ -7,12 +7,13 @@ const mocks = vi.hoisted(() => ({
   mismatch: false,
   written: null as any,
   from: vi.fn(),
+  rpc: vi.fn(),
 }));
 vi.mock("@/lib/server-supabase", () => ({
   getServerUser: async () => ({ data: { user: mocks.user } }),
 }));
 vi.mock("@/lib/supabase", () => ({
-  createServerComponentClient: () => ({ from: mocks.from }),
+  createServerComponentClient: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 import { PUT } from "./route";
 const req = (body: object) =>
@@ -31,27 +32,37 @@ beforeEach(() => {
       eq: (_key: string, id: string) => {
         expect(id).toBe("owner");
         return {
-          maybeSingle: async () => ({
-            data: {
-              prefs: { buyerScope: { buyerMode: "personal" }, carsState: "TX" },
-            },
-            error: mocks.readError ? {} : null,
+          abortSignal: () => ({
+            maybeSingle: async () => ({
+              data: {
+                user_id: "owner",
+                prefs: {
+                  buyerScope: { buyerMode: "personal" },
+                  carsState: "TX",
+                },
+              },
+              error: mocks.readError ? {} : null,
+            }),
           }),
         };
       },
     }),
-    upsert: (row: any) => {
-      mocks.written = row;
-      return {
-        select: () => ({
-          single: async () => ({
-            data: { ...row, user_id: mocks.mismatch ? "other" : row.user_id },
-            error: mocks.writeError ? {} : null,
-          }),
-        }),
-      };
-    },
   }));
+  mocks.rpc.mockReset().mockImplementation((name: string, input: any) => {
+    expect(name).toBe("compare_and_set_user_preferences");
+    expect(input.p_user_id).toBe("owner");
+    return {
+      abortSignal: async () => {
+        mocks.written = { user_id: input.p_user_id, prefs: input.p_next_prefs };
+        return {
+          data: [
+            { ...mocks.written, user_id: mocks.mismatch ? "other" : "owner" },
+          ],
+          error: mocks.writeError ? {} : null,
+        };
+      },
+    };
+  });
 });
 describe("free workspace persistence", () => {
   it("requires authentication", async () => {
