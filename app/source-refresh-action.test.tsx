@@ -2,10 +2,16 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
-import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
+import {
+  pollScopedScrapeJob,
+  SourceSearchError,
+} from "@/lib/scrapers/job-status-client";
 import type { BuyerScope } from "@/lib/scrapers/buyer-scope";
 
-vi.mock("@/lib/scrapers/job-status-client", () => ({
+vi.mock("@/lib/scrapers/job-status-client", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/lib/scrapers/job-status-client")
+  >()),
   pollScopedScrapeJob: vi.fn(),
 }));
 let root: Root;
@@ -93,6 +99,7 @@ it("queues exactly the selected criteria without using the admin runner or infla
     "job-1",
     expect.any(AbortSignal),
     expect.any(Function),
+    expect.objectContaining({ onStatus: expect.any(Function) }),
   );
   expect(host.textContent).toContain(
     "new matching listings are not guaranteed",
@@ -150,7 +157,7 @@ it("does not announce success for malformed queue responses", async () => {
   expect(pollScopedScrapeJob).not.toHaveBeenCalled();
 });
 
-it("does not resubmit collection after a failed status request; retry is explicit", async () => {
+it("rechecks the same search after a lost connection instead of submitting collection again", async () => {
   vi.mocked(pollScopedScrapeJob).mockRejectedValueOnce(
     new Error("backend failure"),
   );
@@ -159,10 +166,80 @@ it("does not resubmit collection after a failed status request; retry is explici
   expect(fetchMock).toHaveBeenCalledTimes(1);
   expect(host.textContent).not.toContain("Search finished");
   expect(host.textContent).toContain("Check coverage");
+  expect(host.querySelector("button")!.textContent).toContain(
+    "Check search status",
+  );
   await click();
-  expect(fetchMock).toHaveBeenCalledTimes(2);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  expect(
+    vi.mocked(pollScopedScrapeJob).mock.calls.map((call) => call[0]),
+  ).toEqual(["job-1", "job-1"]);
   expect(host.textContent).toContain("Search finished");
 });
+
+it("distinguishes queued work from running work and keeps a known capacity notice after monitoring ends", async () => {
+  const pending = deferred<any>();
+  let statusUpdate!: NonNullable<
+    Parameters<typeof pollScopedScrapeJob>[3]
+  >["onStatus"];
+  vi.mocked(pollScopedScrapeJob).mockImplementation(
+    async (_id, _signal, _update, options) => {
+      statusUpdate = options?.onStatus;
+      options?.onStatus?.({ id: "job-1", status: "pending" });
+      return pending.promise;
+    },
+  );
+  await render();
+  await click();
+  expect(host.querySelector("button")!.textContent).toContain("Search queued");
+  await act(async () => statusUpdate?.({ id: "job-1", status: "running" }));
+  expect(host.querySelector("button")!.textContent).toContain(
+    "Checking selected sources",
+  );
+  const now = Date.now();
+  const next = new Date(now);
+  next.setUTCHours(24, 0, 0, 0);
+  await act(async () => {
+    statusUpdate?.({
+      id: "job-1",
+      status: "pending",
+      waiting: {
+        reason: "daily_capacity",
+        observedAt: new Date(now).toISOString(),
+        nextCheckAt: next.toISOString(),
+      },
+    });
+    pending.resolve(null);
+  });
+  expect(host.textContent).toContain("daily collection allowance");
+  expect(host.textContent).toContain("not a finish time");
+  expect(host.textContent).toContain("Monitoring paused");
+  expect(host.querySelector("button")!.textContent).toContain(
+    "Check search status",
+  );
+  expect(host.textContent).not.toContain("Search finished");
+});
+
+it.each(["authentication", "missing", "failed"] as const)(
+  "keeps friendly %s recovery and permits a new request only for terminal searches",
+  async (code) => {
+    vi.mocked(pollScopedScrapeJob).mockRejectedValueOnce(
+      new SourceSearchError(code),
+    );
+    await render();
+    await click();
+    expect(host.textContent).toContain(
+      code === "authentication"
+        ? "Sign in again"
+        : code === "missing"
+          ? "no longer available"
+          : "couldn't check the selected sources",
+    );
+    expect(host.textContent).not.toContain("Search finished");
+    await click();
+    expect(fetchMock).toHaveBeenCalledTimes(code === "authentication" ? 1 : 2);
+  },
+);
 
 it("does not call a monitoring timeout a completed or cancelled search", async () => {
   vi.mocked(pollScopedScrapeJob).mockResolvedValue(null);

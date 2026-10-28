@@ -13,17 +13,20 @@ describe("sources proof scope", () => {
   it("constrains filter fields to the mobile grid and labels dropdowns", () => {
     const page = readFileSync("app/(dashboard)/sources/page.tsx", "utf8");
     expect(page).toContain(
-      "grid grid-cols-1 gap-2 [&>*]:min-w-0 [&>*]:w-full lg:grid-cols-9",
+      "grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3",
     );
     for (const label of [
       "Vehicle market",
       "Seller type",
       "Title status",
       "Dealer",
+      "State",
     ]) {
       expect(page).toContain(`aria-label="${label}"`);
     }
     expect(page).toContain("aria-pressed={selectedCategory === cat.id}");
+    expect(page).toContain("<span>Vehicle search</span>");
+    expect(page).toContain("<span>Makes</span>");
     expect(page).not.toContain("bg-[var(--grad-amber)] text-[#0A0A0F]");
     expect(page).toContain("btn btn-primary inline-flex min-h-11 shrink-0");
   });
