@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { dailyCapacityWait } from "./job-wait";
+import { dailyCapacityWait, type CapacityWait } from "./job-wait";
 import { writeCapacity, type WriteQuota } from "./write-capacity";
 
 /** Bounded, once-per-job observation. Never claim work, replace results, or spend inventory reserve. */
@@ -7,6 +7,7 @@ export async function recordPendingCapacityWait(
   db: SupabaseClient,
   quota: WriteQuota,
   now = Date.now(),
+  waiting: CapacityWait = dailyCapacityWait(now),
 ) {
   if (writeCapacity(quota).insertsRemaining > 0) return 0;
   const { data, error } = await db
@@ -23,7 +24,7 @@ export async function recordPendingCapacityWait(
   if (!data?.length) return 0;
   const updated = await db
     .from("scrape_jobs")
-    .update({ result: { waiting: dailyCapacityWait(now) } })
+    .update({ result: { waiting } })
     .in(
       "id",
       data.map((row) => row.id),

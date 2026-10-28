@@ -18,7 +18,16 @@ describe("scoped worker quota pause", () => {
       loop.indexOf("await claimNextScopedScrapeJob"),
     );
     expect(loop).toContain("scopedWorkerIdleState(manualPaused, true)");
-    expect(source).toContain("writeCapacity(cache.getQuota()).paused");
+    expect(source).toContain("writeCapacity(effectiveWriteQuota()).paused");
+    expect(loop.indexOf("await refreshStorageBudget(supabase)")).toBeLessThan(
+      loop.indexOf("await claimNextScopedScrapeJob"),
+    );
+    expect(loop).toContain(
+      "const capacity = writeCapacity(effectiveWriteQuota())",
+    );
+    expect(loop.replace(/\s+/g, "")).toContain(
+      "recordPendingCapacityWait(supabase,effectiveWriteQuota(),now,waiting,)",
+    );
     expect(loop).toContain("capacity.insertsRemaining > 0");
     expect(loop).toContain("claimNextScopedScrapeJob(supabase, WORKER_ID)");
     expect(loop).toContain(

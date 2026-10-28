@@ -1,8 +1,16 @@
 export type CapacityWait = {
-  reason: "daily_capacity";
+  reason: "daily_capacity" | "storage_capacity";
   observedAt: string;
   nextCheckAt: string;
 };
+
+export function storageCapacityWait(now = Date.now()): CapacityWait {
+  return {
+    reason: "storage_capacity",
+    observedAt: new Date(now).toISOString(),
+    nextCheckAt: new Date(now + 5 * 60_000).toISOString(),
+  };
+}
 
 export function dailyCapacityWait(now = Date.now()): CapacityWait {
   const next = new Date(now);
@@ -23,11 +31,17 @@ export function publicCapacityWait(
   const value = result?.waiting;
   if (status !== "pending" || !value || typeof value !== "object") return null;
   const wait = value as CapacityWait;
-  if (wait.reason !== "daily_capacity" || typeof wait.observedAt !== "string")
+  if (
+    !["daily_capacity", "storage_capacity"].includes(wait.reason) ||
+    typeof wait.observedAt !== "string"
+  )
     return null;
   const observed = Date.parse(wait.observedAt);
   if (!Number.isFinite(observed) || observed > now) return null;
-  const expected = dailyCapacityWait(observed);
+  const expected =
+    wait.reason === "storage_capacity"
+      ? storageCapacityWait(observed)
+      : dailyCapacityWait(observed);
   if (
     wait.nextCheckAt !== expected.nextCheckAt ||
     Date.parse(expected.nextCheckAt) <= now
