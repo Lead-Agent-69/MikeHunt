@@ -14,16 +14,37 @@ export async function GET(
   const { id } = await ctx.params;
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
-  if (!user) return NextResponse.json({ note: "" });
+  if (authError)
+    return NextResponse.json(
+      { error: "Your notes could not be loaded. Try again." },
+      { status: 503 },
+    );
+  if (!user)
+    return NextResponse.json(
+      { error: "Sign in to view your notes." },
+      { status: 401 },
+    );
   const sb = createServerComponentClient();
-  const { data } = await sb
+  const { data, error } = await sb
     .from("watchlist")
     .select("notes")
     .eq("user_id", user.id)
     .eq("deal_id", id)
+    .abortSignal(AbortSignal.timeout(10000))
     .maybeSingle();
-  return NextResponse.json({ note: data?.notes || "" });
+  if (error)
+    return internalError(
+      "deals:notes:read",
+      error,
+      "Your notes could not be loaded. Try again.",
+      503,
+    );
+  return NextResponse.json(
+    { note: data?.notes || "" },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
 
 export async function PUT(
@@ -33,18 +54,46 @@ export async function PUT(
   const { id } = await ctx.params;
   const {
     data: { user },
+    error: authError,
   } = await getServerUser();
+  if (authError)
+    return NextResponse.json(
+      { error: "Your note was not confirmed. Try again." },
+      { status: 503 },
+    );
   if (!user)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
-  const note = typeof body.note === "string" ? body.note.slice(0, 4000) : "";
+  const body = await req.json().catch(() => null);
+  if (typeof body?.note !== "string")
+    return NextResponse.json(
+      { error: "Enter a note before saving." },
+      { status: 400 },
+    );
+  const note = body.note.slice(0, 4000);
   const sb = createServerComponentClient();
-  const { error } = await sb
+  const { data, error } = await sb
     .from("watchlist")
     .upsert(
       { user_id: user.id, deal_id: id, notes: note },
       { onConflict: "user_id,deal_id" },
+    )
+    .select("user_id,deal_id,notes")
+    .abortSignal(AbortSignal.timeout(10000))
+    .maybeSingle();
+  if (
+    error ||
+    data?.user_id !== user.id ||
+    data?.deal_id !== id ||
+    data?.notes !== note
+  )
+    return internalError(
+      "deals:notes:write",
+      error || new Error("Unconfirmed note write"),
+      "Your note was not confirmed. Your draft is still here; reload before retrying.",
+      503,
     );
-  if (error) return internalError("deals:[id]:notes", error);
-  return NextResponse.json({ note });
+  return NextResponse.json(
+    { note },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
 }
