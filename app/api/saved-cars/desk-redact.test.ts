@@ -109,15 +109,30 @@ describe("GET /api/saved-cars desk redaction on read", () => {
     expect(row.snapshot.sellEstimate).toBe(11800);
     expect(row.snapshot.marketValue).toBe(12000);
     expect(row.snapshot.sourceUrl).toBe("https://listing.example/1");
-    expect(row.snapshot.trustExplanation.reasons).toEqual(["VIN captured"]);
-    expect(row.snapshot.trustExplanation.summary).toBe("VIN captured");
+    expect(row.snapshot.trustExplanation.reasons).toEqual([
+      "Original source link is present",
+    ]);
+    expect(row.snapshot.trustExplanation.nextChecks).toContain("verify VIN");
+    expect(row.snapshot.trustExplanation.summary).toBe(
+      "Original source link is present",
+    );
     expect(row.deskAccess).toBe("personal");
   });
 
-  it("flip desk: snapshot comes back intact", async () => {
+  it("flip desk: captured facts and verified economics remain; legacy claims are reassessed", async () => {
     resolveCallerFlipDesk.mockResolvedValue(true);
     const body = await (await GET(req())).json();
-    expect(body[0]).toEqual(saved());
+    const original = saved();
+    const { trustExplanation: _legacyTrust, ...capturedFacts } =
+      original.snapshot;
+    expect(body[0]).toMatchObject({ ...original, snapshot: capturedFacts });
+    expect(body[0].snapshot.trustExplanation.reasons).not.toContain(
+      "VIN captured",
+    );
+    expect(body[0].snapshot.trustExplanation.nextChecks).toContain(
+      "verify VIN",
+    );
+    expect(rows.value[0]).toEqual(original);
   });
 
   it("does not promote legacy saved math to verified economics on a flip desk", async () => {

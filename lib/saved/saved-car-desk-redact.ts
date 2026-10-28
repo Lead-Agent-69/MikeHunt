@@ -1,3 +1,4 @@
+import { sourceBackedSavedSnapshot } from "./proof-snapshot";
 import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
 
 // Read-time desk gate for /api/saved-cars. Snapshots are stored with full flip economics and seller
@@ -49,6 +50,8 @@ const SNAPSHOT_FLIP_ONLY = [
   "estimated_transport_cost",
   "dealVerdict",
   "deal_verdict",
+  // Unverified client context is retained in storage, not exposed as personal-desk evidence.
+  "searchContextAtSave",
 ] as const;
 
 // Trust-explanation lines that narrate flip economics ("$2,100 estimated spread", fee math).
@@ -94,9 +97,14 @@ export function savedCarsForDesk<T extends Record<string, any>>(
   flipDesk: boolean,
 ): Array<T | Record<string, any>> {
   return rows.map((row) => {
-    let safe: Record<string, any> = row;
+    let safe: Record<string, any> =
+      row.snapshot &&
+      typeof row.snapshot === "object" &&
+      !Array.isArray(row.snapshot)
+        ? { ...row, snapshot: sourceBackedSavedSnapshot(row.snapshot) }
+        : row;
     if (!economicsEvidenceReady(row.snapshot?.analysis)) {
-      safe = { ...row, snapshot: { ...row.snapshot } };
+      safe = { ...safe, snapshot: { ...safe.snapshot } };
       for (const key of ROW_FLIP_ONLY) {
         if (!/seller|contact/.test(key)) delete safe[key];
       }

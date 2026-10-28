@@ -1,7 +1,7 @@
 // app/api/saved-cars/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import {
-  savedTrustExplanation,
+  sourceBackedSavedSnapshot,
   sanitizeClientProofSnapshot,
 } from "@/lib/saved/proof-snapshot";
 import { withLatestObservations } from "@/lib/saved/latest-observation";
@@ -12,7 +12,6 @@ import {
 } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { recordDealSignal } from "@/lib/reco/signals";
-import { fieldLabel, gradeDataQuality } from "@/lib/data-quality";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
 import { savedCarsForDesk } from "@/lib/saved/saved-car-desk-redact";
 import { listingPriceEvidence } from "@/lib/deals/acquisition-price";
@@ -272,29 +271,6 @@ export async function POST(request: NextRequest) {
       deal.title_status ||
       deal.titleStatus ||
       deal.condition;
-    const quality = gradeDataQuality({
-      images: deal.images,
-      imageUrl: Array.isArray(deal.images) ? deal.images[0] : undefined,
-      vin: deal.vin,
-      titleType,
-      condition: deal.condition,
-      damageType: deal.damage_type || deal.damageType,
-      mileage: deal.mileage,
-      locationCity: deal.location_city,
-      locationState: deal.location_state,
-      askPrice: deal.ask_price,
-      seller: deal.seller,
-      sellerType: deal.seller_type,
-      sellerPhone: deal.seller_phone || deal.options?.contact?.phone,
-      sellerEmail: deal.seller_email || deal.options?.contact?.email,
-      sellerContactUrl:
-        deal.seller_contact_url ||
-        deal.sellerContactUrl ||
-        deal.options?.contact?.url ||
-        deal.source_url,
-      auctionEndAt: deal.auction_end || deal.auction_end_at,
-      sourceUrl: deal.source_url,
-    });
     const trueNetProfit =
       deal.true_net_profit != null
         ? Number(deal.true_net_profit)
@@ -348,6 +324,7 @@ export async function POST(request: NextRequest) {
       transportEstimate,
       profitScore: deal.profit_score,
       images: deal.images,
+      photoAudit: deal.options?.photoAudit,
       locationCity: deal.location_city,
       locationState: deal.location_state,
       source: deal.source,
@@ -361,25 +338,8 @@ export async function POST(request: NextRequest) {
       scrapedAt: deal.scraped_at,
       firstSeenAt: deal.first_seen_at,
       lastSeenAt: deal.last_seen_at || deal.scraped_at,
-      dataQuality: {
-        score: quality.score,
-        label: quality.label,
-        missing: quality.missing.map(fieldLabel),
-      },
     };
-    const serverTrust = savedTrustExplanation({
-      ...snapshot,
-      dataQuality: {
-        score: quality.score,
-        missing: quality.missing.map(fieldLabel),
-      },
-    });
-    const snapshotWithTrust = {
-      ...snapshot,
-      ...clientProof,
-      dataQuality: clientProof.dataQuality || snapshot.dataQuality,
-      trustExplanation: clientProof.trustExplanation || serverTrust,
-    };
+    const snapshotWithTrust = sourceBackedSavedSnapshot(snapshot, clientProof);
 
     const { data: existing } = await supabase
       .from("saved_cars")
