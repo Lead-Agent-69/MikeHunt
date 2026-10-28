@@ -3,6 +3,7 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { ScrapeResult } from "@/types";
+import type { ScraperRegistry } from "../tools/registry";
 import { CostGuard, CostGuardOptions } from "../tools/cost-guard";
 import {
   CircuitBreakerRegistry,
@@ -10,7 +11,11 @@ import {
 } from "../tools/circuit-breaker";
 
 export type OrchestratorStatus =
-  "idle" | "running" | "paused" | "error" | "completed";
+  | "idle"
+  | "running"
+  | "paused"
+  | "error"
+  | "completed";
 
 export interface OrchestratorOptions {
   supabaseUrl?: string;
@@ -186,6 +191,15 @@ export abstract class BaseScraperOrchestrator {
         "error",
       );
     }
+  }
+
+  /** A simulation must never reset failures, advance freshness or enable a source. */
+  protected async updateSourceStats(
+    registry: ScraperRegistry,
+    ...args: Parameters<ScraperRegistry["updateStats"]>
+  ) {
+    if (this.options.dryRun) return;
+    await registry.updateStats(...args);
   }
 
   protected async recordResult(result: ScrapeResult) {

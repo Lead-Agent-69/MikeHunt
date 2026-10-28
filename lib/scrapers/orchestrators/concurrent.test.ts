@@ -43,6 +43,8 @@ describe("ConcurrentOrchestrator", () => {
       estimatedDealsPerRun: 5,
     });
 
+    const updateStats = vi.spyOn(registry, "updateStats");
+    registry.get("one")!.consecutiveFailures = 2;
     const orchestrator = new ConcurrentOrchestrator(registry, {
       dryRun: true,
       logToConsole: false,
@@ -53,8 +55,15 @@ describe("ConcurrentOrchestrator", () => {
     expect(results).toHaveLength(2);
     expect(results.map((r) => r.source).sort()).toEqual(["one", "two"]);
     expect(results.every((r) => r.success)).toBe(true);
-    expect(results.find((r) => r.source === "one")?.dealsFound).toBe(10);
-    expect(results.find((r) => r.source === "two")?.dealsFound).toBe(20);
+    expect(
+      results.every(
+        (r) => r.simulated && r.dealsFound === 0 && r.dealsSaved === 0,
+      ),
+    ).toBe(true);
+    expect(registry.get("one")?.runCount).toBe(0);
+    expect(registry.get("two")?.lastRun).toBeUndefined();
+    expect(registry.get("one")?.consecutiveFailures).toBe(2);
+    expect(updateStats).not.toHaveBeenCalled();
   });
 
   it("records failures and tracks consecutive failures", async () => {

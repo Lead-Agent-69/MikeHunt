@@ -33,6 +33,8 @@ export interface ScrapeJob {
   durationMs?: number;
   dealsFound?: number;
   dealsSaved?: number;
+  simulated?: boolean;
+  persistenceVerified?: boolean;
 }
 
 export class QueueOrchestrator extends BaseScraperOrchestrator {
@@ -202,6 +204,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       job.durationMs = duration;
       job.dealsFound = execResult.dealsFound;
       job.dealsSaved = execResult.dealsSaved;
+      job.simulated = execResult.simulated;
+      job.persistenceVerified = execResult.persistenceVerified;
       job.error = execResult.error;
       job.completedAt = new Date().toISOString();
 
@@ -215,7 +219,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         execResult.error,
       );
 
-      await this.registry.updateStats(
+      await this.updateSourceStats(
+        this.registry,
         scraper.id,
         execResult.success,
         duration,
@@ -226,6 +231,8 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         success: execResult.success,
         dealsFound: execResult.dealsFound,
         dealsSaved: execResult.dealsSaved,
+        simulated: execResult.simulated,
+        persistenceVerified: execResult.persistenceVerified,
         duration,
         error: execResult.error,
       };
@@ -239,7 +246,13 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       job.durationMs = duration;
       job.completedAt = new Date().toISOString();
       await this.logScrapeError(runId, error);
-      await this.registry.updateStats(scraper.id, false, duration, 0);
+      await this.updateSourceStats(
+        this.registry,
+        scraper.id,
+        false,
+        duration,
+        0,
+      );
       const result = {
         source: scraper.id,
         success: false,
@@ -351,6 +364,11 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       durationMs: job.durationMs || 0,
       dealsFound: job.dealsFound || 0,
       dealsSaved: job.dealsSaved || 0,
+      simulated: job.simulated === true ? "true" : "false",
+      persistenceVerified:
+        job.persistenceVerified === undefined
+          ? ""
+          : String(job.persistenceVerified),
     });
   }
 
@@ -368,6 +386,11 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       durationMs: parseInt(data.durationMs) || 0,
       dealsFound: parseInt(data.dealsFound) || 0,
       dealsSaved: parseInt(data.dealsSaved) || 0,
+      simulated: data.simulated === "true",
+      ...(data.persistenceVerified === "true" ||
+      data.persistenceVerified === "false"
+        ? { persistenceVerified: data.persistenceVerified === "true" }
+        : {}),
     };
   }
 
@@ -402,6 +425,11 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         durationMs: parseInt(data.durationMs) || 0,
         dealsFound: parseInt(data.dealsFound) || 0,
         dealsSaved: parseInt(data.dealsSaved) || 0,
+        simulated: data.simulated === "true",
+        ...(data.persistenceVerified === "true" ||
+        data.persistenceVerified === "false"
+          ? { persistenceVerified: data.persistenceVerified === "true" }
+          : {}),
       });
     }
     return jobs;

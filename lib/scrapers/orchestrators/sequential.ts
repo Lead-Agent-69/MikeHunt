@@ -57,6 +57,8 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
           success: execResult.success,
           dealsFound: execResult.dealsFound,
           dealsSaved: execResult.dealsSaved,
+          simulated: execResult.simulated,
+          persistenceVerified: execResult.persistenceVerified,
           duration,
           error: execResult.error,
         };
@@ -71,7 +73,8 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
           execResult.error,
         );
 
-        await this.registry.updateStats(
+        await this.updateSourceStats(
+          this.registry,
           scraper.id,
           execResult.success,
           duration,
@@ -88,7 +91,13 @@ export class SequentialOrchestrator extends BaseScraperOrchestrator {
           duration,
           error: message,
         };
-        await this.registry.updateStats(scraper.id, false, duration, 0);
+        await this.updateSourceStats(
+          this.registry,
+          scraper.id,
+          false,
+          duration,
+          0,
+        );
         await this.logScrapeError(runId, error);
       }
 

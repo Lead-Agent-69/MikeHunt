@@ -30,6 +30,8 @@ export interface ExecutorResult {
   dealsFound: number;
   dealsSaved: number;
   durationMs: number;
+  simulated?: boolean;
+  persistenceVerified?: boolean;
   error?: string;
   deals?: Deal[];
 }
@@ -96,13 +98,12 @@ export class ScraperExecutor {
 
       try {
         if (dryRun) {
-          await this.simulateScrape(scraper);
           return {
             success: true,
-            dealsFound:
-              scraper.estimatedDealsPerRun || Math.floor(Math.random() * 50),
-            dealsSaved:
-              scraper.estimatedDealsPerRun || Math.floor(Math.random() * 50),
+            simulated: true,
+            persistenceVerified: false,
+            dealsFound: 0,
+            dealsSaved: 0,
             durationMs: Date.now() - start,
           };
         }
@@ -129,7 +130,8 @@ export class ScraperExecutor {
         return {
           success: true,
           dealsFound: cappedDeals,
-          dealsSaved: receipt.calls ? receipt.dealsSaved : cappedDeals,
+          dealsSaved: receipt.calls ? receipt.dealsSaved : 0,
+          persistenceVerified: receipt.calls > 0,
           durationMs,
         };
       } catch (error) {
@@ -162,6 +164,7 @@ export class ScraperExecutor {
       success: false,
       dealsFound: foundBeforeFailure,
       dealsSaved: partialReceipt.dealsSaved,
+      persistenceVerified: partialReceipt.calls > 0,
       durationMs,
       error: abortSignal?.aborted
         ? "Aborted by user"
@@ -219,16 +222,9 @@ export class ScraperExecutor {
     }
   }
 
-  private async simulateScrape(scraper: RegisteredScraper): Promise<void> {
-    const delay = Math.min(
-      500 + Math.random() * 1000,
-      scraper.averageDurationMs || 2000,
-    );
-    await this.delay(delay);
-  }
-
   private countResult(result: number | Deal[]): number {
-    if (typeof result === "number") return result;
+    if (typeof result === "number")
+      return Number.isFinite(result) ? Math.max(0, Math.floor(result)) : 0;
     if (Array.isArray(result)) return result.length;
     return 0;
   }

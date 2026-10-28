@@ -95,7 +95,8 @@ describe("ScraperExecutor", () => {
     const result = await executor.execute(scraper, { timeoutMs: 1000 });
     expect(result.success).toBe(true);
     expect(result.dealsFound).toBe(42);
-    expect(result.dealsSaved).toBe(42);
+    expect(result.dealsSaved).toBe(0);
+    expect(result.persistenceVerified).toBe(false);
   });
 
   it("reports actual persistence instead of copying the discovered count", async () => {
@@ -241,7 +242,7 @@ describe("ScraperExecutor", () => {
     expect(result.error).toBe("Aborted by user");
   });
 
-  it("returns simulated count in dry run", async () => {
+  it("does not invent inventory or execute an adapter in dry run", async () => {
     const executor = new ScraperExecutor();
     const scraper = new ScraperRegistry().register({
       id: "dry",
@@ -251,14 +252,20 @@ describe("ScraperExecutor", () => {
       frequencyMinutes: 60,
       requiresAuth: false,
       stealthRequired: false,
-      fn: async () => 0,
+      fn: vi.fn(async () => 0),
       enabled: true,
       estimatedDealsPerRun: 50,
     });
 
     const result = await executor.execute(scraper, { dryRun: true });
     expect(result.success).toBe(true);
-    expect(result.dealsFound).toBe(50);
+    expect(result).toMatchObject({
+      simulated: true,
+      dealsFound: 0,
+      dealsSaved: 0,
+      persistenceVerified: false,
+    });
+    expect(scraper.fn).not.toHaveBeenCalled();
   });
 
   it("enforces a cost guard deal budget", async () => {
