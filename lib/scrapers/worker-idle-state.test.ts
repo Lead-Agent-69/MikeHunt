@@ -19,6 +19,14 @@ describe("scoped worker quota pause", () => {
     );
     expect(loop).toContain("scopedWorkerIdleState(manualPaused, true)");
     expect(source).toContain("writeCapacity(effectiveWriteQuota()).paused");
+    const directWait = source.slice(
+      source.indexOf("async function waitForNextJob"),
+      source.indexOf("async function initializeRuntime"),
+    );
+    expect(
+      directWait.indexOf("await refreshStorageBudget(client)"),
+    ).toBeLessThan(directWait.indexOf("const hitQuota = quotaReached()"));
+    expect(source).toContain("waitForNextJob: () => waitForNextJob(supabase)");
     expect(loop.indexOf("await refreshStorageBudget(supabase)")).toBeLessThan(
       loop.indexOf("await claimNextScopedScrapeJob"),
     );

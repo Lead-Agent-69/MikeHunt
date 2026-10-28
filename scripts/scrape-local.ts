@@ -261,8 +261,12 @@ async function waitUntilWritable(): Promise<boolean> {
   return false;
 }
 
-async function waitForNextJob(): Promise<boolean> {
+async function waitForNextJob(
+  client: import("@supabase/supabase-js").SupabaseClient,
+): Promise<boolean> {
   while (!stopRequested) {
+    if (!manualPaused && !currentStatus.cacheOnly)
+      await refreshStorageBudget(client);
     const hitQuota = quotaReached();
     if (!hitQuota) quotaPaused = false;
     if (hitQuota) {
@@ -699,7 +703,7 @@ async function runCycle(): Promise<void> {
     jobTimeoutMs: Number(process.env.SCRAPER_JOB_TIMEOUT_MS || 900_000),
     stopWhenIdle: true,
     skipSupabaseRunTracking: true,
-    waitForNextJob,
+    waitForNextJob: () => waitForNextJob(supabase),
     onJobStart: (source) => {
       currentStatus.currentSources.push(source);
       void writeStatus();
