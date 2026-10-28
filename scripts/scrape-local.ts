@@ -7,6 +7,7 @@ import { RotatingLog } from "../lib/scrapers/rotating-log";
 import {
   createStorageBudgetChecker,
   storageInsertAllowance,
+  storageWriteQuota,
   type StorageBudget,
 } from "../lib/scrapers/storage-budget";
 import {
@@ -36,6 +37,10 @@ import { isOffPeak, politeMetricsSnapshot } from "../lib/scrapers/polite";
 import { startScopedJobHeartbeat } from "../lib/scrapers/job-heartbeat";
 import { recoverAbandonedScopedJobs } from "../lib/scrapers/job-recovery";
 import { recordPendingCapacityWait } from "../lib/scrapers/job-capacity-notice";
+import {
+  dailyCapacityWait,
+  storageCapacityWait,
+} from "../lib/scrapers/job-wait";
 import { writeCapacity } from "../lib/scrapers/write-capacity";
 import {
   isAutomationAllowedSource,
@@ -174,11 +179,61 @@ let cache!: LocalScraperCache;
 let logStream!: RotatingLog;
 const startedAt = new Date().toISOString();
 const statusDir = path.dirname(STATUS_PATH);
+const checkStorage = createStorageBudgetChecker();
+const warningInsertLimit = Number(
+  process.env.STORAGE_WARNING_MAX_DAILY_INSERTS || 500,
+);
+
+function effectiveWriteQuota() {
+  const quota = cache.getQuota();
+  return currentStatus?.cacheOnly
+    ? quota
+    : storageWriteQuota(
+        quota,
+        currentStatus?.databaseStorage,
+        warningInsertLimit,
+      );
+}
+
+async function refreshStorageBudget(
+  client: import("@supabase/supabase-js").SupabaseClient,
+) {
+  const budget = await checkStorage(client);
+  const allowance = storageInsertAllowance(
+    budget,
+    cache.getQuota(),
+    warningInsertLimit,
+  );
+  if (
+    currentStatus.databaseStorage?.state !== budget.state &&
+    budget.state !== "normal"
+  )
+    console.warn(
+      `[storage-budget] ${budget.state}; new inserts ${allowance.allowed ? "allowed" : "buffered locally"}`,
+    );
+  currentStatus.databaseStorage = {
+    ...budget,
+    effectiveDailyInsertLimit: allowance.dailyLimit,
+    effectiveInsertsRemaining: allowance.remaining,
+  };
+  return allowance;
+}
 
 async function writeStatus(): Promise<void> {
   currentStatus.updatedAt = new Date().toISOString();
   currentStatus.quota = cache.getQuota();
-  currentStatus.writeCapacity = writeCapacity(currentStatus.quota);
+  if (currentStatus.databaseStorage) {
+    const allowance = storageInsertAllowance(
+      currentStatus.databaseStorage,
+      currentStatus.quota,
+      warningInsertLimit,
+    );
+    currentStatus.databaseStorage.effectiveDailyInsertLimit =
+      allowance.dailyLimit;
+    currentStatus.databaseStorage.effectiveInsertsRemaining =
+      allowance.remaining;
+  }
+  currentStatus.writeCapacity = writeCapacity(effectiveWriteQuota());
   currentStatus.curatedOutcomes = (await loadCuratedOutcomes()).rows;
   await mkdir(statusDir, { recursive: true });
   const tmp = `${STATUS_PATH}.${process.pid}.${Date.now()}.${Math.random()
@@ -189,7 +244,7 @@ async function writeStatus(): Promise<void> {
 }
 
 function quotaReached(): boolean {
-  return writeCapacity(cache.getQuota()).paused;
+  return writeCapacity(effectiveWriteQuota()).paused;
 }
 
 async function waitUntilWritable(): Promise<boolean> {
@@ -206,8 +261,12 @@ async function waitUntilWritable(): Promise<boolean> {
   return false;
 }
 
-async function waitForNextJob(): Promise<boolean> {
+async function waitForNextJob(
+  client: import("@supabase/supabase-js").SupabaseClient,
+): Promise<boolean> {
   while (!stopRequested) {
+    if (!manualPaused && !currentStatus.cacheOnly)
+      await refreshStorageBudget(client);
     const hitQuota = quotaReached();
     if (!hitQuota) quotaPaused = false;
     if (hitQuota) {
@@ -301,7 +360,6 @@ async function initializeRuntime(): Promise<void> {
   await mkdir(statusDir, { recursive: true });
   await mkdir(path.dirname(LOG_PATH), { recursive: true });
   logStream = new RotatingLog(LOG_PATH);
-  const checkStorage = createStorageBudgetChecker();
   for (const level of ["log", "warn", "error"] as const) {
     const original = console[level].bind(console);
     console[level] = (...args: unknown[]) => {
@@ -321,33 +379,12 @@ async function initializeRuntime(): Promise<void> {
       process.env.MAX_DAILY_UPDATES || DEFAULT_MAX_DAILY_UPDATES,
     ),
     cacheOnly: process.env.CACHE_ONLY_MODE === "true",
-    onQuota: (_quota, paused) => {
-      quotaPaused = paused;
+    onQuota: () => {
+      quotaPaused = quotaReached();
       void writeStatus();
     },
     beforeWrite: async () => waitUntilWritable(),
-    allowInsert: async (client) => {
-      const budget = await checkStorage(client);
-      const allowance = storageInsertAllowance(
-        budget,
-        cache.getQuota(),
-        Number(process.env.STORAGE_WARNING_MAX_DAILY_INSERTS || 500),
-      );
-      if (
-        currentStatus.databaseStorage?.state !== budget.state &&
-        budget.state !== "normal"
-      ) {
-        console.warn(
-          `[storage-budget] ${budget.state}; new inserts ${budget.allowInsert ? "allowed" : "buffered locally"}`,
-        );
-      }
-      currentStatus.databaseStorage = {
-        ...budget,
-        effectiveDailyInsertLimit: allowance.dailyLimit,
-        effectiveInsertsRemaining: allowance.remaining,
-      };
-      return allowance.allowed;
-    },
+    allowInsert: async (client) => (await refreshStorageBudget(client)).allowed,
   });
   await cache.load();
   currentStatus = {
@@ -666,7 +703,7 @@ async function runCycle(): Promise<void> {
     jobTimeoutMs: Number(process.env.SCRAPER_JOB_TIMEOUT_MS || 900_000),
     stopWhenIdle: true,
     skipSupabaseRunTracking: true,
-    waitForNextJob,
+    waitForNextJob: () => waitForNextJob(supabase),
     onJobStart: (source) => {
       currentStatus.currentSources.push(source);
       void writeStatus();
@@ -732,6 +769,10 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   let nextQueueRecoveryAt = 0;
   let nextCapacityNoticeAt = 0;
   while (!stopRequested) {
+    // Cached size checks run before admission, not only after a source has already crawled.
+    // Unknown storage measurements block new intake but preserve update/touch capacity.
+    if (!manualPaused && !currentStatus.cacheOnly)
+      await refreshStorageBudget(supabase);
     if (
       !manualPaused &&
       !currentStatus.cacheOnly &&
@@ -739,7 +780,18 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
     ) {
       nextCapacityNoticeAt = Date.now() + 5 * 60_000;
       try {
-        await recordPendingCapacityWait(supabase, cache.getQuota());
+        const now = Date.now();
+        const storageState = currentStatus.databaseStorage?.state;
+        const waiting =
+          storageState === "normal" || storageState === "warning"
+            ? dailyCapacityWait(now)
+            : storageCapacityWait(now);
+        await recordPendingCapacityWait(
+          supabase,
+          effectiveWriteQuota(),
+          now,
+          waiting,
+        );
       } catch {
         console.warn(
           "[scrape-queue] waiting status unavailable; queue unchanged",
@@ -786,7 +838,7 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       // Keep ordinary buyer searches queued until inserts can add their matches. An
       // operator-marked refresh may still renew known inventory through the separate
       // update/touch budgets, so a busy intake day cannot make a proven source stale.
-      const capacity = writeCapacity(cache.getQuota());
+      const capacity = writeCapacity(effectiveWriteQuota());
       job =
         capacity.insertsRemaining > 0
           ? await claimNextScopedScrapeJob(supabase, WORKER_ID)

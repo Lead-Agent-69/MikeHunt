@@ -29,6 +29,8 @@ export function sourceSearchStatusMessage(
       { waiting: job.waiting },
       now,
     );
+    if (waiting?.reason === "storage_capacity")
+      return `At the last check, adding new matches was temporarily paused. Capacity will be checked again after ${new Date(waiting.nextCheckAt).toLocaleString()}. This is not a finish time. Existing matches remain available.`;
     if (waiting)
       return `At the last check, new matches were waiting for the next daily collection allowance. Capacity will be checked again after ${new Date(waiting.nextCheckAt).toLocaleString()}. This is not a finish time. Existing matches remain available.`;
     return "Your source search is waiting to begin. Existing matches remain available.";

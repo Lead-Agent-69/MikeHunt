@@ -2,12 +2,96 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createStorageBudgetChecker,
   storageInsertAllowance,
+  storageWriteQuota,
 } from "./storage-budget";
+import { writeCapacity } from "./write-capacity";
 afterEach(() => vi.useRealTimers());
 const result = (value: unknown) => ({
   abortSignal: vi.fn().mockResolvedValue(value),
 });
 describe("database size budget", () => {
+  const quota = {
+    inserts: 400,
+    updates: 100,
+    touches: 10,
+    maxInserts: 1250,
+    maxUpdates: 2000,
+    maxTouches: 20000,
+  };
+  it("holds buyer intake at the storage allowance while keeping existing inventory refreshable", () => {
+    const budget = {
+      bytes: 372_000_000,
+      state: "warning",
+      allowInsert: true,
+    } as const;
+    expect(writeCapacity(quota).insertsRemaining).toBe(600);
+    const effective = storageWriteQuota(quota, budget);
+    expect(effective.maxInserts).toBe(500);
+    expect(writeCapacity(effective)).toMatchObject({
+      insertsRemaining: 0,
+      updatesRemaining: 1500,
+      touchesRemaining: 19990,
+      mode: "refresh_only",
+      paused: false,
+    });
+    expect(storageInsertAllowance(budget, quota).remaining).toBe(
+      writeCapacity(effective).insertsRemaining,
+    );
+    expect(
+      writeCapacity(storageWriteQuota({ ...quota, inserts: 0 }, budget))
+        .insertsRemaining,
+    ).toBe(400);
+  });
+  it("fails closed before a size check and during critical/unknown storage without blocking refresh budgets", () => {
+    for (const budget of [
+      undefined,
+      { bytes: null, state: "unknown", allowInsert: false } as const,
+      { bytes: 451_000_000, state: "critical", allowInsert: false } as const,
+    ]) {
+      expect(writeCapacity(storageWriteQuota(quota, budget))).toMatchObject({
+        insertsRemaining: 0,
+        updatesRemaining: 1500,
+        mode: "refresh_only",
+      });
+    }
+    expect(
+      writeCapacity(
+        storageWriteQuota(quota, {
+          bytes: 349_000_000,
+          state: "normal",
+          allowInsert: true,
+        }),
+      ).insertsRemaining,
+    ).toBe(600);
+  });
+  it("never expands configured intake or permits malformed/fractional counters to bypass the guard", () => {
+    const budget = {
+      bytes: 372_000_000,
+      state: "warning",
+      allowInsert: true,
+    } as const;
+    expect(
+      storageWriteQuota({ ...quota, inserts: 0, maxInserts: 20 }, budget)
+        .maxInserts,
+    ).toBe(20);
+    expect(
+      storageInsertAllowance(budget, { inserts: 399.1, maxInserts: 1250 })
+        .remaining,
+    ).toBe(0);
+    for (const invalid of [NaN, Infinity, -1]) {
+      expect(
+        storageInsertAllowance(budget, { inserts: invalid, maxInserts: 1250 })
+          .allowed,
+      ).toBe(false);
+    }
+    expect(
+      storageInsertAllowance(budget, { inserts: 0, maxInserts: NaN }).allowed,
+    ).toBe(false);
+    expect(
+      storageInsertAllowance(budget, { inserts: 0, maxInserts: 1250 }, NaN)
+        .allowed,
+    ).toBe(false);
+  });
   it("uses full normal capacity, slows at warning, and fails closed", () => {
     const quota = { inserts: 399, maxInserts: 1250 };
     expect(

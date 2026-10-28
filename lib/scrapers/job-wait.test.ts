@@ -1,10 +1,42 @@
 import { describe, expect, it } from "vitest";
-import { dailyCapacityWait, publicCapacityWait } from "./job-wait";
+import {
+  dailyCapacityWait,
+  publicCapacityWait,
+  storageCapacityWait,
+} from "./job-wait";
 import { sourceSearchStatusMessage } from "./job-status-client";
 
 const now = Date.parse("2026-10-21T23:50:00Z");
 
 describe("dated capacity observations", () => {
+  it("uses a short capacity recheck for storage holds without promising that midnight will release them", () => {
+    const waiting = storageCapacityWait(now);
+    expect(waiting.nextCheckAt).toBe("2026-10-21T23:55:00.000Z");
+    expect(publicCapacityWait("pending", { waiting }, now)).toEqual(waiting);
+    const message = sourceSearchStatusMessage(
+      { id: "a", status: "pending", waiting },
+      now,
+    );
+    expect(message).toContain("temporarily paused");
+    expect(message).not.toContain("next daily collection allowance");
+    expect(message).toContain("not a finish time");
+    expect(
+      publicCapacityWait("pending", { waiting }, now + 5 * 60_000),
+    ).toBeNull();
+    expect(publicCapacityWait("running", { waiting }, now)).toBeNull();
+    expect(
+      publicCapacityWait(
+        "pending",
+        {
+          waiting: {
+            ...waiting,
+            nextCheckAt: dailyCapacityWait(now).nextCheckAt,
+          },
+        },
+        now,
+      ),
+    ).toBeNull();
+  });
   it("uses the collector's UTC rollover without implying completion", () => {
     const waiting = dailyCapacityWait(now);
     expect(waiting.nextCheckAt).toBe("2026-10-22T00:00:00.000Z");

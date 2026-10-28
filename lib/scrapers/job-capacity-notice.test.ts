@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { recordPendingCapacityWait } from "./job-capacity-notice";
+import { storageWriteQuota } from "./storage-budget";
+import { storageCapacityWait } from "./job-wait";
 
 const quota = {
   inserts: 400,
@@ -28,6 +30,22 @@ function query(result: unknown) {
 }
 
 describe("capacity notice publication", () => {
+  it("publishes an accurate wait when storage blocks intake despite general allowance remaining", async () => {
+    const read = query({ data: [{ id: "a" }], error: null });
+    const write = query({ data: [{ id: "a" }], error: null });
+    const from = vi.fn().mockReturnValueOnce(read).mockReturnValueOnce(write);
+    const now = Date.parse("2026-10-21T12:00:00Z");
+    const effective = storageWriteQuota(
+      { ...quota, maxInserts: 1250 },
+      { bytes: null, state: "unknown", allowInsert: false },
+    );
+    const waiting = storageCapacityWait(now);
+    expect(
+      await recordPendingCapacityWait({ from } as any, effective, now, waiting),
+    ).toBe(1);
+    expect(write.update).toHaveBeenCalledWith({ result: { waiting } });
+    expect(write.eq).toHaveBeenCalledWith("status", "pending");
+  });
   it("does not query when new matches can be published", async () => {
     const from = vi.fn();
     expect(

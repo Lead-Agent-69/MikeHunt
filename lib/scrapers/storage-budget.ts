@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { WriteQuota } from "./write-capacity";
 
 export type StorageBudget = {
   bytes: number | null;
@@ -14,21 +15,43 @@ export function storageInsertAllowance(
   quota: { inserts: number; maxInserts: number },
   warningMaxInserts = 500,
 ) {
-  const configured = Math.max(0, Math.floor(quota.maxInserts));
+  const configured = Number.isFinite(quota.maxInserts)
+    ? Math.max(0, Math.floor(quota.maxInserts))
+    : 0;
+  const warningLimit = Number.isFinite(warningMaxInserts)
+    ? Math.max(0, Math.floor(warningMaxInserts))
+    : 0;
   const dailyLimit =
     budget.state === "normal" && budget.allowInsert
       ? configured
       : budget.state === "warning" && budget.allowInsert
-        ? Math.min(configured, Math.max(0, Math.floor(warningMaxInserts)))
+        ? Math.min(configured, warningLimit)
         : 0;
   const threshold =
     dailyLimit > 0 ? Math.max(1, Math.floor(dailyLimit * 0.8)) : 0;
-  const remaining = Math.max(0, threshold - Math.max(0, quota.inserts));
+  const remaining =
+    Number.isFinite(quota.inserts) && quota.inserts >= 0
+      ? Math.max(0, threshold - Math.ceil(quota.inserts))
+      : 0;
   return {
     dailyLimit,
     remaining,
     allowed: remaining > 0,
   };
+}
+
+/** Queue admission and status must honor the same insert limit as the writer. */
+export function storageWriteQuota(
+  quota: WriteQuota,
+  budget?: StorageBudget,
+  warningMaxInserts = 500,
+): WriteQuota {
+  const allowance = storageInsertAllowance(
+    budget ?? { bytes: null, state: "unknown", allowInsert: false },
+    quota,
+    warningMaxInserts,
+  );
+  return { ...quota, maxInserts: allowance.dailyLimit };
 }
 
 /** Size-based insertion guard, separate from daily write counts. Errors fail closed. */
