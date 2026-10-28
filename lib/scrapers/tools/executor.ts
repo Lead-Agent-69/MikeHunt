@@ -52,6 +52,18 @@ export class ScraperExecutor {
       circuitBreaker,
       circuitBreakerOptions,
     } = options;
+    // Planning must not probe or mutate shared circuit/health/budget state.
+    if (dryRun) {
+      return {
+        success: !abortSignal?.aborted,
+        simulated: true,
+        persistenceVerified: false,
+        dealsFound: 0,
+        dealsSaved: 0,
+        durationMs: 0,
+        ...(abortSignal?.aborted ? { error: "Aborted by user" } : {}),
+      };
+    }
     const guard = costGuard || new CostGuard(costGuardOptions);
     const breaker =
       circuitBreaker || new CircuitBreakerRegistry(circuitBreakerOptions);
@@ -97,17 +109,6 @@ export class ScraperExecutor {
       }
 
       try {
-        if (dryRun) {
-          return {
-            success: true,
-            simulated: true,
-            persistenceVerified: false,
-            dealsFound: 0,
-            dealsSaved: 0,
-            durationMs: Date.now() - start,
-          };
-        }
-
         const { result, receipt } = await this.runWithTimeout(
           scraper,
           timeoutMs,

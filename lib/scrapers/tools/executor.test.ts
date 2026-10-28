@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { ScraperExecutor } from "./executor";
 import { ScraperRegistry } from "./registry";
+import { CircuitBreakerRegistry } from "./circuit-breaker";
 import {
   getScrapeSourceId,
   recordScrapePersistence,
@@ -257,7 +258,12 @@ describe("ScraperExecutor", () => {
       estimatedDealsPerRun: 50,
     });
 
-    const result = await executor.execute(scraper, { dryRun: true });
+    const circuitBreaker = new CircuitBreakerRegistry();
+    const probe = vi.spyOn(circuitBreaker, "canExecute");
+    const result = await executor.execute(scraper, {
+      dryRun: true,
+      circuitBreaker,
+    });
     expect(result.success).toBe(true);
     expect(result).toMatchObject({
       simulated: true,
@@ -266,6 +272,8 @@ describe("ScraperExecutor", () => {
       persistenceVerified: false,
     });
     expect(scraper.fn).not.toHaveBeenCalled();
+    expect(probe).not.toHaveBeenCalled();
+    expect(circuitBreaker.getAll()).toEqual({});
   });
 
   it("enforces a cost guard deal budget", async () => {
