@@ -36,6 +36,72 @@ describe("verified source observations", () => {
     expect(sameSourceObservation(stored, fresh())).toBe(true);
     expect(mayTouchDeferredObservation(stored, fresh(), now)).toBe(true);
   });
+  it("recognizes a later price check without treating it as a changed seller fact", () => {
+    const prior = {
+      ...stored,
+      options: {
+        priceEvidence: {
+          ...stored.options.priceEvidence,
+          checkedAt: stored.last_seen_at,
+        },
+      },
+    };
+    const incoming = {
+      ...fresh(),
+      options: {
+        priceEvidence: {
+          ...prior.options.priceEvidence,
+          checkedAt: new Date(now).toISOString(),
+        },
+      },
+    };
+    expect(mayTouchDeferredObservation(prior, incoming, now)).toBe(true);
+    expect(prior.options.priceEvidence.checkedAt).toBe(stored.last_seen_at);
+    for (const patch of [
+      { checkedAt: "invalid" },
+      { checkedAt: "2026-10-16T00:00:00Z" },
+      { checkedAt: "2026-10-20T00:00:00Z" },
+      { askingPrice: 3000 },
+      { kind: "down_payment" },
+      { id: "new-proof" },
+    ]) {
+      expect(
+        mayTouchDeferredObservation(
+          prior,
+          {
+            ...incoming,
+            options: {
+              priceEvidence: { ...incoming.options.priceEvidence, ...patch },
+            },
+          },
+          now,
+        ),
+      ).toBe(false);
+    }
+  });
+  it("compares auction closing instants across time zones without accepting a changed deadline", () => {
+    const prior = { ...stored, auction_end_at: "2026-10-20T14:00:00+00:00" };
+    expect(
+      mayTouchDeferredObservation(
+        prior,
+        {
+          ...fresh(),
+          auction_end_at: "2026-10-20T09:00:00-05:00",
+        },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      mayTouchDeferredObservation(
+        prior,
+        {
+          ...fresh(),
+          auction_end_at: "2026-10-20T09:01:00-05:00",
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
   it.each([
     { ask_price: 3000 },
     { condition: "salvage_title" },

@@ -16,13 +16,21 @@ const DERIVED_OR_RECORD_FIELDS = new Set([
   "completeness",
 ]);
 
-function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
+function canonical(value: unknown, path = ""): unknown {
+  // PostgREST may return an offset while the source supplies the same instant in UTC.
+  if (path === "auction_end_at" && typeof value === "string") {
+    const time = Date.parse(value);
+    if (Number.isFinite(time)) return new Date(time).toISOString();
+  }
+  if (Array.isArray(value)) return value.map((child) => canonical(child, path));
   if (value && typeof value === "object")
     return Object.fromEntries(
       Object.entries(value)
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, child]) => [key, canonical(child)]),
+        .map(([key, child]) => [
+          key,
+          canonical(child, path ? `${path}.${key}` : key),
+        ]),
     );
   return value ?? null;
 }
@@ -32,6 +40,30 @@ export function sameSourceObservation(
   stored: Record<string, any>,
   incoming: Record<string, any>,
 ) {
+  const priorEvidence = stored.options?.priceEvidence;
+  const nextEvidence = incoming.options?.priceEvidence;
+  const priorCheck = Date.parse(priorEvidence?.checkedAt);
+  const nextCheck = Date.parse(nextEvidence?.checkedAt);
+  const observed = Date.parse(incoming.last_seen_at);
+  // A new check time is observation metadata, not a changed asking amount or meaning.
+  // Keep the new payload queued for its full update; a touch never rewrites price evidence.
+  const comparable =
+    Number.isFinite(priorCheck) &&
+    Number.isFinite(nextCheck) &&
+    Number.isFinite(observed) &&
+    nextCheck >= priorCheck &&
+    nextCheck <= observed + 60_000
+      ? {
+          ...incoming,
+          options: {
+            ...incoming.options,
+            priceEvidence: {
+              ...nextEvidence,
+              checkedAt: priorEvidence.checkedAt,
+            },
+          },
+        }
+      : incoming;
   for (const key of [
     "source",
     "source_deal_id",
@@ -46,8 +78,8 @@ export function sameSourceObservation(
   );
   return keys.every(
     (key) =>
-      JSON.stringify(canonical(stored[key])) ===
-      JSON.stringify(canonical(incoming[key])),
+      JSON.stringify(canonical(stored[key], key)) ===
+      JSON.stringify(canonical(comparable[key], key)),
   );
 }
 
