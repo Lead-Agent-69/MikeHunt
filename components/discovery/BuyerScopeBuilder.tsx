@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { titleFilterOptions } from "@/lib/deals/title-filter-options";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
+import { useScopedSourceHealth } from "@/hooks/useScopedSourceHealth";
 import {
   Search,
   MapPin,
@@ -356,10 +357,6 @@ export function BuyerScopeBuilder({
   const [running, setRunning] = useState(false);
   const [previewMessage, setPreviewMessage] = useState<string | null>(null);
   const [previewPlan, setPreviewPlan] = useState<SmartRunPlan | null>(null);
-  const [scopeStatus, setScopeStatus] = useState<SourceScopeStatus | null>(
-    null,
-  );
-  const [scopeHealthLoading, setScopeHealthLoading] = useState(false);
   const [runProof, setRunProof] = useState<{
     imported: number;
     successful: number;
@@ -706,35 +703,16 @@ export function BuyerScopeBuilder({
     dealerSourceIds,
   ]);
 
-  const loadSourceHealth = useCallback(
-    async ({ silent = false }: { silent?: boolean } = {}) => {
-      if (!silent) setScopeHealthLoading(true);
-      try {
-        const res = await fetch(sourceHealthHref, { cache: "no-store" });
-        const data = res.ok ? await res.json() : null;
-        setScopeStatus(data?.scopeStatus || null);
-        return data;
-      } catch {
-        setScopeStatus(null);
-        return null;
-      } finally {
-        if (!silent) setScopeHealthLoading(false);
-      }
-    },
-    [sourceHealthHref],
-  );
-
-  useEffect(() => {
-    if (!loaded) return;
-    let active = true;
-    loadSourceHealth().then((data) => {
-      if (!active) return;
-      setScopeStatus(data?.scopeStatus || null);
-    });
-    return () => {
-      active = false;
-    };
-  }, [loadSourceHealth, loaded]);
+  const {
+    data: scopeHealth,
+    isLoading: scopeHealthLoading,
+    error: scopeHealthError,
+    refresh: loadSourceHealth,
+  } = useScopedSourceHealth<{
+    scopeStatus?: SourceScopeStatus;
+    sources?: SourceHealthProof[];
+  }>(sourceHealthHref, loaded);
+  const scopeStatus = scopeHealth?.scopeStatus || null;
 
   const previewSmartRun = async () => {
     setPreviewing(true);
@@ -985,7 +963,8 @@ export function BuyerScopeBuilder({
           <p className="mt-1 text-xs text-[var(--t5)]">
             {scopeHealthLoading
               ? "Checking availability for this search..."
-              : scopeStatus?.message ||
+              : scopeHealthError ||
+                scopeStatus?.message ||
                 `This search checks ${scrapePlan.sourceIds.length} market${
                   scrapePlan.sourceIds.length === 1 ? "" : "s"
                 }: ${
@@ -997,6 +976,15 @@ export function BuyerScopeBuilder({
               ? ` · limited to ${dealerWatch.count} watched dealer${dealerWatch.count === 1 ? "" : "s"}`
               : ""}
           </p>
+          {scopeHealthError && (
+            <button
+              type="button"
+              className="min-h-11 text-sm underline"
+              onClick={() => void loadSourceHealth()}
+            >
+              Retry source status
+            </button>
+          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <button

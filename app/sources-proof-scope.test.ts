@@ -82,7 +82,6 @@ describe("sources proof scope", () => {
       "utf8",
     );
 
-    expect(builder).toContain("const loadSourceHealth = useCallback");
     expect(builder).toContain("await loadSourceHealth({ silent: true })");
     expect(builder).toContain("Listing availability");
     expect(builder).toContain("rowsWithPhotos");

@@ -1,3 +1,4 @@
+import { AuthSessionMissingError, AuthApiError } from "@supabase/supabase-js";
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const state = vi.hoisted(() => ({
@@ -109,4 +110,18 @@ it("supports intentional clearing and the existing length limit", async () => {
   expect((await PUT(request({ note: note + "extra" }), ctx())).status).toBe(
     200,
   );
+});
+
+it("returns a sign-in response for the actual SDK missing/expired session errors", async () => {
+  state.user = null;
+  for (const error of [
+    new AuthSessionMissingError(),
+    new AuthApiError("expired", 401, undefined),
+    new AuthApiError("expired", 400, "refresh_token_not_found"),
+  ]) {
+    state.authError = error;
+    expect((await GET(request(), ctx())).status).toBe(401);
+    expect((await PUT(request({ note: "draft" }), ctx())).status).toBe(401);
+  }
+  expect(state.calls).toEqual([]);
 });
