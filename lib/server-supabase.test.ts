@@ -1,15 +1,17 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AuthSessionMissingError } from "@supabase/supabase-js";
 
 const mocks = vi.hoisted(() => ({
   configured: true,
   cookie: "",
   getUser: vi.fn(),
+  authCookies: [] as { name: string; value: string }[],
 }));
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({
-    getAll: () => [],
+    getAll: () => mocks.authCookies,
     get: () => (mocks.cookie ? { value: mocks.cookie } : undefined),
   }),
 }));
@@ -28,6 +30,7 @@ import {
 
 beforeEach(() => {
   mocks.configured = true;
+  mocks.authCookies = [];
   mocks.cookie = Buffer.from(
     JSON.stringify({ id: "demo-preview", email: "admin@example.test" }),
   ).toString("base64url");
@@ -76,6 +79,31 @@ describe("production identity boundary", () => {
       error: new Error("verification failed"),
     });
     expect((await getServerUser()).data.user).toBeNull();
+  });
+  it("treats the real SDK missing-session result as an expected guest only without a session cookie", async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: null },
+      error: new AuthSessionMissingError(),
+    });
+    mocks.authCookies = [
+      { name: "mh_guest_prefs", value: "local" },
+      { name: "sb-project-auth-token-code-verifier", value: "verifier" },
+    ];
+    expect(await getServerUser()).toMatchObject({
+      data: { user: null },
+      error: null,
+    });
+  });
+  it("preserves missing-session errors for an expired account cookie", async () => {
+    const error = new AuthSessionMissingError();
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error });
+    mocks.authCookies = [{ name: "sb-project-auth-token.0", value: "expired" }];
+    expect((await getServerUser()).error).toBe(error);
+  });
+  it("preserves provider failures even without session cookies", async () => {
+    const error = new Error("network unavailable");
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error });
+    expect((await getServerUser()).error).toBe(error);
   });
 });
 
