@@ -132,3 +132,17 @@ it("times out without leaving the status permanently loading", async () => {
   expect(view!.data).toBe(null);
   expect(view!.isLoading).toBe(false);
 });
+it("refreshes immediately after a real task instead of waiting for the typing debounce", async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(result("first check"))
+    .mockResolvedValueOnce(result("after real task"));
+  vi.stubGlobal("fetch", fetch);
+  await render("/api/scrape/health?q=ford");
+  await tick();
+  await act(async () => {
+    await view!.refresh({ silent: true });
+  });
+  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(host.textContent).toBe("after real task");
+});
