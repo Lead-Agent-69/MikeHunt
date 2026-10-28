@@ -7,11 +7,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeHomeLocation } from "@/lib/preferences/locations";
+import { locationPatchTouchesDemand } from "@/lib/preferences/kick-location-demand";
+
+import { savePreferencesAtomically } from "./atomic-save";
 import {
-  kickLocationDemand,
-  locationDemandPrefsStamp,
-  locationPatchTouchesDemand,
-} from "@/lib/preferences/kick-location-demand";
+  clearLocationDemand,
+  queueConfirmedLocationDemand,
+} from "./confirmed-location-demand";
 
 function cleanState(value: unknown): string | null {
   const code = String(value || "")
@@ -36,65 +38,39 @@ export async function syncProfileHomeStateToPrefs(input: {
   if (!state) return { synced: false, kicked: false };
 
   try {
-    const { data: existing } = await input.supabase
-      .from("user_preferences")
-      .select("prefs")
-      .eq("user_id", input.userId)
-      .maybeSingle();
-    const prev = {
-      ...((existing?.prefs as Record<string, unknown>) || {}),
-    };
-    const priorHome =
-      prev.homeLocation && typeof prev.homeLocation === "object"
-        ? (prev.homeLocation as Record<string, unknown>)
-        : {};
-    const zip =
-      typeof input.homeZip === "string" && /^\d{5}$/.test(input.homeZip.trim())
-        ? input.homeZip.trim()
-        : typeof priorHome.zip === "string"
-          ? priorHome.zip
-          : undefined;
-    const home = sanitizeHomeLocation({
-      ...priorHome,
-      state,
-      ...(zip ? { zip } : {}),
-    });
-    if (!home) return { synced: false, kicked: false };
-
-    const patch = {
-      homeLocation: home,
-      carsState: state, // legacy mirror
-    };
-    // Re-sanitize through the same path prefs PUT uses.
-    if (!locationPatchTouchesDemand(patch)) {
-      return { synced: false, kicked: false };
-    }
-
-    let merged: Record<string, unknown> = { ...prev, ...patch };
-    let kicked = false;
-    const kick = await kickLocationDemand({
+    const saved = await savePreferencesAtomically(
+      input.supabase,
+      input.userId,
+      (prev) => {
+        const priorHome =
+          prev.homeLocation && typeof prev.homeLocation === "object"
+            ? (prev.homeLocation as Record<string, unknown>)
+            : {};
+        const zip =
+          typeof input.homeZip === "string" &&
+          /^\d{5}$/.test(input.homeZip.trim())
+            ? input.homeZip.trim()
+            : typeof priorHome.zip === "string"
+              ? priorHome.zip
+              : undefined;
+        const home = sanitizeHomeLocation({
+          ...priorHome,
+          state,
+          ...(zip ? { zip } : {}),
+        });
+        if (!home) return null;
+        const patch = { homeLocation: home, carsState: state };
+        if (!locationPatchTouchesDemand(patch)) return null;
+        return clearLocationDemand({ ...prev, ...patch });
+      },
+    );
+    if (!saved.changed) return { synced: false, kicked: false };
+    const queued = await queueConfirmedLocationDemand({
       supabase: input.supabase,
       userId: input.userId,
-      prefs: merged,
+      prefs: saved.prefs,
     });
-    if (kick) {
-      merged = { ...merged, ...locationDemandPrefsStamp(kick) };
-      kicked = kick.queued;
-    }
-
-    const { error } = await input.supabase.from("user_preferences").upsert(
-      {
-        user_id: input.userId,
-        prefs: merged,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" },
-    );
-    if (error) {
-      console.warn("[profile] prefs homeLocation sync failed:", error.message);
-      return { synced: false, kicked: false };
-    }
-    return { synced: true, kicked };
+    return { synced: true, kicked: queued.locationDemand?.queued === true };
   } catch (err) {
     console.warn(
       "[profile] prefs homeLocation sync error:",

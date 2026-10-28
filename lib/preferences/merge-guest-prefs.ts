@@ -6,11 +6,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeLocationPatch } from "@/lib/preferences/locations";
+import { locationPatchTouchesDemand } from "@/lib/preferences/kick-location-demand";
+
+import { savePreferencesAtomically } from "./atomic-save";
 import {
-  kickLocationDemand,
-  locationDemandPrefsStamp,
-  locationPatchTouchesDemand,
-} from "@/lib/preferences/kick-location-demand";
+  clearLocationDemand,
+  queueConfirmedLocationDemand,
+} from "./confirmed-location-demand";
 
 export const GUEST_PREFS_COOKIE = "mh_guest_prefs";
 
@@ -60,52 +62,29 @@ export async function mergeGuestPrefsOnSignup(input: {
   }
 
   try {
-    const { data: existing } = await input.supabase
-      .from("user_preferences")
-      .select("prefs")
-      .eq("user_id", input.userId)
-      .maybeSingle();
-    const prev = {
-      ...((existing?.prefs as Record<string, unknown>) || {}),
-    };
-    // Do not clobber a real saved home.
-    if (prev.homeLocation && typeof prev.homeLocation === "object") {
-      const st = (prev.homeLocation as { state?: string }).state;
-      if (st && /^[A-Z]{2}$/i.test(st)) {
-        return { merged: false, kicked: false };
-      }
-    }
-
-    let merged: Record<string, unknown> = { ...patch, ...prev, ...patch };
-    // Prefer guest location when prev had none: patch wins for location keys.
-    for (const k of Object.keys(patch)) merged[k] = patch[k];
-
-    let kicked = false;
-    if (locationPatchTouchesDemand(patch)) {
-      const kick = await kickLocationDemand({
-        supabase: input.supabase,
-        userId: input.userId,
-        prefs: merged,
-      });
-      if (kick) {
-        merged = { ...merged, ...locationDemandPrefsStamp(kick) };
-        kicked = kick.queued;
-      }
-    }
-
-    const { error } = await input.supabase.from("user_preferences").upsert(
-      {
-        user_id: input.userId,
-        prefs: merged,
-        updated_at: new Date().toISOString(),
+    const affectsDemand = locationPatchTouchesDemand(patch);
+    const saved = await savePreferencesAtomically(
+      input.supabase,
+      input.userId,
+      (prev) => {
+        // Recheck on every conflict: a concurrent real home always wins over this guest cookie.
+        if (prev.homeLocation && typeof prev.homeLocation === "object") {
+          const st = (prev.homeLocation as { state?: string }).state;
+          if (st && /^[A-Z]{2}$/i.test(st)) return null;
+        }
+        const next = { ...prev, ...patch };
+        return affectsDemand ? clearLocationDemand(next) : next;
       },
-      { onConflict: "user_id" },
     );
-    if (error) {
-      console.warn("[auth] guest prefs merge failed:", error.message);
-      return { merged: false, kicked: false };
-    }
-    return { merged: true, kicked };
+    if (!saved.changed) return { merged: false, kicked: false };
+    const queued = affectsDemand
+      ? await queueConfirmedLocationDemand({
+          supabase: input.supabase,
+          userId: input.userId,
+          prefs: saved.prefs,
+        })
+      : null;
+    return { merged: true, kicked: queued?.locationDemand?.queued === true };
   } catch (err) {
     console.warn(
       "[auth] guest prefs merge error:",
