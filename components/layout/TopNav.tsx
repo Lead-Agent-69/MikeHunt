@@ -236,7 +236,7 @@ function TopNavContent() {
         }}
       />
       {/* LEFT: Logo */}
-      <div className="flex shrink-0 items-center gap-2 min-w-0">
+      <div className="flex shrink-0 items-center gap-2 min-w-0 lg:flex-none">
         <Link
           href="/market"
           prefetch={false}
