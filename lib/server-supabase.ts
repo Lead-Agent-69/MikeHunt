@@ -1,5 +1,6 @@
 // Re-export from canonical supabase module
 import { createServerClient } from "@supabase/ssr";
+import { isAuthSessionMissingError } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { isSupabaseConfigured } from "@/lib/supabase";
 
@@ -55,6 +56,17 @@ export async function getServerUser() {
     },
   });
   const result = await supabase.auth.getUser();
+  // A clean signed-out visit is an expected guest, not an Auth outage. Preserve
+  // errors when a session cookie exists so expired account saves cannot silently
+  // fall back to device-only preferences. Transport/provider failures also remain errors.
+  if (
+    isAuthSessionMissingError(result.error) &&
+    !store
+      .getAll()
+      .some((cookie) => isSupabaseAuthCookieName(cookie.name) && cookie.value)
+  ) {
+    return { ...result, data: { user: null }, error: null };
+  }
   if (result.error) return { ...result, data: { user: null } };
   return result;
 }

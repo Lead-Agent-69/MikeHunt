@@ -4,6 +4,7 @@
 // new home/search states jump the hybrid buyer queue instead of waiting for the next idle sweep.
 
 import { NextRequest, NextResponse } from "next/server";
+import { authNeedsSignIn } from "@/lib/auth/session-recovery";
 import {
   createServerComponentClient,
   isSupabaseConfigured,
@@ -51,7 +52,14 @@ export async function GET(req: NextRequest) {
     error: authError,
   } = await getServerUser();
   if (authError)
-    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error: authNeedsSignIn(authError)
+          ? "Sign in again to access your settings."
+          : "Account unavailable",
+      },
+      { status: authNeedsSignIn(authError) ? 401 : 503 },
+    );
   if (!user?.id)
     return NextResponse.json({
       prefs: readGuestPrefs(req),
@@ -142,7 +150,14 @@ export async function PUT(req: NextRequest) {
     error: authError,
   } = await getServerUser();
   if (authError)
-    return NextResponse.json({ error: "Account unavailable" }, { status: 503 });
+    return NextResponse.json(
+      {
+        error: authNeedsSignIn(authError)
+          ? "Sign in again to access your settings."
+          : "Account unavailable",
+      },
+      { status: authNeedsSignIn(authError) ? 401 : 503 },
+    );
   if (!user?.id) {
     if (req.headers.get("x-require-account") === "true")
       return NextResponse.json(
