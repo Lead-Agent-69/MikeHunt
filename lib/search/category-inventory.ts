@@ -1,7 +1,7 @@
 import { rowMatchesBuyerQuery } from "@/lib/discovery/for-you-rank";
 
 export const CATEGORY_PROJECTION =
-  "id,title,year,make,model,trim,condition,damage_type,location_city,location_state";
+  "id,title,year,make,model,trim,body_class,fuel_type,condition,damage_type,location_city,location_state";
 
 /** Classify the complete scoped projection before slicing, never just one display page. */
 export async function matchingCategoryIds(

@@ -33,7 +33,7 @@ describe("buying preferences", () => {
     act(() => root.render(React.createElement(BuyingProfilePrefs)));
   });
   it.each(["personal", "diy", "parts", "reseller", "dealer"])(
-    "unifies legacy %s controls without an admin option",
+    "preserves %s when saving ordinary preferences without an admin option",
     async (mode) => {
       account.prefs.buyerScope.buyerMode = mode;
       act(() => root.render(React.createElement(BuyingProfilePrefs)));
@@ -48,9 +48,7 @@ describe("buying preferences", () => {
       await act(async () =>
         host.querySelector<HTMLButtonElement>("button")!.click(),
       );
-      expect(account.save.mock.calls[0][0].buyerScope.buyerMode).toBe(
-        "reseller",
-      );
+      expect(account.save.mock.calls[0][0].buyerScope.buyerMode).toBe(mode);
       expect(account.save.mock.calls[0][0]).not.toHaveProperty("role");
       expect(account.save.mock.calls[0][0]).not.toHaveProperty("plan");
     },
@@ -59,6 +57,24 @@ describe("buying preferences", () => {
     act(() => root.unmount());
     host.remove();
     vi.unstubAllGlobals();
+  });
+  it("switches a dealer to personal only after an explicit choice and keeps their other settings", async () => {
+    account.save.mockResolvedValue({});
+    await act(async () =>
+      host
+        .querySelector<HTMLInputElement>(
+          'input[name="buying-purpose"][value="personal"]',
+        )!
+        .click(),
+    );
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("button")!.click(),
+    );
+    expect(account.save.mock.calls[0][0].buyerScope).toMatchObject({
+      buyerMode: "personal",
+      watchedDealers: ["keep.example"],
+      maxPrice: 5000,
+    });
   });
   it("saves working scope parameters without dropping other buyer settings", async () => {
     expect(
@@ -73,8 +89,7 @@ describe("buying preferences", () => {
     );
     expect(account.save).toHaveBeenCalledWith({
       buyerScope: expect.objectContaining({
-        buyerMode: "reseller",
-        legacyBuyerMode: "dealer",
+        buyerMode: "dealer",
         minPrice: 1000,
         maxPrice: 5000,
         preferredMakes: ["Ford"],

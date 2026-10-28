@@ -373,17 +373,22 @@ export default function DealPage({
   params: Promise<{ id: string }>;
 }) {
   const store = useDealStore();
-  const { prefs, isLoading: prefsLoading } = usePreferences();
-  const buyerModeSynced = React.useRef(false);
+  const {
+    prefs,
+    isLoading: prefsLoading,
+    authed,
+    error: prefsError,
+  } = usePreferences();
   React.useEffect(() => {
-    if (buyerModeSynced.current || prefsLoading) return;
-    const saved =
-      prefs.buyerScope?.legacyBuyerMode ??
-      prefs.buyerScope?.buyerMode ??
-      readLocalBuyerIntent()?.buyerMode;
-    store.setUserType(userTypeFromSavedBuyerMode(saved));
-    buyerModeSynced.current = true;
-  }, [prefs.buyerScope, prefsLoading, store]);
+    if (prefsLoading) return;
+    const saved = prefsError
+      ? undefined
+      : authed
+        ? prefs.buyerScope?.buyerMode
+        : readLocalBuyerIntent()?.buyerMode;
+    const nextType = userTypeFromSavedBuyerMode(saved);
+    if (store.userType !== nextType) store.setUserType(nextType);
+  }, [prefs.buyerScope, prefsLoading, prefsError, authed, store]);
   const { dealerId, loading: dealerLoading } = useDealerId();
   const { targetProfit: savedTargetProfit } = useDealerDefaults();
   const { id } = React.use(params);

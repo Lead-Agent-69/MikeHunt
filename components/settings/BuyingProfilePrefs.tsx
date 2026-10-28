@@ -5,6 +5,7 @@ import { usePreferences, type Prefs } from "@/hooks/usePreferences";
 import { includesRepairable } from "@/lib/intelligence/repair-risk";
 import { VEHICLE_TO_QUERY } from "@/hooks/useBuyerIntent";
 import { buyingWorkspaceScope } from "@/lib/buyer/workspace-scope";
+import { BuyingPurposeChoices } from "@/components/buyer/BuyingPurposeChoices";
 
 type Scope = NonNullable<Prefs["buyerScope"]>;
 const field =
@@ -154,6 +155,11 @@ export function BuyingProfilePrefs() {
         disabled={busy || isLoading || Boolean(error)}
         className="mt-3 min-w-0 space-y-3"
       >
+        <BuyingPurposeChoices
+          loading={isLoading}
+          value={draft.buyerMode}
+          onChange={(buyerMode) => setDraft({ ...draft, buyerMode })}
+        />
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
             Seller type

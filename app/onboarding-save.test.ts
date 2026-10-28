@@ -87,6 +87,37 @@ async function review() {
   for (let index = 0; index < 3; index++) await click("Continue");
 }
 describe("onboarding completion", () => {
+  it("lets a new buyer explicitly choose resale and saves that purpose", async () => {
+    mode = "";
+    await mount();
+    expect(
+      container.querySelector<HTMLInputElement>(
+        'input[name="buying-purpose"][value="personal"]',
+      )?.checked,
+    ).toBe(true);
+    await act(async () =>
+      container
+        .querySelector<HTMLInputElement>(
+          'input[name="buying-purpose"][value="resale"]',
+        )!
+        .click(),
+    );
+    await review();
+    await click("See my matches");
+    expect(mocks.local.mock.calls[0][0].buyerMode).toBe("reseller");
+  });
+  it("does not ask personal buyers for resale targets", async () => {
+    await mount();
+    await click("Continue");
+    await click("Continue");
+    expect(container.textContent).not.toContain("Target net margin");
+    await click("Continue");
+    await click("See my matches");
+    expect(mocks.local.mock.calls[0][0]).toMatchObject({
+      buyerMode: "personal",
+    });
+    expect(mocks.local.mock.calls[0][0].targetProfit).toBeUndefined();
+  });
   for (const buyerMode of ["personal", "diy", "parts", "reseller", "dealer"]) {
     it(`completes ${buyerMode} only after both confirmed saves`, async () => {
       mode = buyerMode;
@@ -94,7 +125,7 @@ describe("onboarding completion", () => {
       await review();
       await click("See my matches");
       expect(writes).toEqual(["/api/preferences", "/api/profile"]);
-      expect(mocks.local.mock.calls[0][0].buyerMode).toBe("reseller");
+      expect(mocks.local.mock.calls[0][0].buyerMode).toBe(buyerMode);
       const preferenceWrite = vi
         .mocked(fetch)
         .mock.calls.find(
@@ -102,7 +133,7 @@ describe("onboarding completion", () => {
             url === "/api/preferences" && options?.method === "PUT",
         );
       const scope = JSON.parse(preferenceWrite![1]!.body as string).buyerScope;
-      expect(scope.legacyBuyerMode).toBe(buyerMode);
+      expect(scope.buyerMode).toBe(buyerMode);
       expect(scope).not.toHaveProperty("role");
       expect(mocks.navigate).toHaveBeenCalledOnce();
       expect(mocks.router.replace).not.toHaveBeenCalled();

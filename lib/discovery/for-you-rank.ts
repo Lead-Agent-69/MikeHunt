@@ -16,6 +16,7 @@ import {
 import {
   isLuxury,
   segmentOf,
+  reportedBodySegment,
   titleClass,
   type Segment,
   type TitleClass,
@@ -35,6 +36,9 @@ export type BuyerScopePrefs = {
 type Rankable = {
   make?: string | null;
   model?: string | null;
+  body_class?: string | null;
+  bodyClass?: string | null;
+  fuel_type?: string | null;
   title?: string | null;
   year?: number | string | null;
   trim?: string | null;
@@ -155,6 +159,8 @@ export function wantedVehicleSegment(scope: {
 }
 
 function dealSegment(row: Rankable): Segment {
+  const reported = reportedBodySegment(row.body_class ?? row.bodyClass);
+  if (reported) return reported;
   if (row.segment && row.segment !== "other") return row.segment as Segment;
   return segmentOf(row.make, row.model);
 }
@@ -189,9 +195,13 @@ export function rowMatchesBuyerQuery(row: Rankable, q: string): boolean {
   if (
     wanted.size &&
     !Array.from(wanted).some((segment) =>
-      segment === "luxury"
-        ? isLuxury(row.make, row.model) || row.luxury
-        : dealSegment(row) === segment,
+      segment === "ev"
+        ? row.segment === "ev" ||
+          segmentOf(row.make, row.model) === "ev" ||
+          /electric|hybrid/i.test(row.fuel_type || "")
+        : segment === "luxury"
+          ? isLuxury(row.make, row.model) || row.luxury
+          : dealSegment(row) === segment,
     )
   ) {
     return false;
