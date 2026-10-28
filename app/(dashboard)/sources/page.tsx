@@ -1736,6 +1736,7 @@ export default function SourcesPage() {
   const [showDirectory, setShowDirectory] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [healthScope, setHealthScope] = useState<HealthScope>({});
+  const [makesDraft, setMakesDraft] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<
     SourceCategory | "all"
   >("all");
@@ -1837,6 +1838,7 @@ export default function SourcesPage() {
       scopeDealers.length ||
       sourceIds.length
     ) {
+      setMakesDraft(scopeMakes.join(", "));
       setHealthScope({
         lane: scopeLane || (sourceIds.length ? "private" : undefined),
         state: scopeState || undefined,
@@ -2009,7 +2011,10 @@ export default function SourcesPage() {
                 healthScope.dealerSourceIds?.length) && (
                 <button
                   type="button"
-                  onClick={() => setHealthScope({})}
+                  onClick={() => {
+                    setHealthScope({});
+                    setMakesDraft("");
+                  }}
                   className="self-start rounded-[var(--r2)] border border-[var(--b1)] px-3 py-1.5 text-xs font-bold text-[var(--t4)] hover:text-[var(--t1)] sm:self-auto"
                 >
                   Clear scope
@@ -2118,8 +2123,12 @@ export default function SourcesPage() {
               <label>
                 <span>Makes</span>
                 <input
-                  value={(healthScope.makes || []).join(", ")}
-                  onChange={(event) =>
+                  value={makesDraft}
+                  onBlur={() =>
+                    setMakesDraft((healthScope.makes || []).join(", "))
+                  }
+                  onChange={(event) => {
+                    setMakesDraft(event.target.value);
                     setHealthScope((current) => ({
                       ...current,
                       makes: event.target.value
@@ -2132,8 +2141,8 @@ export default function SourcesPage() {
                         )
                         .filter(Boolean)
                         .slice(0, 12),
-                    }))
-                  }
+                    }));
+                  }}
                   placeholder="Makes, e.g. Ford, Toyota"
                   className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
                 />
