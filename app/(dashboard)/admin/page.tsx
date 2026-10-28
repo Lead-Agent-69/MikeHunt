@@ -1,6 +1,7 @@
 "use client";
 
 import { maintenanceReceipt } from "@/lib/admin/maintenance-receipt";
+import { InventoryCapacityPanel } from "@/components/admin/InventoryCapacityPanel";
 import { sourceOperationLabel } from "@/lib/scrapers/source-proof-readiness";
 
 import { useCallback, useMemo, useState } from "react";
@@ -311,6 +312,8 @@ export default function AdminDashboard() {
           icon={CheckCircle2}
         />
       </div>
+
+      <InventoryCapacityPanel />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="rounded-lg border border-[var(--b1)] bg-[var(--s1)]">
