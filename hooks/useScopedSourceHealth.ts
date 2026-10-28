@@ -79,7 +79,6 @@ export function useScopedSourceHealth<T extends { scopeStatus?: unknown }>(
       clearTimeout(timer);
       request.current?.controller.abort();
       request.current = null;
-      ++generation.current;
     };
   }, [url, enabled, load]);
   return {

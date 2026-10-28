@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { titleFilterOptions } from "@/lib/deals/title-filter-options";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePreferences } from "@/hooks/usePreferences";
 import { useScopedSourceHealth } from "@/hooks/useScopedSourceHealth";
 import {
