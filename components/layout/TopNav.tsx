@@ -209,7 +209,7 @@ function TopNavContent() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-between px-4 md:px-6 lg:gap-3"
+      className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 px-4 md:px-6 lg:gap-3"
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -236,16 +236,16 @@ function TopNavContent() {
         }}
       />
       {/* LEFT: Logo */}
-      <div className="flex flex-1 items-center gap-2 min-w-0 lg:flex-none">
+      <div className="flex shrink-0 items-center gap-2 min-w-0">
         <Link
           href="/market"
           prefetch={false}
           aria-label="DealerHunt home"
-          className="flex min-h-11 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+          className="flex min-h-11 min-w-11 shrink-0 items-center gap-2.5 group rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
           <MikeHuntLogo
             size="sm"
-            wordmarkClassName="block lg:hidden xl:block"
+            wordmarkClassName="block max-[359px]:hidden lg:hidden xl:block"
           />
         </Link>
         {activeJob && (
