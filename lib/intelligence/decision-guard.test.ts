@@ -1,6 +1,30 @@
 import { describe, expect, it } from "vitest";
 import { assessDecisionEvidence } from "./decision-guard";
 
+it("blocks a stored GO for an explicitly unresolved model even with recorded purchase checks", () => {
+  const result = assessDecisionEvidence({
+    title: "2009 Freightliner",
+    year: 2009,
+    make: "Freightliner",
+    model: " ",
+    dealVerdict: "go",
+    askPrice: 9000,
+    vin: "1FTFW1E50LFA12345",
+    mileage: 50000,
+    dealAnalysis: {
+      evidenceGates: {
+        priceMeaningConfirmed: true,
+        titleReviewed: true,
+        conditionInspected: true,
+        costsConfirmed: true,
+      },
+    },
+  });
+  expect(result.state).toBe("needs_evidence");
+  expect(result.acquisitionReady).toBe(false);
+  expect(result.summary).toContain("identity is incomplete");
+});
+
 it("blocks a stored GO when listing name and recorded model disagree", () => {
   const result = assessDecisionEvidence({
     title: "2024 Buick Allure Sport Touring",

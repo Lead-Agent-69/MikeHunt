@@ -10,6 +10,18 @@ const asking = {
 };
 
 describe("Market valuation evidence", () => {
+  it("does not attach comparison-based value to a blank reported model", () => {
+    expect(
+      marketValuation(asking, 18000, {
+        year: 2009,
+        make: "Freightliner",
+        model: " ",
+      }),
+    ).toEqual({
+      label: "Vehicle identity needs verification",
+      supported: false,
+    });
+  });
   it("withholds even otherwise supported estimates when the listing identity conflicts", () => {
     expect(
       marketValuation(asking, 15000, {
