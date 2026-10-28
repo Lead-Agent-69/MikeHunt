@@ -193,6 +193,12 @@ it("keeps hover/focus previews open when a marker is clicked or activated with E
     preview.open = false;
     preview.handlers.get("keypress")!({ originalEvent: { key: "x" } });
     expect(preview.open).toBe(false);
+    const preventScroll = vi.fn();
+    preview.handlers.get("keypress")!({
+      originalEvent: { key: " ", preventDefault: preventScroll },
+    });
+    expect(preventScroll).toHaveBeenCalledOnce();
+    expect(preview.open).toBe(true);
     preview.handlers.get("mouseover")!();
     expect(preview.options.autoPan).toBe(false);
     const beforeClick = preview.updates;

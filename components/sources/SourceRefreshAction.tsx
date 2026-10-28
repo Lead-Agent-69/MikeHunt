@@ -5,7 +5,13 @@ import { RefreshCw } from "lucide-react";
 import type { BuyerScope } from "@/lib/scrapers/buyer-scope";
 import { US_STATES } from "@/lib/geo";
 import { createLatestRequest } from "@/lib/latest-request";
-import { pollScopedScrapeJob } from "@/lib/scrapers/job-status-client";
+import {
+  pollScopedScrapeJob,
+  sourceSearchErrorMessage,
+  sourceSearchStatusMessage,
+  SourceSearchError,
+  type CustomerScrapeJob,
+} from "@/lib/scrapers/job-status-client";
 
 const requestErrors: Record<number, string> = {
   400: "Check your location and search criteria, then try again.",
@@ -26,6 +32,11 @@ export function SourceRefreshAction({
   const requests = useRef(createLatestRequest());
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"requesting" | "pending" | "running">(
+    "requesting",
+  );
+  const lastStatus = useRef<CustomerScrapeJob | null>(null);
   const scopeKey = JSON.stringify(scope);
   const states = Array.from(
     new Set([scope.state, ...(scope.states || [])].filter(Boolean)),
@@ -39,71 +50,99 @@ export function SourceRefreshAction({
     const manager = requests.current;
     setBusy(false);
     setMessage("");
+    setJobId(null);
+    lastStatus.current = null;
     return () => manager.cancel();
   }, [scopeKey]);
 
   async function refresh() {
-    if (!validLocation) return;
+    if (!validLocation || busy) return;
     const task = requests.current.start();
     setBusy(true);
-    setMessage("Requesting a search of your selected market.");
+    setPhase(jobId ? "pending" : "requesting");
+    setMessage(
+      jobId
+        ? "Checking your existing search; no new search has been started."
+        : "Requesting a search of your selected market.",
+    );
     try {
-      // A timeout ends local monitoring, not the server's collection job.
-      const timeout = new AbortController();
-      const timer = setTimeout(() => timeout.abort(), 20_000);
-      let response: Response;
-      let body: any;
-      try {
-        response = await fetch("/api/scrape/request", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ scope }),
-          signal: AbortSignal.any([task.signal, timeout.signal]),
-        });
-        if (response.ok) body = await response.json();
-      } finally {
-        clearTimeout(timer);
-      }
-      if (!task.isCurrent()) return;
-      if (!response.ok) {
+      let monitoredId = jobId;
+      if (!monitoredId) {
+        // A timeout ends local monitoring, not the server's collection job.
+        const timeout = new AbortController();
+        const timer = setTimeout(() => timeout.abort(), 20_000);
+        let response: Response;
+        let body: any;
+        try {
+          response = await fetch("/api/scrape/request", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ scope }),
+            signal: AbortSignal.any([task.signal, timeout.signal]),
+          });
+          if (response.ok) body = await response.json();
+        } finally {
+          clearTimeout(timer);
+        }
+        if (!task.isCurrent()) return;
+        if (!response.ok) {
+          setMessage(
+            requestErrors[response.status] ||
+              "We couldn't start this search. Existing matches remain available.",
+          );
+          return;
+        }
+        if (
+          body?.queued !== true ||
+          typeof body?.job?.id !== "string" ||
+          !body.job.id
+        ) {
+          setMessage(
+            "We couldn't confirm this search was queued. Check coverage before requesting it again.",
+          );
+          return;
+        }
+        monitoredId = body.job.id;
+        setJobId(monitoredId);
+        setPhase("pending");
         setMessage(
-          requestErrors[response.status] ||
-            "We couldn't start this search. Existing matches remain available.",
+          "Your selected-source search is queued. Existing matches remain available.",
         );
-        return;
       }
-      if (
-        body?.queued !== true ||
-        typeof body?.job?.id !== "string" ||
-        !body.job.id
-      ) {
-        setMessage(
-          "We couldn't confirm this search was queued. Check coverage before requesting it again.",
-        );
-        return;
-      }
-      setMessage(
-        "Your selected-source search is queued. Existing matches remain available.",
-      );
       const job = await pollScopedScrapeJob(
-        body.job.id,
+        monitoredId!,
         task.signal,
         (status) => {
           if (task.isCurrent()) setMessage(status);
         },
+        {
+          onStatus: (status) => {
+            if (!task.isCurrent()) return;
+            lastStatus.current = status;
+            setPhase(status.status === "pending" ? "pending" : "running");
+            if (status.status === "completed" || status.status === "failed")
+              setJobId(null);
+          },
+        },
       );
       if (!task.isCurrent()) return;
+      if (job) setJobId(null);
       setMessage(
         job
           ? "Search finished. Coverage is being checked again; new matching listings are not guaranteed."
-          : "This search is taking longer than expected. It may still be running; existing matches remain available.",
+          : lastStatus.current
+            ? `${sourceSearchStatusMessage(lastStatus.current)} Monitoring paused. Choose Check search status to resume updates.`
+            : "This search is taking longer than expected. It may still be running; existing matches remain available. Choose Check search status to resume updates.",
       );
       onSettled();
-    } catch {
+    } catch (error) {
       if (!task.isCurrent()) return;
-      setMessage(
-        "We couldn't confirm the search result. It may still be running. Check coverage before requesting it again.",
-      );
+      if (
+        error instanceof SourceSearchError &&
+        (error.code === "missing" || error.code === "failed")
+      )
+        setJobId(null);
+      setMessage(sourceSearchErrorMessage(error));
       onSettled();
     } finally {
       if (task.isCurrent()) {
@@ -122,7 +161,15 @@ export function SourceRefreshAction({
         className="btn btn-primary inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RefreshCw size={16} aria-hidden="true" />
-        {busy ? "Checking selected sources" : "Check for new matches"}
+        {busy
+          ? phase === "requesting"
+            ? "Requesting search"
+            : phase === "pending"
+              ? "Search queued"
+              : "Checking selected sources"
+          : jobId
+            ? "Check search status"
+            : "Check for new matches"}
       </button>
       {!busy && message && (
         <button

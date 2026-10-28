@@ -37,6 +37,7 @@ import {
 import { auctionDateApplies } from "@/lib/inventory-field-applicability";
 import { SourceRefreshAction } from "@/components/sources/SourceRefreshAction";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { US_STATES } from "@/lib/geo/us-states";
 import {
   Activity,
   BarChart3,
@@ -1941,8 +1942,8 @@ export default function SourcesPage() {
       {/* Header */}
       <div className="relative z-20 border-b border-[var(--b1)] bg-[var(--s0)]">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
+          <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+            <div className="min-w-0">
               <h1 className="text-2xl font-black text-[var(--t1)]">
                 Market coverage
               </h1>
@@ -1980,6 +1981,7 @@ export default function SourcesPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search markets or dealers..."
+              aria-label="Search sources and dealers"
               className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[var(--b1)] bg-[var(--s0)] text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
             />
           </div>
@@ -2014,168 +2016,205 @@ export default function SourcesPage() {
                 </button>
               )}
             </div>
-            <div className="grid grid-cols-1 gap-2 [&>*]:min-w-0 [&>*]:w-full lg:grid-cols-9">
-              <select
-                aria-label="Vehicle market"
-                value={healthScope.lane || ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    lane: event.target.value || undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                {HEALTH_LANES.map((lane) => (
-                  <option key={lane.value || "all"} value={lane.value}>
-                    {lane.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Seller type"
-                value={healthScope.sellerType || ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    sellerType: event.target.value || undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                {SELLER_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value || "all"} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                aria-label="Title status"
-                value={healthScope.titleType || ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    titleType: event.target.value || undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                {TITLE_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value || "all"} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={healthScope.state || ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    state:
-                      event.target.value
-                        .toUpperCase()
-                        .replace(/[^A-Z]/g, "")
-                        .slice(0, 2) || undefined,
-                  }))
-                }
-                placeholder="State, e.g. FL"
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              />
-              <input
-                value={healthScope.q || ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    q: event.target.value || undefined,
-                  }))
-                }
-                placeholder="Vehicle keyword, e.g. suv"
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              />
-              <input
-                value={(healthScope.makes || []).join(", ")}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    makes: event.target.value
-                      .split(",")
-                      .map((make) =>
-                        make
-                          .replace(/[^a-zA-Z0-9\s-]/g, " ")
-                          .replace(/\s+/g, " ")
-                          .trim(),
-                      )
-                      .filter(Boolean)
-                      .slice(0, 12),
-                  }))
-                }
-                placeholder="Makes, e.g. Ford, Toyota"
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              />
-              <select
-                aria-label="Minimum asking price"
-                value={healthScope.minPrice ? String(healthScope.minPrice) : ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    minPrice: event.target.value
-                      ? Number(event.target.value)
-                      : undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                <option value="">No minimum</option>
-                <option value="2000">From $2k</option>
-                <option value="5000">From $5k</option>
-                <option value="10000">From $10k</option>
-                <option value="20000">From $20k</option>
-              </select>
-              <select
-                aria-label="Maximum asking price"
-                value={healthScope.maxPrice ? String(healthScope.maxPrice) : ""}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    maxPrice: event.target.value
-                      ? Number(event.target.value)
-                      : undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                <option value="">No maximum</option>
-                <option value="5000">Up to $5k</option>
-                <option value="10000">Up to $10k</option>
-                <option value="20000">Up to $20k</option>
-                <option value="35000">Up to $35k</option>
-                <option value="50000">Up to $50k</option>
-              </select>
-              <select
-                aria-label="Dealer"
-                value={(healthScope.dealerSourceIds || []).join(",")}
-                onChange={(event) =>
-                  setHealthScope((current) => ({
-                    ...current,
-                    lane: event.target.value ? "private" : current.lane,
-                    sellerType: event.target.value
-                      ? "dealer"
-                      : current.sellerType,
-                    dealerSourceIds: event.target.value
-                      ? event.target.value.split(",").filter(Boolean)
-                      : undefined,
-                    dealerHosts: undefined,
-                  }))
-                }
-                className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
-              >
-                <option value="">No specific dealer</option>
-                {FEATURED_DEALER_OPTIONS.map((dealer) => (
-                  <option key={dealer.id} value={dealer.id}>
-                    {dealer.label}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 [&>label]:min-w-0 [&>label]:space-y-1 [&>label]:text-xs [&>label]:font-semibold [&>label]:text-[var(--t3)] [&_input]:min-h-11 [&_input]:w-full [&_select]:min-h-11 [&_select]:w-full">
+              <label>
+                <span>Vehicle market</span>
+                <select
+                  aria-label="Vehicle market"
+                  value={healthScope.lane || ""}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      lane: event.target.value || undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  {HEALTH_LANES.map((lane) => (
+                    <option key={lane.value || "all"} value={lane.value}>
+                      {lane.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Seller type</span>
+                <select
+                  aria-label="Seller type"
+                  value={healthScope.sellerType || ""}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      sellerType: event.target.value || undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  {SELLER_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value || "all"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Title status</span>
+                <select
+                  aria-label="Title status"
+                  value={healthScope.titleType || ""}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      titleType: event.target.value || undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  {TITLE_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value || "all"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>State</span>
+                <select
+                  aria-label="State"
+                  value={healthScope.state || ""}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      state: event.target.value || undefined,
+                    }))
+                  }
+                  autoComplete="address-level1"
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  <option value="">Choose a state</option>
+                  {Object.entries(US_STATES)
+                    .sort((a, b) => a[1][0].localeCompare(b[1][0]))
+                    .map(([code, [name]]) => (
+                      <option key={code} value={code}>
+                        {name} ({code})
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label>
+                <span>Vehicle search</span>
+                <input
+                  value={healthScope.q || ""}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      q: event.target.value || undefined,
+                    }))
+                  }
+                  placeholder="Vehicle keyword, e.g. suv"
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                />
+              </label>
+              <label>
+                <span>Makes</span>
+                <input
+                  value={(healthScope.makes || []).join(", ")}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      makes: event.target.value
+                        .split(",")
+                        .map((make) =>
+                          make
+                            .replace(/[^a-zA-Z0-9\s-]/g, " ")
+                            .replace(/\s+/g, " ")
+                            .trim(),
+                        )
+                        .filter(Boolean)
+                        .slice(0, 12),
+                    }))
+                  }
+                  placeholder="Makes, e.g. Ford, Toyota"
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] placeholder:text-[var(--t5)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                />
+              </label>
+              <label>
+                <span>Minimum asking price</span>
+                <select
+                  aria-label="Minimum asking price"
+                  value={
+                    healthScope.minPrice ? String(healthScope.minPrice) : ""
+                  }
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      minPrice: event.target.value
+                        ? Number(event.target.value)
+                        : undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  <option value="">No minimum</option>
+                  <option value="2000">From $2k</option>
+                  <option value="5000">From $5k</option>
+                  <option value="10000">From $10k</option>
+                  <option value="20000">From $20k</option>
+                </select>
+              </label>
+              <label>
+                <span>Maximum asking price</span>
+                <select
+                  aria-label="Maximum asking price"
+                  value={
+                    healthScope.maxPrice ? String(healthScope.maxPrice) : ""
+                  }
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      maxPrice: event.target.value
+                        ? Number(event.target.value)
+                        : undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  <option value="">No maximum</option>
+                  <option value="5000">Up to $5k</option>
+                  <option value="10000">Up to $10k</option>
+                  <option value="20000">Up to $20k</option>
+                  <option value="35000">Up to $35k</option>
+                  <option value="50000">Up to $50k</option>
+                </select>
+              </label>
+              <label>
+                <span>Dealer</span>
+                <select
+                  aria-label="Dealer"
+                  value={(healthScope.dealerSourceIds || []).join(",")}
+                  onChange={(event) =>
+                    setHealthScope((current) => ({
+                      ...current,
+                      lane: event.target.value ? "private" : current.lane,
+                      sellerType: event.target.value
+                        ? "dealer"
+                        : current.sellerType,
+                      dealerSourceIds: event.target.value
+                        ? event.target.value.split(",").filter(Boolean)
+                        : undefined,
+                      dealerHosts: undefined,
+                    }))
+                  }
+                  className="rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2 text-sm text-[var(--t1)] focus:outline-none focus:ring-2 focus:ring-[var(--amber)]"
+                >
+                  <option value="">No specific dealer</option>
+                  {FEATURED_DEALER_OPTIONS.map((dealer) => (
+                    <option key={dealer.id} value={dealer.id}>
+                      {dealer.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--t4)]">
               <span className="font-bold text-[var(--t2)]">Checking:</span>

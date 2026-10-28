@@ -20,6 +20,19 @@
   font-family: inherit;
 }
 
+/* Keep the visible marks compact while making their full focus/click bounds usable. */
+.surface :global(.deal-pin),
+.surface :global(.custom-marker) {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 0;
+}
+
+.surface :global(.deal-pin > div) {
+  width: max-content;
+}
+
 .surface :global(.leaflet-bar),
 .surface :global(.leaflet-popup-content-wrapper) {
   border: 1px solid var(--map-line);

@@ -78,14 +78,8 @@ async function readStatus(id: string, signal: AbortSignal, timeoutMs: number) {
       cache: "no-store",
       signal: controller.signal,
     });
-    if (response.status === 401)
-      throw new StatusError(
-        "Sign in again to check this search. Your existing matches have not been removed.",
-      );
-    if (response.status === 404)
-      throw new StatusError(
-        "This search is no longer available. Start a new search when you're ready.",
-      );
+    if (response.status === 401) throw new SourceSearchError("authentication");
+    if (response.status === 404) throw new SourceSearchError("missing");
     if (!response.ok) throw new Error("Status temporarily unavailable");
     const body = await response.json();
     const job = body?.job;
@@ -93,9 +87,7 @@ async function readStatus(id: string, signal: AbortSignal, timeoutMs: number) {
       job?.id !== id ||
       !["pending", "running", "completed", "failed"].includes(job?.status)
     )
-      throw new StatusError(
-        "We couldn't verify this search's status. Your existing matches remain available.",
-      );
+      throw new SourceSearchError("invalid");
     return job as CustomerScrapeJob;
   } finally {
     clearTimeout(timer);
@@ -103,7 +95,31 @@ async function readStatus(id: string, signal: AbortSignal, timeoutMs: number) {
   }
 }
 
-class StatusError extends Error {}
+const statusErrors = {
+  authentication:
+    "Sign in again to check this search. Your existing matches have not been removed.",
+  missing:
+    "This search is no longer available. Start a new search when you're ready.",
+  invalid:
+    "We couldn't verify this search's status. Your existing matches remain available.",
+  failed:
+    "We couldn't check the selected sources. Try again later or choose another source.",
+  connection:
+    "We lost the connection while checking your search. It may still be running; your existing matches remain available.",
+};
+
+/** Only known customer messages may cross the status-monitor boundary. */
+export class SourceSearchError extends Error {
+  constructor(readonly code: keyof typeof statusErrors) {
+    super(statusErrors[code]);
+  }
+}
+
+export function sourceSearchErrorMessage(error: unknown) {
+  return error instanceof SourceSearchError
+    ? statusErrors[error.code]
+    : "We couldn't confirm the search result. It may still be running. Check coverage before requesting it again.";
+}
 
 /** Read-only retries never resubmit collection or imply the background job was cancelled. */
 export async function pollScopedScrapeJob(
@@ -114,6 +130,7 @@ export async function pollScopedScrapeJob(
     intervalMs?: number;
     timeoutMs?: number;
     requestTimeoutMs?: number;
+    onStatus?: (job: CustomerScrapeJob) => void;
   } = {},
 ): Promise<CustomerScrapeJob | null> {
   const deadline = Date.now() + (options.timeoutMs ?? 10 * 60_000);
@@ -129,12 +146,9 @@ export async function pollScopedScrapeJob(
       );
     } catch (error) {
       if (signal.aborted) throw abortError();
-      if (error instanceof StatusError) throw error;
+      if (error instanceof SourceSearchError) throw error;
       failures++;
-      if (failures >= 3)
-        throw new Error(
-          "We lost the connection while checking your search. It may still be running; your existing matches remain available.",
-        );
+      if (failures >= 3) throw new SourceSearchError("connection");
       onUpdate(
         "Connection interrupted. Rechecking your existing search; no duplicate search has been started.",
       );
@@ -150,10 +164,8 @@ export async function pollScopedScrapeJob(
     if (signal.aborted) throw abortError();
     if (Date.now() >= deadline) return null;
     failures = 0;
-    if (job.status === "failed")
-      throw new Error(
-        "We couldn't check the selected sources. Try again later or choose another source.",
-      );
+    options.onStatus?.(job);
+    if (job.status === "failed") throw new SourceSearchError("failed");
     if (job.status === "completed") return job;
     onUpdate(sourceSearchStatusMessage(job));
     await wait(

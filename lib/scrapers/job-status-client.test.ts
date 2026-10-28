@@ -3,6 +3,8 @@ import {
   pollScopedScrapeJob,
   sourceSearchStatusMessage,
   sourceSearchCompletionMessage,
+  sourceSearchErrorMessage,
+  SourceSearchError,
 } from "./job-status-client";
 
 describe("source completion truth", () => {
@@ -61,6 +63,43 @@ describe("scoped search monitoring", () => {
     expect(fetchMock.mock.calls.every(([, options]) => !options.method)).toBe(
       true,
     );
+  });
+
+  it("reports verified lifecycle states, but never a late response after cancellation", async () => {
+    fetchMock
+      .mockResolvedValueOnce(response("pending"))
+      .mockResolvedValueOnce(response("completed"));
+    const onStatus = vi.fn();
+    const task = pollScopedScrapeJob(
+      id,
+      new AbortController().signal,
+      vi.fn(),
+      { intervalMs: 10, onStatus },
+    );
+    await vi.advanceTimersByTimeAsync(15);
+    await task;
+    expect(onStatus.mock.calls.map(([job]) => job.status)).toEqual([
+      "pending",
+      "completed",
+    ]);
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      pollScopedScrapeJob(id, controller.signal, vi.fn(), { onStatus }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(onStatus).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows only the fixed customer error vocabulary through the UI boundary", () => {
+    expect(
+      sourceSearchErrorMessage(new SourceSearchError("authentication")),
+    ).toContain("Sign in again");
+    expect(
+      sourceSearchErrorMessage(new Error("Postgres internal credentials")),
+    ).not.toContain("Postgres");
+    expect(
+      sourceSearchErrorMessage(new Error("Postgres internal credentials")),
+    ).toContain("couldn't confirm");
   });
 
   it("never invents a successful summary when completion has none", async () => {

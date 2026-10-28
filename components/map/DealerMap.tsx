@@ -27,8 +27,9 @@ const createIcon = (color: string) => {
   return new L.DivIcon({
     className: "custom-marker",
     html: `<div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 10px ${color};"></div>`,
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
+    iconSize: [44, 44],
+    iconAnchor: [22, 22],
+    popupAnchor: [0, -8],
   });
 };
 
@@ -126,8 +127,9 @@ function pillIcon(p: MapPoint): L.DivIcon {
   return new L.DivIcon({
     className: "deal-pin",
     html: `<div style="background:#141c28;color:#f3f6fb;font:700 11px/1 system-ui;padding:5px 8px;border-radius:13px;white-space:nowrap;border:1.5px solid ${color};box-shadow:0 2px 8px rgba(0,0,0,.6)">${esc(text)}</div>`,
-    iconSize: [1, 1],
-    iconAnchor: [0, 0],
+    iconSize: [64, 44],
+    iconAnchor: [32, 22],
+    popupAnchor: [0, -12],
   });
 }
 
@@ -262,7 +264,9 @@ function ClusteredMarkers({
         clearPhoto();
       });
       marker.on("keypress", (event) => {
-        if ((event.originalEvent as KeyboardEvent).key === "Enter") activate();
+        const key = event.originalEvent as KeyboardEvent;
+        if (key.key === " ") key.preventDefault();
+        if (key.key === "Enter" || key.key === " ") activate();
       });
       marker.on("add", () => {
         const element = marker.getElement();

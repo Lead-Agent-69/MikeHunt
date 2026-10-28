@@ -5,8 +5,17 @@ export type ListingIdentity = {
   model?: string | null;
 };
 
-/** Flag a direct disagreement, never infer a replacement model from an image or low price. */
+/** Flag unresolved reported identity; never infer a replacement from photos or price. */
 export function listingIdentityWarning(row: ListingIdentity): string | null {
+  if (
+    [row.make, row.model].some(
+      (value) =>
+        typeof value === "string" &&
+        (!value.trim() ||
+          /^(unknown|other|unspecified|n\/a)$/i.test(value.trim())),
+    )
+  )
+    return "Vehicle identity is incomplete. Confirm the make and model with the source before relying on comparisons.";
   if (
     typeof row.title !== "string" ||
     typeof row.make !== "string" ||
