@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buyingWorkspaceScope } from "./workspace-scope";
 
-describe("single buying workspace", () => {
+describe("buying-purpose preservation", () => {
   it.each(["personal", "diy", "parts", "dealer", "reseller"])(
-    "keeps %s preferences without a role selector",
+    "preserves the selected %s purpose without granting an account role",
     (buyerMode) => {
       const scope = {
         buyerMode,
@@ -12,14 +12,18 @@ describe("single buying workspace", () => {
         watchedDealers: ["example.test"],
       };
       const result = buyingWorkspaceScope(scope);
-      expect(result).toMatchObject({ ...scope, buyerMode: "reseller" });
-      if (buyerMode !== "reseller")
-        expect(result.legacyBuyerMode).toBe(buyerMode);
+      expect(result).toMatchObject(scope);
       expect(scope.buyerMode).toBe(buyerMode);
       expect(result).not.toHaveProperty("role");
       expect(result).not.toHaveProperty("plan");
     },
   );
+  it("defaults missing or invalid purposes to personal without inferring resale", () => {
+    expect(buyingWorkspaceScope({}).buyerMode).toBe("personal");
+    expect(buyingWorkspaceScope({ buyerMode: "admin" }).buyerMode).toBe(
+      "personal",
+    );
+  });
   it("does not replace a previously archived choice", () => {
     expect(
       buyingWorkspaceScope({ buyerMode: "reseller", legacyBuyerMode: "parts" })

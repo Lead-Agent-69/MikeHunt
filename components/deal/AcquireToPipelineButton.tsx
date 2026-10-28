@@ -92,7 +92,8 @@ function PurchaseRecord({
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   });
-  const [condition, setCondition] = useState(deal.condition || "unknown");
+  // A source's title/condition claim is not the buyer's confirmed purchase fact.
+  const [condition, setCondition] = useState("unknown");
   const [error, setError] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
@@ -303,6 +304,11 @@ function PurchaseRecord({
                   ))}
                 </select>
               </label>
+              <p className="text-xs text-[var(--t3)]">
+                Select only what you have confirmed from the vehicle and title
+                documents. Listing claims are not carried into your purchase
+                record automatically.
+              </p>
               {error && (
                 <p role="alert" className="text-sm text-[var(--red)]">
                   {error}

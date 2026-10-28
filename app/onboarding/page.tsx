@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { MikeHuntLogo } from "@/components/brand/MikeHuntLogo";
 import { accountMenuForMode } from "@/components/layout/nav-items";
+import { BuyingPurposeChoices } from "@/components/buyer/BuyingPurposeChoices";
 import { FOCUSED_TOOLS } from "@/lib/workspace";
 import { toast } from "sonner";
 import { isSupabaseConfigured } from "@/lib/supabase";
@@ -87,7 +88,8 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const buyerMode: BuyerMode = BUYING_WORKSPACE_MODE;
+  const [buyerMode, setBuyerMode] = useState<BuyerMode>(BUYING_WORKSPACE_MODE);
+  const resale = buyerMode === "dealer" || buyerMode === "reseller";
   const [prefsHydrated, setPrefsHydrated] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [accountRequired, setAccountRequired] = useState(false);
@@ -151,6 +153,7 @@ export default function OnboardingPage() {
           setPrefsHydrated(true);
           return;
         }
+        setBuyerMode(buyingWorkspaceScope(saved).buyerMode);
         setVehicles(
           saved.vehicles?.length
             ? saved.vehicles
@@ -189,12 +192,13 @@ export default function OnboardingPage() {
       titleType,
       includeRepairable,
       maxPrice: maxPrice ? Number(maxPrice) : undefined,
-      targetProfit: Number(targetProfit || 0) || undefined,
+      targetProfit: resale ? Number(targetProfit || 0) || undefined : undefined,
       laneValue: titleType === "salvage" ? "damaged" : "all",
       lane: titleType === "salvage" ? "Salvage & repairable" : "All deals",
     }),
     [
       buyerMode,
+      resale,
       maxPrice,
       state,
       targetProfit,
@@ -209,8 +213,9 @@ export default function OnboardingPage() {
     return onboardingMarketHref(intent);
   }, [intent]);
 
-  const modeDetail =
-    "Choose acceptable title and repair risk, and your target net margin.";
+  const modeDetail = resale
+    ? "Choose acceptable title and repair risk, and your target net margin."
+    : "Choose the condition and repair needs you are comfortable taking on.";
 
   const scopeChosen = state === "Nationwide" || US_STATES.includes(state);
 
@@ -220,8 +225,8 @@ export default function OnboardingPage() {
     if (
       (maxPrice &&
         (!Number.isFinite(Number(maxPrice)) || Number(maxPrice) < 0)) ||
-      !Number.isFinite(Number(targetProfit)) ||
-      Number(targetProfit) < 0
+      (resale &&
+        (!Number.isFinite(Number(targetProfit)) || Number(targetProfit) < 0))
     ) {
       toast.error("Enter a valid non-negative budget and target profit.");
       return;
@@ -275,7 +280,9 @@ export default function OnboardingPage() {
           home_state: state && state !== "Nationwide" ? state : undefined,
           state: state && state !== "Nationwide" ? state : undefined,
           budget_max: maxPrice ? Number(maxPrice) : undefined,
-          target_profit: Number(targetProfit || 0) || undefined,
+          target_profit: resale
+            ? Number(targetProfit || 0) || undefined
+            : undefined,
         }),
       });
       if (!profileResult.ok || !preferenceResult.ok) {
@@ -309,31 +316,35 @@ export default function OnboardingPage() {
       title: "What vehicles are you looking for?",
       description: "Choose any vehicle types that interest you.",
       body: (
-        <fieldset
-          disabled={!prefsHydrated}
-          className="grid grid-cols-2 gap-2 sm:grid-cols-3"
-        >
-          {VEHICLES.map((item) => (
-            <ChoiceButton
-              key={item}
-              active={
-                item === "All vehicle types"
-                  ? vehicles.length === 0
-                  : vehicles.includes(item)
-              }
-              onClick={() =>
-                setVehicles((selected) =>
+        <fieldset disabled={!prefsHydrated} className="space-y-5">
+          <BuyingPurposeChoices
+            value={buyerMode}
+            onChange={setBuyerMode}
+            loading={!prefsHydrated}
+          />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {VEHICLES.map((item) => (
+              <ChoiceButton
+                key={item}
+                active={
                   item === "All vehicle types"
-                    ? []
-                    : selected.includes(item)
-                      ? selected.filter((value) => value !== item)
-                      : [...selected, item],
-                )
-              }
-            >
-              {item}
-            </ChoiceButton>
-          ))}
+                    ? vehicles.length === 0
+                    : vehicles.includes(item)
+                }
+                onClick={() =>
+                  setVehicles((selected) =>
+                    item === "All vehicle types"
+                      ? []
+                      : selected.includes(item)
+                        ? selected.filter((value) => value !== item)
+                        : [...selected, item],
+                  )
+                }
+              >
+                {item}
+              </ChoiceButton>
+            ))}
+          </div>
         </fieldset>
       ),
     },
@@ -421,7 +432,7 @@ export default function OnboardingPage() {
               </select>
             </label>
           )}
-          {
+          {resale && (
             <label className="block text-sm font-bold text-[var(--t2)]">
               Target net margin
               <input
@@ -433,7 +444,7 @@ export default function OnboardingPage() {
                 className="mt-2 w-full rounded-[var(--r2)] border border-[var(--b2)] bg-[var(--s0)] px-3 py-3 text-[var(--t1)]"
               />
             </label>
-          }
+          )}
           <div className="grid grid-cols-3 gap-2">
             {TIMELINES.map((item) => (
               <ChoiceButton

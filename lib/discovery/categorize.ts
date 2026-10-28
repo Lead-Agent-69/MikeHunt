@@ -35,18 +35,39 @@ const RE_VAN =
 const RE_LUX =
   /\b(mercedes|mercedes-benz|amg|maybach|bmw|alpina|audi|lexus|porsche|jaguar|land ?rover|range ?rover|bentley|maserati|ferrari|lamborghini|rolls-?royce|aston|aston ?martin|cadillac|infiniti|acura|genesis|tesla|lucid|rivian|alfa|alfa ?romeo|pagani|koenigsegg|bugatti|mclaren|lotus|rimac|zenvo|polestar|lincoln)\b/;
 
+const RE_SEDAN =
+  /\b(sedan|saloon|accord|civic|camry|corolla|avalon|altima|maxima|sentra|versa|sonata|elantra|optima|k5|k4|k900|cadenza|malibu|impala|cruze|fusion|focus|taurus|charger|300c?|s60|s80|s90|mazda ?[36]|es ?\d{3}|gs ?\d{3}|is ?\d{3}|ls ?\d{3})\b/;
+
+/** Reported body evidence outranks model-name inference for body searches. */
+export function reportedBodySegment(body?: string | null): Segment | null {
+  if (!body) return null;
+  if (/motorcycle|atv|utv|side.by.side|trailer|bus|hatchback|wagon/i.test(body))
+    return "other";
+  if (/convertible|cabriolet|roadster/i.test(body)) return "convertible";
+  if (/van/i.test(body)) return "van";
+  if (/pickup|truck/i.test(body)) return "truck";
+  if (/suv|sport.utility/i.test(body)) return "suv";
+  if (/sedan|saloon/i.test(body)) return "sedan";
+  if (/coupe/i.test(body)) return "coupe";
+  return null;
+}
+
 export function segmentOf(
   make?: string | null,
   model?: string | null,
+  bodyClass?: string | null,
 ): Segment {
   const t = `${make || ""} ${model || ""}`.toLowerCase();
   if (RE_EV.test(t)) return "ev";
-  if (RE_TRUCK.test(t)) return "truck";
+  const reported = reportedBodySegment(bodyClass);
+  if (reported) return reported;
   if (RE_VAN.test(t)) return "van";
+  if (RE_TRUCK.test(t)) return "truck";
   if (RE_SUV.test(t)) return "suv";
   if (RE_CONV.test(t)) return "convertible";
   if (RE_COUPE.test(t)) return "coupe";
-  return "sedan";
+  if (RE_SEDAN.test(t)) return "sedan";
+  return "other";
 }
 
 export function isLuxury(make?: string | null, model?: string | null): boolean {
@@ -235,6 +256,7 @@ export function categorize(deal: {
   title?: string | null;
   make?: string | null;
   model?: string | null;
+  body_class?: string | null;
   ask_price?: number | null;
   condition?: string | null;
   sell_estimate?: number | null;
@@ -278,7 +300,7 @@ export function categorize(deal: {
   const g = dealGrade(gradeAgainst, market);
   const tier = priceTier(deal.ask_price);
   return {
-    segment: segmentOf(deal.make, deal.model),
+    segment: segmentOf(deal.make, deal.model, deal.body_class),
     // Badge-based detection first; but never let an unknown/rare marque (a Pagani, a Rimac, an
     // import not in the regex) fall out of the Luxury rail — a high resale value or a luxury-tier
     // ask is itself a luxury signal. No make left behind.

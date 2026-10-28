@@ -12,7 +12,9 @@ describe("deal page personal desk", () => {
 
     expect(page).toContain("userTypeFromSavedBuyerMode");
     expect(page).toContain("readLocalBuyerIntent");
-    expect(page).toContain("prefs.buyerScope?.legacyBuyerMode");
+    expect(page).not.toContain("prefs.buyerScope?.legacyBuyerMode");
+    expect(page).toContain("prefsError");
+    expect(page).toContain("authed");
     expect(page).toContain("prefs.buyerScope?.buyerMode");
     expect(page).toContain("<ListingVerification");
     expect(page).toContain("onOpenSection={openVerificationSection}");

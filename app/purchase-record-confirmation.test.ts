@@ -106,7 +106,7 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLDialogElement.prototype, "close");
   vi.unstubAllGlobals();
 });
-async function open(onRecorded?: () => Promise<boolean>) {
+async function open(onRecorded?: () => Promise<boolean>, condition?: string) {
   await act(async () =>
     root.render(
       React.createElement(AcquireToPipelineButton, {
@@ -115,6 +115,7 @@ async function open(onRecorded?: () => Promise<boolean>) {
           askPrice: 10000,
           make: "Honda",
           model: "Civic",
+          condition,
         },
         onRecorded,
       }),
@@ -143,6 +144,23 @@ async function submit() {
   );
 }
 describe("purchase recording confirmation", () => {
+  it.each(["clean title", "salvage", "rebuilt"])(
+    "does not promote a listing's %s claim into a confirmed purchase fact",
+    async (reported) => {
+      await open(undefined, reported);
+      const select = host.querySelector<HTMLSelectElement>("select")!;
+      expect(select.value).toBe("unknown");
+      await act(async () => {
+        select.value = "rebuilt";
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+      await fill("8750");
+      await submit();
+      expect(JSON.parse(request.mock.calls[0][1].body).condition).toBe(
+        "rebuilt",
+      );
+    },
+  );
   it("does not move a Saved card between groups before its status write is confirmed", () => {
     const source = readFileSync("app/(dashboard)/saved/page.tsx", "utf8");
     const handler = source.slice(

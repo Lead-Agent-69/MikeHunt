@@ -329,7 +329,7 @@ export function BuyerScopeBuilder({
   const [preferenceStatus, setPreferenceStatus] = useState("");
   const [preferenceFailed, setPreferenceFailed] = useState(false);
   const [saveAttempt, setSaveAttempt] = useState(0);
-  const buyerMode: BuyerMode = BUYING_WORKSPACE_MODE;
+  const [buyerMode, setBuyerMode] = useState<BuyerMode>(BUYING_WORKSPACE_MODE);
   const [vehicle, setVehicle] = useState(VEHICLE_TYPES[0]);
   const [lane, setLane] = useState(LANES[0]);
   const [state, setState] = useState("Nationwide");
@@ -404,6 +404,7 @@ export function BuyerScopeBuilder({
       legacyBuyerMode.current =
         prefs.buyerScope?.legacyBuyerMode ?? saved.buyerMode;
       if (cancelled) return;
+      setBuyerMode(buyingWorkspaceScope(saved).buyerMode);
       if (initialScope) {
         const vehicleNeedle = String(
           initialScope.vehicleType || "",
