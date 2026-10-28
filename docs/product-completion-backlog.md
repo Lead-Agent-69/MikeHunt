@@ -1,5 +1,15 @@
 # Product Completion Register
 
+## October 28 Phased Completion: Capacity Foundation
+
+- Owner-selected policy: remain on free services; archive unsaved, unprotected listings only after 30 days without source reobservation. Saved research and transaction history have no age-based deletion permission.
+- Read-only production assessment found 46,263 stored listings and **zero** beyond that 30-day cutoff. Archiving cannot recover listing capacity today. Database allocation was about 377 MB; the deals table and indexes occupied about 299 MB, including about 123 MB of indexes. Allocation is not a reclaimable-space measurement.
+- Added a service-only read-only capacity RPC, an independently authorised Admin endpoint, and an Admin capacity panel. Age counts are explicitly not archive eligibility. Missing diagnostics remain unavailable rather than becoming zero usage. No archival, retention, quota, provider-access or public-role expansion is enabled by this release.
+- Isolated synthetic database verification confirms read-only execution, service-only access, exact age counts and unchanged listing rows. Production deployment and live UI evidence must be recorded in the release receipt.
+- Phase 1 remains incomplete until independent owner-controlled recovery-key custody, an eligible archive batch, encrypted off-device verification and a 100-record restore canary are proven. Existing production cleanup stays disabled. The 64 MB embedding index supports an existing feature and is not removed solely because its current scan counter is zero.
+
+Remaining phases: individual approved-source proof and reconciled intake counters; richer source-backed price/gallery evidence; atomic preferences and account/notification acceptance; full interactive and physical-device QA; security and operational release acceptance. This entry does not mark those phases complete.
+
 ## Phase 1: Account Recovery, October 9, 2026
 
 - Fixed the reset-email destination: PKCE callback now opens a new-password screen, not Login. Recovery bypasses buyer-profile provisioning and onboarding.
