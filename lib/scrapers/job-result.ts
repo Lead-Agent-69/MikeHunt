@@ -5,17 +5,21 @@ function count(value: number | undefined): number {
 }
 
 export function summarizeScopedScrapeResults(results: ScrapeResult[]) {
-  const successful = results.filter((result) => result.success).length;
+  const successful = results.filter(
+    (result) => result.success && !result.simulated,
+  ).length;
+  const simulated = results.filter((result) => result.simulated).length;
   return {
     total: results.length,
     successful,
-    failed: results.length - successful,
+    failed: results.length - successful - simulated,
+    simulated,
     totalDeals: results.reduce(
-      (sum, result) => sum + count(result.dealsFound),
+      (sum, result) => sum + (result.simulated ? 0 : count(result.dealsFound)),
       0,
     ),
     totalSaved: results.reduce(
-      (sum, result) => sum + count(result.dealsSaved),
+      (sum, result) => sum + (result.simulated ? 0 : count(result.dealsSaved)),
       0,
     ),
     totalDuration: results.reduce(
@@ -42,8 +46,12 @@ export function publicScopedScrapeSummary(
     results: rows.map((row) => ({
       source: typeof row?.source === "string" ? row.source : "unknown",
       success: row?.success === true,
-      dealsFound: count(row?.dealsFound),
-      dealsSaved: count(row?.dealsSaved),
+      dealsFound: row?.simulated === true ? 0 : count(row?.dealsFound),
+      dealsSaved: row?.simulated === true ? 0 : count(row?.dealsSaved),
+      ...(row?.simulated === true ? { simulated: true } : {}),
+      ...(typeof row?.persistenceVerified === "boolean"
+        ? { persistenceVerified: row.persistenceVerified }
+        : {}),
       duration: count(row?.duration),
       ...(row?.success === true
         ? {}

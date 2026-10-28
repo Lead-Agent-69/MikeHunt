@@ -57,6 +57,8 @@ export interface ScrapeResult {
   success: boolean;
   dealsFound: number;
   dealsSaved?: number;
+  simulated?: boolean;
+  persistenceVerified?: boolean;
   duration: number;
   error?: string;
   metadata?: Record<string, unknown>;

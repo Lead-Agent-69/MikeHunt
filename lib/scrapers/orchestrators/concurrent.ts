@@ -76,6 +76,8 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
           success: execResult.success,
           dealsFound: execResult.dealsFound,
           dealsSaved: execResult.dealsSaved,
+          simulated: execResult.simulated,
+          persistenceVerified: execResult.persistenceVerified,
           duration,
           error: execResult.error,
         };
@@ -90,7 +92,8 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
           execResult.error,
         );
 
-        await this.registry.updateStats(
+        await this.updateSourceStats(
+          this.registry,
           scraper.id,
           execResult.success,
           duration,
@@ -102,7 +105,13 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
         const message =
           error instanceof Error ? error.message : "Unknown error";
         await this.logScrapeError(runId, error);
-        await this.registry.updateStats(scraper.id, false, duration, 0);
+        await this.updateSourceStats(
+          this.registry,
+          scraper.id,
+          false,
+          duration,
+          0,
+        );
         await this.recordResult({
           source: scraper.id,
           success: false,

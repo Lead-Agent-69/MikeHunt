@@ -63,6 +63,27 @@ describe("scoped collection result truth", () => {
     ).toMatchObject({ successful: 1, totalSaved: 0, totalDeals: 0 });
   });
 
+  it("excludes simulations from observed inventory and source success", () => {
+    expect(
+      summarizeScopedScrapeResults([
+        {
+          source: "dry",
+          success: true,
+          simulated: true,
+          dealsFound: 50,
+          dealsSaved: 50,
+          duration: 0,
+        },
+      ]),
+    ).toMatchObject({
+      successful: 0,
+      failed: 0,
+      simulated: 1,
+      totalDeals: 0,
+      totalSaved: 0,
+    });
+  });
+
   it("does not persist malformed counts", () => {
     expect(
       summarizeScopedScrapeResults([
