@@ -1942,8 +1942,8 @@ export default function SourcesPage() {
       {/* Header */}
       <div className="relative z-20 border-b border-[var(--b1)] bg-[var(--s0)]">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
+          <div className="mb-4 flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
+            <div className="min-w-0">
               <h1 className="text-2xl font-black text-[var(--t1)]">
                 Market coverage
               </h1>
