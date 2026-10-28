@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { savedTrustExplanation, sanitizeClientProofSnapshot } from "./route";
+import {
+  savedTrustExplanation,
+  sanitizeClientProofSnapshot,
+} from "@/lib/saved/proof-snapshot";
 
 describe("saved cars trust snapshot", () => {
   it("builds buyer-facing proof and verification checks", () => {
