@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { authNeedsSignIn } from "@/lib/auth/session-recovery";
 import { internalError } from "@/lib/api/http-error";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
@@ -16,12 +17,12 @@ export async function GET(
     data: { user },
     error: authError,
   } = await getServerUser();
-  if (authError)
+  if (authError && !authNeedsSignIn(authError))
     return NextResponse.json(
       { error: "Your notes could not be loaded. Try again." },
       { status: 503 },
     );
-  if (!user)
+  if (!user || authError)
     return NextResponse.json(
       { error: "Sign in to view your notes." },
       { status: 401 },
@@ -56,12 +57,12 @@ export async function PUT(
     data: { user },
     error: authError,
   } = await getServerUser();
-  if (authError)
+  if (authError && !authNeedsSignIn(authError))
     return NextResponse.json(
       { error: "Your note was not confirmed. Try again." },
       { status: 503 },
     );
-  if (!user)
+  if (!user || authError)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = await req.json().catch(() => null);
   if (typeof body?.note !== "string")
