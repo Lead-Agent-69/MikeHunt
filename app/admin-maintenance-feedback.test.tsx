@@ -21,7 +21,9 @@ vi.mock("swr", () => ({
             },
           ],
         }
-      : { sources: [], enabled: 0, healthy: 0, due: 0 },
+      : url.includes("/health")
+        ? { sources: [], enabled: 0, healthy: 0, due: 0 }
+        : undefined,
     error: undefined,
     isLoading: false,
     mutate: state.refresh,

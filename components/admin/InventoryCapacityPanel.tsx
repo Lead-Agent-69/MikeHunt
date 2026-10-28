@@ -17,15 +17,19 @@ async function load(url: string): Promise<InventoryCapacity> {
 }
 
 export function InventoryCapacityPanel() {
-  const { data, error, isLoading, isValidating, mutate } = useSWR(
-    "/api/admin/capacity",
-    load,
-    {
-      revalidateOnFocus: false,
-      shouldRetryOnError: false,
-      dedupingInterval: 60_000,
-    },
-  );
+  const {
+    data: received,
+    error,
+    isLoading,
+    isValidating,
+    mutate,
+  } = useSWR("/api/admin/capacity", load, {
+    revalidateOnFocus: false,
+    shouldRetryOnError: false,
+    dedupingInterval: 60_000,
+  });
+  const data = inventoryCapacity(received);
+  const unavailable = Boolean(error || (received != null && !data));
   const summary = data ? capacitySummary(data) : null;
   return (
     <section
@@ -54,12 +58,12 @@ export function InventoryCapacityPanel() {
         >
           {isValidating
             ? "Checking capacity…"
-            : error
+            : unavailable
               ? "Retry capacity check"
               : "Check capacity"}
         </button>
       </div>
-      {error && (
+      {unavailable && (
         <p role="alert" className="mt-3 text-sm text-[var(--amber)]">
           Capacity information is temporarily unavailable.{" "}
           {data
