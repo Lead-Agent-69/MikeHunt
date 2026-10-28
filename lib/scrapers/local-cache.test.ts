@@ -595,6 +595,55 @@ describe("LocalScraperCache", () => {
     expect(next.priceChangedKeys.size).toBe(0);
     expect(db.rows.get("test|model")?.deal_analysis).toEqual({ profit: 500 });
   });
+  it("renews unchanged seller facts within the touch budget while retaining pending evidence updates", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-19T00:00:00Z"));
+    const { cache } = await makeCache({ maxDailyUpdates: 1 });
+    const prior = {
+      ...observed("checked"),
+      auction_end_at: "2026-10-20T14:00:00+00:00",
+      options: {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: 10000,
+          checkedAt: "2026-10-17T00:00:00Z",
+        },
+      },
+    };
+    const db = fakeSupabase([prior, observed("burn")]);
+    await cache.persistRows(
+      [{ ...observed("burn"), ask_price: 9000 }],
+      db.client,
+      "*",
+    );
+    const incoming = {
+      ...prior,
+      last_seen_at: new Date().toISOString(),
+      auction_end_at: "2026-10-20T09:00:00-05:00",
+      options: {
+        priceEvidence: {
+          ...prior.options.priceEvidence,
+          checkedAt: new Date().toISOString(),
+        },
+      },
+    };
+    const result = await cache.persistRows([incoming], db.client, "*");
+    expect(result).toMatchObject({ updates: 0, inserts: 0, touches: 1 });
+    expect(result.priceChangedKeys.size).toBe(0);
+    expect(db.rows.get("test|checked")).toMatchObject({
+      ask_price: prior.ask_price,
+      auction_end_at: prior.auction_end_at,
+      options: prior.options,
+      last_seen_at: incoming.last_seen_at,
+    });
+    expect(
+      (await cache.records("test")).find((r) => r.source_deal_id === "checked"),
+    ).toMatchObject({
+      cacheSynced: false,
+      options: incoming.options,
+    });
+    expect(cache.getQuota()).toMatchObject({ updates: 1, touches: 1 });
+  });
   it("lets an operator refresh use only the hard update reserve", async () => {
     const { cache } = await makeCache({
       maxDailyInserts: 5,
