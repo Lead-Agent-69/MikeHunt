@@ -15,6 +15,20 @@ describe("reported acquisition price", () => {
     "Sale price $18,000 with qualifying trade-in",
     "Starting at cash price $18,000",
     "Estimated cash price $18,000",
+    "Finance sale price $18,000",
+    "Financing sale price $18,000",
+    "Sale price $18,000 with approved credit",
+    "Sale price $18,000 WAC",
+    "Sale price $18,000 when financed through our lender",
+    "Sale price $18,000 only if financed with us",
+    "Sale price $18,000 after financing rebate",
+    "Sale price $18,000 with a finance discount",
+    "Sale price $18,000 after all rebates",
+    "Sale price $18,000 after $3,000 customer cash",
+    "Sale price $18,000 (after $3,000 down)",
+    "Sale price $18,000* with approved credit",
+    "Sale price $18,000, with approved credit",
+    "Sale price $18,000 (W.A.C.)",
   ])("withholds contingent purchase pricing: %s", (description) => {
     expect(reportedAcquisitionPrice({ ask_price: 18000, description })).toBe(0);
     expect(
@@ -38,6 +52,36 @@ describe("reported acquisition price", () => {
           "Cash price $18,000 plus tax and title. Financing available with $3,000 down.",
       }),
     ).toBe(18000);
+  });
+  it.each([
+    "Cash price $18,000 with warranty. Financing available with approved credit.",
+    "Financing available. Cash price $18,000 plus tax and title.",
+    "Sale price $18,000. Subject to financing approval for monthly payments.",
+    "Sale price $18,000 with approved credit. Cash price $21,000.",
+    "Finance sale price $18,000. Full cash price $21,000.",
+  ])("keeps a separate unconditional cash price: %s", (description) => {
+    expect(reportedAcquisitionPrice({ ask_price: 18000, description })).toBe(
+      description.includes("21,000") ? 21000 : 18000,
+    );
+  });
+  it("retains the conditional source wording and original observation date for legacy evidence", () => {
+    expect(
+      listingPriceEvidence({
+        ask_price: 18000,
+        options: {
+          priceEvidence: {
+            kind: "asking",
+            askingPrice: 18000,
+            evidenceText: "Sale price $18,000 with approved credit",
+            checkedAt: "2026-10-01T12:00:00Z",
+          },
+        },
+      }),
+    ).toMatchObject({
+      kind: "unknown",
+      evidenceText: "Sale price $18,000 with approved credit",
+      checkedAt: "2026-10-01T12:00:00Z",
+    });
   });
   it("does not choose one of conflicting seller-stated purchase prices", () => {
     const description = "Cash price $18,000. Sale price $22,000.";
