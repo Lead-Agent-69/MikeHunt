@@ -250,7 +250,6 @@ describe("pipeline intake diagnostics", () => {
       vehicleScope: 15,
       requiredFields: 15,
       photos: 10,
-      persistence: 3,
     });
   });
 });

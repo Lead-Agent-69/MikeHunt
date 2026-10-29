@@ -152,6 +152,18 @@ describe("ConcurrentOrchestrator", () => {
         success: true,
         dealsFound: 1,
         dealsSaved: 1,
+        intake: {
+          received: 3,
+          normalized: 3,
+          scopeMatched: 2,
+          qualityEligible: 2,
+          vehicleEligible: 2,
+          fieldEligible: 2,
+          photoEligible: 2,
+          persisted: 1,
+          renewed: 1,
+          notUpserted: 1,
+        },
         durationMs: 1,
       });
     const orchestrator = new ConcurrentOrchestrator(registry, {
@@ -160,7 +172,12 @@ describe("ConcurrentOrchestrator", () => {
       perSourceTimeoutMs: 900_000,
     });
 
-    await orchestrator.run(["slow-but-polite"]);
+    const results = await orchestrator.run(["slow-but-polite"]);
+    expect(results[0].intake).toMatchObject({
+      received: 3,
+      persisted: 1,
+      renewed: 1,
+    });
 
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({ id: "slow-but-polite" }),

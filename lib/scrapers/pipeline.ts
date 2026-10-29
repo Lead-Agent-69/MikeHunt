@@ -68,6 +68,7 @@ export type PipelineStageCounts = {
   fieldAccepted: number;
   photoAccepted: number;
   persisted: number;
+  renewed?: number;
 };
 
 export function pipelineRejectionBreakdown(counts: PipelineStageCounts) {
@@ -80,7 +81,6 @@ export function pipelineRejectionBreakdown(counts: PipelineStageCounts) {
     vehicleScope: rejected(counts.qualityAccepted, counts.vehicleAccepted),
     requiredFields: rejected(counts.vehicleAccepted, counts.fieldAccepted),
     photos: rejected(counts.fieldAccepted, counts.photoAccepted),
-    persistence: rejected(counts.photoAccepted, counts.persisted),
   };
 }
 
@@ -89,12 +89,25 @@ function logPipelineOutcome(
   storedSource: string,
   counts: PipelineStageCounts,
 ) {
-  recordScrapePersistence(counts.input, counts.persisted);
+  recordScrapePersistence(counts.input, counts.persisted, {
+    received: counts.input,
+    normalized: counts.normalized,
+    scopeMatched: counts.scoped,
+    qualityEligible: counts.qualityAccepted,
+    vehicleEligible: counts.vehicleAccepted,
+    fieldEligible: counts.fieldAccepted,
+    photoEligible: counts.photoAccepted,
+    persisted: counts.persisted,
+    renewed: counts.renewed || 0,
+    notUpserted: Math.max(0, counts.photoAccepted - counts.persisted),
+  });
   console.info(
     `[Pipeline] intake ${JSON.stringify({
       adapterId,
       storedSource,
       ...counts,
+      // Skipped writes may be unchanged, renewed or deferred, not rejected vehicles.
+      notUpserted: Math.max(0, counts.photoAccepted - counts.persisted),
       rejected: pipelineRejectionBreakdown(counts),
     })}`,
   );
@@ -631,6 +644,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   let upsertedRows: any[] | null = null;
   let error: { message: string } | null = null;
   let localPriceChangedKeys: Set<string> | null = null;
+  let renewed = 0;
   if (localContext) {
     const result = await localContext.cache.persistRows(
       rowsToWrite as any[],
@@ -639,6 +653,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     );
     upsertedRows = result.rows;
     localPriceChangedKeys = result.priceChangedKeys;
+    renewed = result.touches;
     if (result.touches)
       console.log(
         `[LocalCache] ${source}: last_seen_at bumped on ${result.touches} unchanged rows`,
@@ -716,6 +731,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
     fieldAccepted,
     photoAccepted,
     persisted: returnedRows.length,
+    renewed,
   });
 
   // Insert price history for deals that have a price

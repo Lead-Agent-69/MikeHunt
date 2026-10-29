@@ -2,6 +2,7 @@
 // Executes a single scraper with retry, error handling, and result normalization.
 
 import { Deal } from "@/types";
+import type { ScrapeIntakeCounts } from "../intake-counts";
 import { RegisteredScraper } from "./registry";
 import { CostGuard, CostGuardOptions } from "./cost-guard";
 import {
@@ -32,6 +33,7 @@ export interface ExecutorResult {
   durationMs: number;
   simulated?: boolean;
   persistenceVerified?: boolean;
+  intake?: ScrapeIntakeCounts;
   error?: string;
   deals?: Deal[];
 }
@@ -133,6 +135,9 @@ export class ScraperExecutor {
           dealsFound: cappedDeals,
           dealsSaved: receipt.calls ? receipt.dealsSaved : 0,
           persistenceVerified: receipt.calls > 0,
+          ...(receipt.intakeCalls === receipt.calls && receipt.intake
+            ? { intake: receipt.intake }
+            : {}),
           durationMs,
         };
       } catch (error) {
@@ -166,6 +171,10 @@ export class ScraperExecutor {
       dealsFound: foundBeforeFailure,
       dealsSaved: partialReceipt.dealsSaved,
       persistenceVerified: partialReceipt.calls > 0,
+      ...(partialReceipt.intakeCalls === partialReceipt.calls &&
+      partialReceipt.intake
+        ? { intake: partialReceipt.intake }
+        : {}),
       durationMs,
       error: abortSignal?.aborted
         ? "Aborted by user"

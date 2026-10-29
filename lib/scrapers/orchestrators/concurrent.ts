@@ -78,6 +78,7 @@ export class ConcurrentOrchestrator extends BaseScraperOrchestrator {
           dealsSaved: execResult.dealsSaved,
           simulated: execResult.simulated,
           persistenceVerified: execResult.persistenceVerified,
+          ...(execResult.intake ? { intake: execResult.intake } : {}),
           duration,
           error: execResult.error,
         };
