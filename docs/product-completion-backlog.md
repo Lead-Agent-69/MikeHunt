@@ -388,3 +388,9 @@ Detailed operator receipts remain outside Git under `C:/MikeHunt/logs`: `phase1-
 - Ten Missouri galleries were checked through the bounded admin task: 3 working, 0 confirmed missing, 7 unverified, 3 confirmed updates. A source document/window-sticker cover remains a content-quality issue; URL eligibility does not certify a vehicle photo.
 - Guest preferences follow-up is entering its release gate. A real SDK missing-session response without an account cookie is an expected guest; expired account cookies and real provider failures stay errors. Account-required writes still reject device-only fallback. Thirty-seven focused checks pass.
 - Current deployment receipts and explicit ownership of remaining work are recorded in the private operator register `C:/MikeHunt/logs/phased-completion-register.json`. Commit-time pending labels do not imply a later deployment passed. No complete phase is certified from configuration or a build alone.
+
+### 2026-10-28 - Measured intake receipts follow-up
+
+- Pipeline stage observations now travel through executor results, all five orchestrators, durable Redis job status and the allowlisted public job summary. Counts distinguish pipeline-received observations, normalized, scope/quality/vehicle/field/photo eligibility, confirmed full writes and confirmed freshness renewals. They count observations rather than unique vehicles.
+- `notUpserted` includes renewals, unchanged rows and deferred work; it is not a rejection count. No inserted/updated or unchanged/deferred split is fabricated. Mixed adapters without complete measured intake coverage omit detailed counts instead of reporting false zeros. Legacy job responses remain compatible.
+- This is instrumentation, not expanded provider permission or proof that all adapters produce usable inventory. Commit-time status: entering full release validation; production/runtime verification must be recorded separately.

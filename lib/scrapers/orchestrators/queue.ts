@@ -6,6 +6,7 @@ import { ScrapeResult } from "@/types";
 import { ScraperRegistry, RegisteredScraper } from "../tools/registry";
 import { ScraperExecutor } from "../tools/executor";
 import Redis from "ioredis";
+import { parseIntakeCounts, type ScrapeIntakeCounts } from "../intake-counts";
 
 export interface QueueOrchestratorOptions extends OrchestratorOptions {
   redisUrl?: string;
@@ -35,6 +36,7 @@ export interface ScrapeJob {
   dealsSaved?: number;
   simulated?: boolean;
   persistenceVerified?: boolean;
+  intake?: ScrapeIntakeCounts;
 }
 
 export class QueueOrchestrator extends BaseScraperOrchestrator {
@@ -180,6 +182,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       return;
     }
 
+    job.intake = undefined; // A new attempt cannot inherit a prior attempt's measurements.
     job.status = "running";
     job.attempts += 1;
     job.startedAt = new Date().toISOString();
@@ -206,6 +209,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       job.dealsSaved = execResult.dealsSaved;
       job.simulated = execResult.simulated;
       job.persistenceVerified = execResult.persistenceVerified;
+      job.intake = execResult.intake;
       job.error = execResult.error;
       job.completedAt = new Date().toISOString();
 
@@ -233,6 +237,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         dealsSaved: execResult.dealsSaved,
         simulated: execResult.simulated,
         persistenceVerified: execResult.persistenceVerified,
+        ...(execResult.intake ? { intake: execResult.intake } : {}),
         duration,
         error: execResult.error,
       };
@@ -364,6 +369,7 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       durationMs: job.durationMs || 0,
       dealsFound: job.dealsFound || 0,
       dealsSaved: job.dealsSaved || 0,
+      intake: job.intake ? JSON.stringify(job.intake) : "",
       simulated: job.simulated === true ? "true" : "false",
       persistenceVerified:
         job.persistenceVerified === undefined
@@ -386,6 +392,9 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
       durationMs: parseInt(data.durationMs) || 0,
       dealsFound: parseInt(data.dealsFound) || 0,
       dealsSaved: parseInt(data.dealsSaved) || 0,
+      ...(parseIntakeCounts(data.intake)
+        ? { intake: parseIntakeCounts(data.intake) }
+        : {}),
       simulated: data.simulated === "true",
       ...(data.persistenceVerified === "true" ||
       data.persistenceVerified === "false"
@@ -425,6 +434,9 @@ export class QueueOrchestrator extends BaseScraperOrchestrator {
         durationMs: parseInt(data.durationMs) || 0,
         dealsFound: parseInt(data.dealsFound) || 0,
         dealsSaved: parseInt(data.dealsSaved) || 0,
+        ...(parseIntakeCounts(data.intake)
+          ? { intake: parseIntakeCounts(data.intake) }
+          : {}),
         simulated: data.simulated === "true",
         ...(data.persistenceVerified === "true" ||
         data.persistenceVerified === "false"

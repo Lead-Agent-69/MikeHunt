@@ -53,6 +53,7 @@ export interface Deal {
 }
 
 export interface ScrapeResult {
+  intake?: import("@/lib/scrapers/intake-counts").ScrapeIntakeCounts;
   source: string;
   success: boolean;
   dealsFound: number;

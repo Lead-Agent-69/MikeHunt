@@ -1,4 +1,5 @@
 import type { ScrapeResult } from "@/types";
+import { parseIntakeCounts } from "./intake-counts";
 
 function count(value: number | undefined): number {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
@@ -51,6 +52,9 @@ export function publicScopedScrapeSummary(
       ...(row?.simulated === true ? { simulated: true } : {}),
       ...(typeof row?.persistenceVerified === "boolean"
         ? { persistenceVerified: row.persistenceVerified }
+        : {}),
+      ...(!row?.simulated && parseIntakeCounts(row?.intake)
+        ? { intake: parseIntakeCounts(row.intake) }
         : {}),
       duration: count(row?.duration),
       ...(row?.success === true
