@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, utimes } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { createStorageBudgetChecker } from "./storage-budget";
@@ -13,6 +13,7 @@ import {
   touchIsDue,
   listingIdBatches,
   compactCacheEntries,
+  retryTransientCacheFileOperation,
 } from "./local-cache";
 
 const tempDirs: string[] = [];
@@ -45,6 +46,29 @@ describe("local cache compaction", () => {
       "dealer|invalid",
     ]);
   });
+
+  it("retries only transient cache filesystem errors", async () => {
+    const waits: number[] = [];
+    let calls = 0;
+    await expect(
+      retryTransientCacheFileOperation(
+        async () => {
+          calls += 1;
+          if (calls < 3)
+            throw Object.assign(new Error("busy"), { code: "EIO" });
+          return "saved";
+        },
+        { wait: async (ms) => void waits.push(ms) },
+      ),
+    ).resolves.toBe("saved");
+    expect(waits).toEqual([250, 500]);
+
+    await expect(
+      retryTransientCacheFileOperation(async () => {
+        throw Object.assign(new Error("full"), { code: "ENOSPC" });
+      }),
+    ).rejects.toThrow("full");
+  });
 });
 afterEach(async () => {
   vi.useRealTimers();
@@ -62,6 +86,22 @@ async function makeCache(
   await cache.load();
   return { cache, dir };
 }
+
+describe("local cache startup persistence", () => {
+  it("does not rewrite an unchanged same-day cache during restart", async () => {
+    const { dir } = await makeCache();
+    const cachePath = path.join(dir, "local-scraper-cache.json");
+    const oldTime = new Date("2026-01-01T00:00:00.000Z");
+    await utimes(cachePath, oldTime, oldTime);
+
+    const restarted = new LocalScraperCache({ path: dir });
+    await restarted.load();
+
+    expect((await stat(cachePath)).mtime.toISOString()).toBe(
+      oldTime.toISOString(),
+    );
+  });
+});
 
 function expiryClient(
   options: { readError?: boolean; writeError?: boolean; changed?: number } = {},

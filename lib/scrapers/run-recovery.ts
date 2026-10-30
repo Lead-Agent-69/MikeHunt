@@ -52,11 +52,12 @@ export async function recoverStoppedSourceRun(
 }
 
 /**
- * Hard timeout for scraper_runs stuck in 'running'. No source run takes a day (CI jobs are capped at
- * 6h, Zeus sweep ticks at minutes), so a run older than this has no live worker: its process crashed
- * or was killed before writing completion. Unlike the operator path above, this needs no confirmation.
+ * Hard timeout for scraper_runs stuck in 'running'. Per-source work is capped at minutes and the
+ * reliability surface already treats a two-hour run as abandoned. A row older than this cannot be
+ * live source work: its process crashed or was killed before writing completion. Unlike the operator
+ * path above, this guarded status repair needs no deletion or automatic retry.
  */
-export const RUN_TIMEOUT_HOURS = 24;
+export const RUN_TIMEOUT_HOURS = 2;
 
 export function isTimedOutRun(
   run: RecoverableSourceRun,

@@ -18,7 +18,7 @@ const result = spawnSync(
     stdio: "inherit",
     env: {
       ...process.env,
-      E2E_BASE_URL: "https://mikehunt-69.vercel.app",
+      E2E_BASE_URL: "https://dealerhunt.vercel.app",
     },
   },
 );

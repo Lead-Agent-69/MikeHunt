@@ -432,6 +432,30 @@ describe("embedding budget database contract", () => {
 });
 
 describe("needs-embedding selection", () => {
+  it("prioritizes the most recently observed missing inventory", async () => {
+    generate.mockImplementation(async (texts: string[]) => texts.map(vec));
+    const db = database({
+      missing: [
+        deal("newly-created", "2026-10-20", {
+          last_seen_at: "2026-10-21",
+        }),
+        deal("recently-observed", "2026-09-01", {
+          last_seen_at: "2026-10-30",
+        }),
+      ],
+    });
+
+    await backfillEmbeddings(db.client, 1, { sleep });
+
+    expect(db.writes.map((w) => w.id)).toEqual(["recently-observed"]);
+    const inventoryRead = db.reads.find((ops) => hasOp(ops, "limit"));
+    expect(inventoryRead).toEqual(
+      expect.arrayContaining([
+        ["order", "last_seen_at", { ascending: false, nullsFirst: false }],
+      ]),
+    );
+  });
+
   it("re-embeds missing, then changed, then legacy rows; skips current ones", async () => {
     const current = deal("current", "2026-10-09");
     const changed = deal("changed", "2026-10-03", {
