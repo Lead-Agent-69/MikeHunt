@@ -4,7 +4,7 @@
 // shifts without recent input, INP = worst event-timing duration per interactionId across the
 // scripted interactions). Sequential, read-only: interactions only type/click non-submit controls.
 //
-//   node e2e/perf/web-vitals.mjs --base https://mikehunt-69.vercel.app --set guest --runs 3 --out prod-vitals.json
+//   node e2e/perf/web-vitals.mjs --base https://dealerhunt.vercel.app --set guest --runs 3 --out prod-vitals.json
 //   node e2e/perf/web-vitals.mjs --base http://127.0.0.1:3100 --set local --storage e2e/.auth/personal.json
 import { writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";

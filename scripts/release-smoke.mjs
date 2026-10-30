@@ -1,5 +1,5 @@
 // Read-only production checks. No credentials, account creation, or collection requests.
-const base = new URL(process.argv[2] || "https://mikehunt-69.vercel.app");
+const base = new URL(process.argv[2] || "https://dealerhunt.vercel.app");
 if (!["https:", "http:"].includes(base.protocol)) {
   throw new Error("Use an HTTP or HTTPS app URL.");
 }
@@ -58,7 +58,7 @@ for (const path of [
   });
 }
 for (const path of [
-  "/brand/MIKEHUNT-M.svg",
+  "/brand/DEALERHUNT-D.svg",
   "/icon-192x192.png",
   "/icon-512x512.png",
   "/icon-maskable-512x512.png",

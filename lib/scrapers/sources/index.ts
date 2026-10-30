@@ -1671,7 +1671,7 @@ async function scrapeAeOfMiami(
       headers: {
         Accept: "application/json",
         "X-Requested-With": "XMLHttpRequest",
-        "User-Agent": "MikeHuntPro/1.0 (+https://mikehunt-69.vercel.app)",
+        "User-Agent": "MikeHuntPro/1.0 (+https://dealerhunt.vercel.app)",
       },
       signal: callerSignal ? AbortSignal.any([callerSignal, timeout]) : timeout,
     });

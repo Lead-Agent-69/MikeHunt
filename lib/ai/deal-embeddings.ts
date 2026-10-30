@@ -60,7 +60,7 @@ function toVectorLiteral(arr: number[]): string {
 }
 
 const EMBED_COLUMNS =
-  "id, created_at, year, make, model, trim, body_style, fuel_type, drivetrain, condition, damage_type, mileage, location_state, title";
+  "id, created_at, last_seen_at, year, make, model, trim, body_style, fuel_type, drivetrain, condition, damage_type, mileage, location_state, title";
 const SCAN_PAGE = 1000;
 const MAX_SCAN_ROWS = 10_000;
 const MAX_RATE_RETRIES = 2;
@@ -180,6 +180,7 @@ export interface BackfillResult {
 
 type Candidate = {
   id: string;
+  observed_at?: string | null;
   created_at?: string | null;
   tier: EmbedTier;
   text: string;
@@ -191,7 +192,8 @@ const defaultSleep = (ms: number) =>
 
 /**
  * Embed a budgeted batch of deals: active deals with no vector first, then deals whose embedded
- * text changed, then pre-migration vectors of unknown provenance — newest first within each tier.
+ * text changed, then pre-migration vectors of unknown provenance — most recently observed first
+ * within each tier. This makes the limited daily quota improve inventory users can still buy.
  * Batches through batchEmbedContents, paced under free-tier RPM/TPM, retries 429s with the
  * server's RetryInfo delay, and stops cleanly (no throw) on quota exhaustion.
  */
@@ -315,6 +317,7 @@ export async function backfillEmbeddings(
       .is("embedding", null)
       .eq("active", true)
       .not("make", "is", null)
+      .order("last_seen_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(runCap);
     if (error)
@@ -324,6 +327,7 @@ export async function backfillEmbeddings(
       const text = dealEmbeddingText(d);
       return {
         id: d.id,
+        observed_at: d.last_seen_at,
         created_at: d.created_at,
         tier: "missing",
         text,
@@ -339,6 +343,7 @@ export async function backfillEmbeddings(
           .not("embedding", "is", null)
           .eq("active", true)
           .not("make", "is", null)
+          .order("last_seen_at", { ascending: false, nullsFirst: false })
           .order("created_at", { ascending: false })
           .range(from, from + SCAN_PAGE - 1);
         if (scanErr)
@@ -350,7 +355,14 @@ export async function backfillEmbeddings(
           const hash = embeddingSourceHash(text);
           const tier = embeddingNeed(d, true, hash);
           if (tier)
-            pool.push({ id: d.id, created_at: d.created_at, tier, text, hash });
+            pool.push({
+              id: d.id,
+              observed_at: d.last_seen_at,
+              created_at: d.created_at,
+              tier,
+              text,
+              hash,
+            });
         }
         if (!page || page.length < SCAN_PAGE) break;
       }
