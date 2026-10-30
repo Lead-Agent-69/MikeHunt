@@ -1,5 +1,5 @@
 // Read-only production checks. No credentials, account creation, or collection requests.
-const base = new URL(process.argv[2] || "https://mikehunt-69.vercel.app");
+const base = new URL(process.argv[2] || "https://dealerhunt.vercel.app");
 if (!["https:", "http:"].includes(base.protocol)) {
   throw new Error("Use an HTTP or HTTPS app URL.");
 }

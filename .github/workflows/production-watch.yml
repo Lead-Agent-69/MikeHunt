@@ -19,4 +19,4 @@ jobs:
           node-version: 22
           package-manager-cache: false
       - name: Verify canonical production and inventory freshness
-        run: node scripts/production-watch.mjs https://mikehunt-69.vercel.app
+        run: node scripts/production-watch.mjs https://dealerhunt.vercel.app
