@@ -58,7 +58,7 @@ for (const path of [
   });
 }
 for (const path of [
-  "/brand/MIKEHUNT-M.svg",
+  "/brand/DEALERHUNT-D.svg",
   "/icon-192x192.png",
   "/icon-512x512.png",
   "/icon-maskable-512x512.png",
