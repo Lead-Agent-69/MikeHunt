@@ -311,7 +311,9 @@ export class LocalScraperCache {
     let missing = false;
     try {
       const parsed = JSON.parse(
-        await readFile(this.filePath, "utf8"),
+        await retryTransientCacheFileOperation(() =>
+          readFile(this.filePath, "utf8"),
+        ),
       ) as CacheFile;
       if (parsed.version !== 1 || !parsed.entries || !parsed.quota)
         throw new Error("Unsupported cache format");
