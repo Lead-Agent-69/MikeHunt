@@ -18,7 +18,6 @@ export function MarketListingGrid({
   children?: React.ReactNode;
 }) {
   const [hidden, setHidden] = useState<Record<string, string>>({});
-  const [attempt, setAttempt] = useState(0);
   const unavailable = useCallback(
     (id: string) => {
       const row = rows.find((candidate) => candidate.id === id);
@@ -39,20 +38,27 @@ export function MarketListingGrid({
       {hiddenCount > 0 && (
         <div
           role="status"
-          className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--b1)] p-3 text-sm text-[var(--t2)]"
+          data-loaded-count={rows.length}
+          data-displayed-count={rows.length - hiddenCount}
+          data-photo-hidden-count={hiddenCount}
+          className="mb-2 flex min-h-11 flex-wrap items-center justify-between gap-x-3 rounded-lg border border-[var(--b1)] px-3 text-xs text-[var(--t2)]"
         >
           <p>
+            {rows.length - hiddenCount} of {rows.length} loaded shown ·{" "}
             {hiddenCount}{" "}
             {hiddenCount === 1 ? "listing hidden" : "listings hidden"}: photos
-            could not load. Matching totals include these listings; Saved is
-            unchanged.
+            unavailable.
+            <span className="sr-only">
+              {" "}
+              Matching totals include hidden listings. This browser failure does
+              not change Saved or catalogue history.
+            </span>
           </p>
           <button
             type="button"
-            className="min-h-11 rounded-lg border border-[var(--b1)] px-3 font-semibold"
+            className="min-h-11 shrink-0 font-semibold text-[var(--blue)]"
             onClick={() => {
               setHidden({});
-              setAttempt((value) => value + 1);
             }}
           >
             Try photos again
@@ -71,7 +77,7 @@ export function MarketListingGrid({
           .filter((row) => hidden[row.id] !== photoKey(row))
           .map((row) => (
             <MarketListingCard
-              key={`${photoKey(row)}:${attempt}`}
+              key={photoKey(row)}
               row={row}
               flipDesk={flipDesk}
               onPhotosUnavailable={unavailable}
