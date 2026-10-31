@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { parseEbayHtml } from "./ebay-motors";
+import { reportedAcquisitionPrice } from "@/lib/deals/acquisition-price";
 
 const card = (title: string, price: string, id: string, subtitle = "") => `
 <div class="s-card">
@@ -88,5 +89,20 @@ describe("eBay advertised price meaning", () => {
         ),
       ),
     ).toEqual([]);
+  });
+  it("does not promote finance-dependent sale language into a buy-now price", () => {
+    const [row] = parseEbayHtml(
+      card(
+        "2020 Ford Explorer",
+        "$18,000.00",
+        "765432",
+        "Buy It Now. Sale price $18,000 with approved credit",
+      ),
+    );
+    // Keep the observed advertised amount available, but never use it as cash math.
+    expect(row.ask_price).toBe(18000);
+    expect(reportedAcquisitionPrice(row)).toBe(0);
+    expect(row.buy_now_price).toBeUndefined();
+    expect(row.options?.priceEvidence.kind).toBe("unknown");
   });
 });

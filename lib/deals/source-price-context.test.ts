@@ -16,6 +16,33 @@ const row = (fields: Partial<SourcePriceRow> = {}): SourcePriceRow => ({
   ...fields,
 });
 describe("cross-source price meaning", () => {
+  it.each([
+    "Sale price $15,000 with approved credit",
+    "Sale price $15,000 when financed through our lender",
+    "Sale price $15,000 after all rebates",
+  ])(
+    "excludes conditional amounts from comparison curves: %s",
+    (evidenceText) => {
+      expect(
+        sourcePriceContext(
+          row({
+            price_evidence: {
+              kind: "asking",
+              askingPrice: 15000,
+              evidenceText,
+            },
+          }),
+          now,
+        ),
+      ).toMatchObject({
+        amount: 15000,
+        label: "Unverified advertised amount",
+        cashPrice: null,
+        comparisonEligible: false,
+        canCompareToAskingCurve: false,
+      });
+    },
+  );
   it("keeps a legacy contingent price visible but excludes it from cash comparisons", () => {
     expect(
       sourcePriceContext(

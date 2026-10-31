@@ -138,7 +138,7 @@
     "bull": {
       "uuid": "11.1.1"
     },
-    "follow-redirects": "1.16.1",
+    "follow-redirects": "1.16.2",
     "vite": "6.4.4",
     "postcss-selector-parser": "7.1.6"
   }

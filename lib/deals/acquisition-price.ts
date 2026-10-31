@@ -31,6 +31,20 @@ export type PriceEvidence = {
   referenceValue?: number;
 };
 
+/** Only adjacent qualifications apply; a separate financing offer is not cash-price evidence. */
+function conditionalPurchasePrice(before: string, after: string): boolean {
+  const adjacent = after.replace(/^[\s*(:,]+/, "");
+  return (
+    /\b(?:finance|financing|financed|conditional)\s*$/i.test(before) ||
+    /^(?:(?:only\s+)?(?:when|if)\s+(?:you\s+)?financ(?:ed|e|ing)\b|(?:subject\s+to|required)\s+financing\b|(?:w\.?a\.?c\.?(?!\w))|(?:with|on)\s+(?:approved|qualifying)\s+(?:credit|financing)\b)/i.test(
+      adjacent,
+    ) ||
+    /^(?:after|with|plus|including|assuming)\s+(?:(?:a|an|the|all|applicable|available|qualifying|qualified|required)\s+)*(?:\$\s*[\d,.]+\s+)?(?:(?:finance|financing|manufacturer|dealer|customer)\s+)*(?:down(?:[ -]payment)?\b|deposit\b|rebates?\b|incentives?\b|trade[ -]?in\b|customer\s+cash\b|cash\s+(?:back|allowance)\b|discount\b)/i.test(
+      adjacent,
+    )
+  );
+}
+
 /** Classify seller-stated price terms, never replace an unknown price with a market estimate. */
 export function disclosedPriceEvidence(
   text: string,
@@ -47,6 +61,7 @@ export function disclosedPriceEvidence(
       cash.index + cash[0].length,
       cash.index + cash[0].length + 120,
     );
+    const conditional = conditionalPurchasePrice(before, after);
     if (
       // Never accept a numeric prefix of a range, malformed amount, phone number or "18k".
       /^(?:[,.]\d|\d|[km]\b)/i.test(after) ||
@@ -57,15 +72,16 @@ export function disclosedPriceEvidence(
       // A price conditional on cash down, incentives or a trade is not the full
       // purchase amount. Keep this adjacent to the amount so unrelated financing
       // sentences do not invalidate a separately disclosed cash price.
-      /^\s*(?:after|with|plus|including|assuming)\s+(?:(?:a|an|the|qualifying|qualified|required)\s+)*(?:\$\s*[\d,.]+\s+)?(?:down(?:[ -]payment)?\b|deposit\b|rebates?\b|incentives?\b|trade[ -]?in\b)/i.test(
-        after,
-      ) ||
+      conditional ||
       /^\s*(?:down\b|\/\s*mo(?:nth)?\b|per\s+month\b|a\s+month\b|monthly\b|\/\s*(?:wk|week)\b|per\s+week\b|a\s+week\b|(?:bi[ -]?)?weekly\b|(?:in\s+)?(?:savings|off|discount|rebate)\b)/i.test(
         after,
       ) ||
       !positivePrice(cash[1].replace(/,/g, ""))
     ) {
-      rejectedCashLabel = cash[0].slice(0, 180);
+      rejectedCashLabel = (conditional ? cash[0] + after : cash[0]).slice(
+        0,
+        180,
+      );
       continue;
     }
     disclosedCash.push({

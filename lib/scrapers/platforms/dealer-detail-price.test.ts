@@ -47,6 +47,8 @@ describe("dealer detail price verification", () => {
     ["$2,180", "Savings $2,180", "reference"],
     ["$24,700", "Starting from this amount", "unknown"],
     ["$24,700", "Cash price $28,000", "unknown"],
+    ["$24,700", "Sale price $24,700 with approved credit", "unknown"],
+    ["$24,700", "Sale price $24,700 after all rebates", "unknown"],
     ["$24,700 - $28,000", "", "unknown"],
   ])(
     "does not turn a qualified native amount into a cash price (%s, %s)",
@@ -139,6 +141,21 @@ describe("dealer detail price verification", () => {
       kind: "asking",
       askingPrice: 18000,
       listedAmount: 999,
+      checkedAt: observedAt,
+    });
+  });
+  it("withholds finance-dependent structured descriptions and preserves the actual check time", () => {
+    expect(
+      parse("Sale price $18,000 when financed through our lender."),
+    ).toMatchObject({
+      kind: "unknown",
+      checkedAt: observedAt,
+    });
+    expect(
+      parse("Sale price $18,000 with approved credit. Cash price $21,000."),
+    ).toMatchObject({
+      kind: "asking",
+      askingPrice: 21000,
       checkedAt: observedAt,
     });
   });
