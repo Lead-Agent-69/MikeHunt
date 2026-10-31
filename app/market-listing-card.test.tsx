@@ -71,6 +71,45 @@ const listing = (images: string[]): MarketListing => ({
   profitEstimate: 0,
   profitScore: 0,
 });
+it("retries only exhausted cards and reconciles loaded, visible and hidden counts", () => {
+  const good = {
+    ...listing(["https://images.test/good.jpg"]),
+    id: "good",
+    title: "Healthy gallery",
+  };
+  const bad = {
+    ...listing(["https://images.test/bad.jpg"]),
+    id: "bad",
+    title: "Failed gallery",
+  };
+  act(() =>
+    root.render(<MarketListingGrid rows={[good, bad]} flipDesk={false} />),
+  );
+  const goodImage = host.querySelector(
+    'img[src="https://images.test/good.jpg"]',
+  );
+  act(() =>
+    host
+      .querySelector('img[src="https://images.test/bad.jpg"]')!
+      .dispatchEvent(new Event("error")),
+  );
+  const status = host.querySelector('[role="status"]')!;
+  expect(status.getAttribute("data-loaded-count")).toBe("2");
+  expect(status.getAttribute("data-displayed-count")).toBe("1");
+  expect(status.getAttribute("data-photo-hidden-count")).toBe("1");
+  act(() =>
+    Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+      .find((b) => b.textContent === "Try photos again")!
+      .click(),
+  );
+  expect(host.querySelector('img[src="https://images.test/good.jpg"]')).toBe(
+    goodImage,
+  );
+  expect(
+    host.querySelector('img[src="https://images.test/bad.jpg"]'),
+  ).not.toBeNull();
+  expect(controls.toggle).not.toHaveBeenCalled();
+});
 it("does not describe asking-price comparisons as sold resale evidence", async () => {
   await act(async () =>
     root.render(

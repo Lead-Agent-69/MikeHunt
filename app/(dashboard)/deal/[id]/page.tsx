@@ -5,6 +5,7 @@ import { recordRecent } from "@/hooks/useRecentlyViewed";
 import { useLocalSavedVehicles } from "@/hooks/useLocalSavedVehicles";
 import { useAccountSavedVehicles } from "@/hooks/useAccountSavedVehicles";
 import useSWR from "swr";
+import { useScopedSourceHealth } from "@/hooks/useScopedSourceHealth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -615,10 +616,8 @@ export default function DealPage({
     }
     return `/api/scrape/health${params.toString() ? `?${params.toString()}` : ""}`;
   }, [serverDeal]);
-  const { data: sourceHealthData } = useSWR(sourceHealthKey, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+  const { data: sourceHealthData } =
+    useScopedSourceHealth<any>(sourceHealthKey);
   const sourceHealth: SourceHealthItem | undefined = React.useMemo(() => {
     const sources = (sourceHealthData?.sources || []) as SourceHealthItem[];
     const healthId = sourceHealthIdForDeal(serverDeal, sources);

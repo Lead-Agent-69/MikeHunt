@@ -15,6 +15,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useViewTransition } from "@/hooks/useViewTransition";
 import useSWR from "swr";
+import { useScopedSourceHealth } from "@/hooks/useScopedSourceHealth";
 import { motion, AnimatePresence } from "framer-motion";
 import { Ico } from "@/components/shared/Ico";
 import { useRecentSearches } from "@/components/shared/useRecentSearches";
@@ -3818,11 +3819,8 @@ function ScanPageInner() {
     data: scrapeHealth,
     error: scrapeHealthError,
     isLoading: scrapeHealthLoading,
-    mutate: mutateScrapeHealth,
-  } = useSWR(scrapeHealthKey, fetcher, {
-    revalidateOnFocus: false,
-    dedupingInterval: 60000,
-  });
+    refresh: mutateScrapeHealth,
+  } = useScopedSourceHealth<any>(scrapeHealthKey);
   const sourceHealthById = useMemo(() => {
     return new Map(
       ((scrapeHealth?.sources || []) as SourceHealthItem[]).map((source) => [
