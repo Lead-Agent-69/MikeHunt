@@ -2,7 +2,7 @@
 // Sequential API latency/payload sampler. Gentle by design: one request at a time with a fixed gap
 // (default 2.2s, under the strictest route limit: /api/deals/map 30/min). Never sends writes.
 //
-//   node e2e/perf/api-p95.mjs --base https://mikehunt-69.vercel.app --samples 25 --out prod-api.json
+//   node e2e/perf/api-p95.mjs --base https://dealerhunt.vercel.app --samples 25 --out prod-api.json
 //   node e2e/perf/api-p95.mjs --base http://127.0.0.1:3100 --samples 25 --gap 1100 --cookie "<sb cookie>"
 import { writeFileSync } from "node:fs";
 import { request as httpsRequest } from "node:https";

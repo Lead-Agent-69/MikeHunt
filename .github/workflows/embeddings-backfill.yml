@@ -40,9 +40,8 @@ jobs:
         # curl.exe (ships with Windows 10+) needs nothing extra installed — same as ci.yml's `cmd`.
         shell: powershell
         env:
-          # Real Vercel project is team/project mikehunt/mikehunt (NOT mikehunt-69).
-          # Production deploy URLs look like https://mikehunt-<id>-mikehunt.vercel.app and may rotate;
-          # set repo secret SITE_URL to the stable production domain/alias from
+          # Real Vercel project is team/project mikehunt/mikehunt. Preview deployment URLs rotate;
+          # set repo secret SITE_URL to the stable DealerHunt production domain/alias from
           # https://vercel.com/mikehunt/mikehunt/settings/domains (do not use preview URLs).
           BASE_URL: ${{ secrets.SITE_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
@@ -54,7 +53,7 @@ jobs:
             exit 1
           }
           if ([string]::IsNullOrWhiteSpace($env:BASE_URL)) {
-            Write-Output "::error::SITE_URL repo secret is not set - set it to the mikehunt/mikehunt production domain from Vercel Domains (not mikehunt-69, not a preview URL)."
+            Write-Output "::error::SITE_URL repo secret is not set - set it to https://dealerhunt.vercel.app (not a preview URL)."
             exit 1
           }
           $base = $env:BASE_URL.TrimEnd('/')

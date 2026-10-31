@@ -43,6 +43,26 @@ describe("DealerHunt brand assets", () => {
     );
   });
 
+  it("uses DealerHunt in the browser extension and production smoke check", () => {
+    const extensionManifest = JSON.parse(read("extension/manifest.json")) as {
+      name: string;
+      description: string;
+      action: { default_title: string };
+    };
+    const popup = read("extension/popup.html");
+    const content = read("extension/content.js");
+
+    expect(extensionManifest.name).toBe("DealerHunt — Send to DealerHunt");
+    expect(extensionManifest.description).toContain("DealerHunt");
+    expect(extensionManifest.action.default_title).toBe("DealerHunt");
+    expect(popup).toContain("<title>DealerHunt</title>");
+    expect(content).toContain("Send to DealerHunt");
+    expect(content).not.toContain("Send to MikeHunt");
+    expect(read("scripts/release-smoke.mjs")).toContain(
+      '"/brand/DEALERHUNT-D.svg"',
+    );
+  });
+
   it("keeps theme styling in CSS without per-logo observers or compressed lettering", () => {
     const logo = read("components/brand/MikeHuntLogo.tsx");
     expect(logo).not.toContain("MutationObserver");

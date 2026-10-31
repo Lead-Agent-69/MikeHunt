@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import { isRecoveryCandidate, recoverStoppedSourceRun } from "./run-recovery";
 
 const now = Date.parse("2026-10-08T12:00:00Z");
@@ -61,11 +62,20 @@ describe("abandoned source-run recovery", () => {
 });
 
 describe("timed-out run reaper", () => {
+  it("is wired into the persistent worker, not only one-off CI", () => {
+    const worker = readFileSync("scripts/scrape-local.ts", "utf8");
+    expect(worker).toContain("await reapAbandonedSourceRuns(supabase)");
+    expect(worker).toContain("nextSourceRunRecoveryAt");
+  });
+
   it("only times out runs older than the hard limit", async () => {
-    const { isTimedOutRun } = await import("./run-recovery");
-    expect(isTimedOutRun(run, now)).toBe(true); // exactly 24h
+    const { isTimedOutRun, RUN_TIMEOUT_HOURS } = await import("./run-recovery");
+    expect(RUN_TIMEOUT_HOURS).toBe(2);
     expect(
-      isTimedOutRun({ ...run, started_at: "2026-10-08T00:00:00Z" }, now),
+      isTimedOutRun({ ...run, started_at: "2026-10-08T10:00:00Z" }, now),
+    ).toBe(true); // exactly 2h
+    expect(
+      isTimedOutRun({ ...run, started_at: "2026-10-08T10:00:01Z" }, now),
     ).toBe(false);
     expect(isTimedOutRun({ ...run, status: "success" }, now)).toBe(false);
     expect(
@@ -90,7 +100,7 @@ describe("timed-out run reaper", () => {
     expect(await reapTimedOutRuns(supabase, now)).toBe(1);
     expect(calls).toContainEqual(["eq:status", "running"]);
     expect(calls).toContainEqual(["is:completed_at", null]);
-    expect(calls).toContainEqual(["lt:started_at", "2026-10-07T12:00:00.000Z"]);
+    expect(calls).toContainEqual(["lt:started_at", "2026-10-08T10:00:00.000Z"]);
     const update = calls.find(([k]) => k === "update")?.[1] as any;
     expect(update.status).toBe("error");
     expect(update.error_message).toMatch(/Timed out/);

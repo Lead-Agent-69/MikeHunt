@@ -68,6 +68,32 @@ export interface PersistResult {
 export const DEFAULT_MAX_DAILY_INSERTS = 1250;
 export const DEFAULT_MAX_DAILY_UPDATES = 2500;
 
+const TRANSIENT_CACHE_FS_CODES = new Set(["EIO", "EBUSY", "EPERM"]);
+
+/** Windows bind mounts can briefly reject a large atomic cache write during container recovery. */
+export async function retryTransientCacheFileOperation<T>(
+  operation: () => Promise<T>,
+  options: {
+    attempts?: number;
+    wait?: (ms: number) => Promise<void>;
+  } = {},
+): Promise<T> {
+  const attempts = Math.max(1, Math.floor(options.attempts ?? 3));
+  const wait =
+    options.wait ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code || "";
+      if (!TRANSIENT_CACHE_FS_CODES.has(code) || attempt >= attempts)
+        throw error;
+      await wait(250 * attempt);
+    }
+  }
+}
+
 /** Only disposable previews and already-synced fingerprints expire. Never discard queued data. */
 export function compactCacheEntries(
   entries: Record<string, CachedListing>,
@@ -282,9 +308,12 @@ export class LocalScraperCache {
 
   async load(): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
+    let missing = false;
     try {
       const parsed = JSON.parse(
-        await readFile(this.filePath, "utf8"),
+        await retryTransientCacheFileOperation(() =>
+          readFile(this.filePath, "utf8"),
+        ),
       ) as CacheFile;
       if (parsed.version !== 1 || !parsed.entries || !parsed.quota)
         throw new Error("Unsupported cache format");
@@ -295,9 +324,13 @@ export class LocalScraperCache {
           `Local cache is unreadable; refusing to reset quota state (${(error as Error).message})`,
         );
       }
+      missing = true;
     }
-    this.rollDay();
-    await this.save();
+    const dayRolled = this.rollDay();
+    const compacted = compactCacheEntries(this.state.entries);
+    // A normal same-day restart must not rewrite the entire (often 100+ MB)
+    // durable cache just to prove it can be read. Actual changes still persist.
+    if (missing || dayRolled || compacted > 0) await this.save();
   }
 
   async rememberOnly(
@@ -343,10 +376,13 @@ export class LocalScraperCache {
     };
   }
 
-  private rollDay(): void {
+  private rollDay(): boolean {
     const day = utcDay();
-    if (this.state.quota.day !== day)
+    if (this.state.quota.day !== day) {
       this.state.quota = { day, inserts: 0, updates: 0, touches: 0 };
+      return true;
+    }
+    return false;
   }
 
   private async exclusive<T>(fn: () => Promise<T>): Promise<T> {
@@ -366,8 +402,11 @@ export class LocalScraperCache {
   private async save(): Promise<void> {
     compactCacheEntries(this.state.entries);
     const temp = `${this.filePath}.${process.pid}.tmp`;
-    await writeFile(temp, JSON.stringify(this.state), { mode: 0o600 });
-    await rename(temp, this.filePath);
+    const payload = JSON.stringify(this.state);
+    await retryTransientCacheFileOperation(async () => {
+      await writeFile(temp, payload, { mode: 0o600 });
+      await rename(temp, this.filePath);
+    });
   }
 
   photoChecksDue(): boolean {

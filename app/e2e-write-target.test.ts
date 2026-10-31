@@ -16,7 +16,7 @@ it.each([
   "https://localhost@production.example.com",
   "https://127.0.0.1.example.com",
   "https://production.example.com/localhost",
-  "https://mikehunt-69.vercel.app",
+  "https://dealerhunt.vercel.app",
   "ftp://localhost",
   "http://user:password@localhost",
   "not a URL",

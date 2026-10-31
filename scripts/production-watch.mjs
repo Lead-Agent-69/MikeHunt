@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url";
 
-export const DEFAULT_PRODUCTION_URL = "https://mikehunt-69.vercel.app";
+export const DEFAULT_PRODUCTION_URL = "https://dealerhunt.vercel.app";
 
 export function assessProductionStatus(body, maxFreshnessHours = 24) {
   const failures = [];

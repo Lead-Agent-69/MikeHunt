@@ -37,16 +37,26 @@ describe("embeddingNeed", () => {
 });
 
 describe("prioritizeCandidates", () => {
-  it("orders missing > changed > legacy, newest first, and caps", () => {
+  it("orders missing > changed > legacy, most recently observed first, and caps", () => {
     const rows = [
       { id: "L-new", tier: "legacy" as const, created_at: "2026-10-09" },
-      { id: "M-old", tier: "missing" as const, created_at: "2026-10-01" },
+      {
+        id: "M-old",
+        tier: "missing" as const,
+        created_at: "2026-10-01",
+        observed_at: "2026-10-10",
+      },
       { id: "C", tier: "changed" as const, created_at: "2026-10-05" },
-      { id: "M-new", tier: "missing" as const, created_at: "2026-10-08" },
+      {
+        id: "M-new",
+        tier: "missing" as const,
+        created_at: "2026-10-08",
+        observed_at: "2026-10-09",
+      },
     ];
     expect(prioritizeCandidates(rows, 3).map((r) => r.id)).toEqual([
-      "M-new",
       "M-old",
+      "M-new",
       "C",
     ]);
     expect(prioritizeCandidates(rows, -1)).toEqual([]);

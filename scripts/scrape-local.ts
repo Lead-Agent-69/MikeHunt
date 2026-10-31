@@ -78,6 +78,10 @@ import {
 } from "../lib/scrapers/sweep-demand";
 import { applyWorkerSupabaseUrl } from "../lib/scrapers/runtime-supabase-url";
 import { verifyScraperDatabaseConnection } from "../lib/scrapers/database-preflight";
+import {
+  reapTimedOutRuns,
+  RUN_TIMEOUT_HOURS,
+} from "../lib/scrapers/run-recovery";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env.local.scraper") });
 const WORKER_SUPABASE_URL = applyWorkerSupabaseUrl();
@@ -178,6 +182,23 @@ let currentStatus!: Status;
 let cache!: LocalScraperCache;
 let logStream!: RotatingLog;
 const startedAt = new Date().toISOString();
+
+async function reapAbandonedSourceRuns(
+  supabase: Parameters<typeof reapTimedOutRuns>[0],
+): Promise<void> {
+  try {
+    const reaped = await reapTimedOutRuns(supabase);
+    if (reaped)
+      console.log(
+        `[scrape-runs] marked ${reaped} source run(s) interrupted after ${RUN_TIMEOUT_HOURS}h; no inventory deleted or replayed`,
+      );
+  } catch (error) {
+    console.warn(
+      "[scrape-runs] abandoned-run reconciliation deferred:",
+      (error as Error).message,
+    );
+  }
+}
 const statusDir = path.dirname(STATUS_PATH);
 const checkStorage = createStorageBudgetChecker();
 const warningInsertLimit = Number(
@@ -662,6 +683,7 @@ async function runCycle(): Promise<void> {
     supabase.from("deals").select("id").limit(1).abortSignal(signal),
   );
   console.log("[local-scraper] hosted database connection verified");
+  await reapAbandonedSourceRuns(supabase);
   const explicitSources = Boolean(process.env.SCRAPE_SOURCES?.trim());
   const sourceIds = resolveSweepSources();
   const unavailable = sourceIds.filter((id) => {
@@ -767,6 +789,7 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
   let claimFailures = 0;
   let nextAuctionExpiryAt = 0;
   let nextQueueRecoveryAt = 0;
+  let nextSourceRunRecoveryAt = 0;
   let nextCapacityNoticeAt = 0;
   while (!stopRequested) {
     // Cached size checks run before admission, not only after a source has already crawled.
@@ -797,6 +820,14 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           "[scrape-queue] waiting status unavailable; queue unchanged",
         );
       }
+    }
+    if (
+      !manualPaused &&
+      !currentStatus.cacheOnly &&
+      Date.now() >= nextSourceRunRecoveryAt
+    ) {
+      nextSourceRunRecoveryAt = Date.now() + 10 * 60_000;
+      await reapAbandonedSourceRuns(supabase);
     }
     if (
       !manualPaused &&

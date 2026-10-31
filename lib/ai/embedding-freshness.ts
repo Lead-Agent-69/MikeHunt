@@ -56,15 +56,21 @@ const TIER_ORDER: Record<EmbedTier, number> = {
   legacy: 2,
 };
 
-/** Missing first, then changed, then legacy; newest (created_at) first within a tier. */
+/** Missing first, then changed, then legacy; most recently observed first within a tier. */
 export function prioritizeCandidates<
-  T extends { tier: EmbedTier; created_at?: string | null },
+  T extends {
+    tier: EmbedTier;
+    observed_at?: string | null;
+    created_at?: string | null;
+  },
 >(rows: T[], cap: number): T[] {
   return [...rows]
     .sort(
       (a, b) =>
         TIER_ORDER[a.tier] - TIER_ORDER[b.tier] ||
-        (b.created_at || "").localeCompare(a.created_at || ""),
+        (b.observed_at || b.created_at || "").localeCompare(
+          a.observed_at || a.created_at || "",
+        ),
     )
     .slice(0, Math.max(0, cap));
 }
