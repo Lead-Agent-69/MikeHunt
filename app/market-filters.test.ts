@@ -343,6 +343,37 @@ describe("Market filter journey", () => {
     ).toBe("false");
   });
 
+  it("edits through the compact mileage shortcut without losing the search scope or value", async () => {
+    window.history.replaceState(null, "", "/market?states=MO&titleType=clean");
+    await render();
+    const trigger = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Edit mileage up to: Any"]',
+    )!;
+    act(() => trigger.click());
+    const input = host.querySelector<HTMLInputElement>(
+      '[aria-label="Quick mileage up to"]',
+    )!;
+    act(() => Simulate.change(input, { target: { value: "50000" } } as any));
+    act(() =>
+      Array.from(host.querySelectorAll<HTMLButtonElement>("button"))
+        .find((button) => button.textContent === "Done with quick filters")!
+        .click(),
+    );
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+    expect(trigger.getAttribute("aria-label")).toBe(
+      "Edit mileage up to: 50000 mi",
+    );
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("states")).toBe("MO");
+    expect(params.get("titleType")).toBe("clean");
+    expect(params.get("mileageMax")).toBe("50000");
+    act(() => trigger.click());
+    expect(host.querySelector('[aria-label="Quick mileage up to"]')).toBe(
+      input,
+    );
+    expect(input.value).toBe("50000");
+  });
+
   it.each([
     { configured: false, rows: [] },
     { error: "internal database diagnostic" },
