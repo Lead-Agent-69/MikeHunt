@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     const db = createServerComponentClient();
     const { data: identity, error } = await db
       .from("api_keys")
-      .select("id,user_id,revoked")
+      .select("id,user_id,revoked,request_count")
       .eq("key_hash", hashApiKey(key))
       .abortSignal(AbortSignal.timeout(5000))
       .maybeSingle();
@@ -226,6 +226,25 @@ export async function POST(req: NextRequest) {
         ],
         isError: true,
       });
+    // Keep legacy usage telemetry best-effort. A stale reader may not overwrite
+    // a newer count, and telemetry never establishes account access or billing.
+    const previous = Number(identity.request_count);
+    if (Number.isSafeInteger(previous) && previous >= 0) {
+      void db
+        .from("api_keys")
+        .update({
+          request_count: previous + 1,
+          last_used_at: new Date().toISOString(),
+        })
+        .eq("id", identity.id)
+        .eq("user_id", identity.user_id)
+        .eq("revoked", false)
+        .eq("request_count", previous)
+        .then(
+          () => {},
+          () => {},
+        );
+    }
     const text = await runTool(db, identity.user_id, name, args);
     return reply({ content: [{ type: "text", text }] });
   } catch {

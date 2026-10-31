@@ -3,6 +3,8 @@
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { sendPushToUser } from "@/lib/notifications/push";
+import { APP_ORIGIN } from "@/lib/brand";
+import { emailText } from "@/lib/notifications/match-evidence";
 import {
   createDelivery,
   markDeliverySent,
@@ -45,8 +47,8 @@ export class ScraperAlertService {
     }
     this.supabase = createClient(supabaseUrl, supabaseKey);
     this.options = {
-      fromEmail: "alerts@MikeHunt.com",
-      appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+      fromEmail: process.env.EMAIL_FROM,
+      appUrl: process.env.NEXT_PUBLIC_APP_URL || APP_ORIGIN,
       ...options,
     };
   }
@@ -97,9 +99,9 @@ export class ScraperAlertService {
 
   // Send email for a price drop if Resend is configured
   async sendPriceDropEmail(alert: PriceDropAlert): Promise<boolean> {
-    if (!this.options.resendApiKey) {
+    if (!this.options.resendApiKey || !this.options.fromEmail) {
       console.warn(
-        "[AlertService] No Resend API key configured, skipping email",
+        "[AlertService] Email delivery or verified sender is not configured",
       );
       return false;
     }
@@ -135,15 +137,14 @@ export class ScraperAlertService {
       const { data: sentData, error: sendError } = await resend.emails.send({
         from: this.options.fromEmail!,
         to: email,
-        subject: `Price Drop Alert: ${alert.dealTitle}`,
+        subject: `Listing amount changed: ${alert.dealTitle}`,
         html: `
-          <h2>Price Drop Alert</h2>
-          <p>A vehicle you are watching just dropped in price.</p>
+          <h2>Listing amount changed</h2>
+          <p>The source reports a different advertised amount. Confirm the full purchase price and terms; a changed amount may describe financing, a deposit or an auction bid.</p>
           <div style="border: 1px solid #ddd; padding: 20px; margin: 20px 0;">
-            <h3>${alert.dealTitle}</h3>
-            <p><strong>Old Price:</strong> $${alert.oldPrice.toLocaleString()}</p>
-            <p><strong>New Price:</strong> $${alert.newPrice.toLocaleString()}</p>
-            <p><strong>Drop:</strong> $${alert.dropAmount.toLocaleString()} (${alert.dropPercentage.toFixed(1)}%)</p>
+            <h3>${emailText(alert.dealTitle || "Vehicle listing")}</h3>
+            <p><strong>Previous reported amount:</strong> $${alert.oldPrice.toLocaleString()}</p>
+            <p><strong>Latest reported amount:</strong> $${alert.newPrice.toLocaleString()}</p>
             <a href="${viewUrl}" style="background: #F5A623; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">View Deal</a>
           </div>
           ${tracked ? openPixelHtml(tracked.pixelUrl) : ""}
@@ -206,8 +207,8 @@ export class ScraperAlertService {
           this.supabase,
           alert.userId,
           {
-            title: `Price drop: ${alert.dealTitle}`,
-            body: `$${alert.oldPrice.toLocaleString()} → $${alert.newPrice.toLocaleString()} (${alert.dropPercentage.toFixed(1)}% off)`,
+            title: `Listing amount changed: ${alert.dealTitle}`,
+            body: `$${alert.oldPrice.toLocaleString()} → $${alert.newPrice.toLocaleString()} reported. Confirm the source's full purchase price and terms.`,
             url: `/deal/${alert.dealId}`,
             tag: `price-drop-${alert.dealId}`,
           },

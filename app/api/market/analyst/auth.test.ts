@@ -3,6 +3,9 @@ import { NextRequest } from "next/server";
 
 const generateText = vi.hoisted(() => vi.fn());
 vi.mock("ai", () => ({ generateText }));
+vi.mock("@/lib/server-supabase", () => ({
+  getServerUser: async () => ({ data: { user: null }, error: null }),
+}));
 
 describe("GET /api/market/analyst generate", () => {
   it("requires a session before generation", async () => {
