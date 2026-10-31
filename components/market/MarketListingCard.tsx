@@ -56,7 +56,7 @@ function ListingCard({
   flipDesk: boolean;
   onPhotosUnavailable?: (id: string) => void;
 }) {
-  const gallery = useListingPhotos(row.images);
+  const gallery = useListingPhotos(row.images, row.id);
   const setPhoto = gallery.select;
   const [preview, setPreview] = useState(false);
   const previewTrigger = useRef<HTMLButtonElement>(null);

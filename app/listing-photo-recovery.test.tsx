@@ -13,8 +13,8 @@ vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
   }),
 }));
 let root: Root, host: HTMLDivElement;
-function Harness({ urls }: { urls: unknown }) {
-  const gallery = useListingPhotos(urls);
+function Harness({ urls, id }: { urls: unknown; id?: string }) {
+  const gallery = useListingPhotos(urls, id);
   return gallery.exhausted ? (
     <span>No usable photos</span>
   ) : (
@@ -65,6 +65,29 @@ it("accepts new gallery URLs without reusing a failed URL after a refresh", asyn
     root.render(<Harness urls={["https://dealer.test/new.jpg"]} />),
   );
   expect(host.querySelector("img")?.src).toBe("https://dealer.test/new.jpg");
+});
+it("does not carry a failed shared URL into a different listing", async () => {
+  const urls = ["https://dealer.test/shared.jpg"];
+  await act(async () => root.render(<Harness urls={urls} id="first" />));
+  await act(async () =>
+    host.querySelector("img")!.dispatchEvent(new Event("error")),
+  );
+  expect(host.querySelector("img")).toBeNull();
+  await act(async () => root.render(<Harness urls={urls} id="second" />));
+  expect(host.querySelector("img")?.src).toBe(urls[0]);
+});
+it("a changed source gallery retries its previously failed cover", async () => {
+  const first = "https://dealer.test/front.jpg";
+  await act(async () => root.render(<Harness urls={[first]} id="same" />));
+  await act(async () =>
+    host.querySelector("img")!.dispatchEvent(new Event("error")),
+  );
+  await act(async () =>
+    root.render(
+      <Harness urls={[first, "https://dealer.test/new.jpg"]} id="same" />,
+    ),
+  );
+  expect(host.querySelector("img")?.src).toBe(first);
 });
 it("keeps the full supplied gallery available beyond 20 captured photos", async () => {
   const urls = Array.from(
