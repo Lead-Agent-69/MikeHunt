@@ -1,13 +1,14 @@
 # DealerHunt completion checklist
 
-Updated October 29, 2026 (America/Chicago). This is the remaining-work checklist, not a whole-app acceptance certificate. Release receipts and the detailed six-phase register are maintained privately in `C:/MikeHunt/logs/phased-completion-register.json`. Preserve the existing free-service limits, three-day default freshness and 30-day research window.
+Updated October 31, 2026 (America/Chicago). This is the remaining-work checklist, not a whole-app acceptance certificate. Release receipts and the detailed six-phase register are maintained privately in `C:/MikeHunt/logs/phased-completion-register.json`. Preserve the existing free-service limits, three-day default freshness and 30-day research window.
 
 ## 1. Listing truth and source reliability — current priority
 
 - [x] Reproduce finance-dependent amounts incorrectly accepted as unconditional cash prices (12 failing regression cases before the fix).
 - [x] Implement adjacent finance/rebate qualification checks in shared price interpretation, preserving separately disclosed full cash prices and source timestamps.
 - [ ] Finish release validation and verify the deployed price interpretation. Local tests alone are not deployment evidence.
-- [ ] Remove build-time font-network fragility in a focused follow-up; the first price-release gate passed all 5,689 tests but Google Fonts requests failed during the build. Retest before claiming a release.
+- [x] Replace build-time Google Fonts downloads with licensed local Latin variable assets; the local production build and 181 focused checks passed. Final combined release validation remains pending.
+- [ ] Verify collector builds using HTTPS Debian repositories, bounded network retries and strict package-index failure handling before rollout.
 - [ ] Recheck each enabled Missouri adapter individually: permission, authentication, selected filters, actual vehicle location, selling price, source link, photos and last observation.
 - [ ] Repair actual failing sources individually. The October 28 audit recorded eBay Motors timeouts, an older CarParts network failure, and an unclassified eBay sold failure. Parts and sold-evidence roles must not be counted as retail vehicle coverage.
 - [ ] Investigate empty results from Copart, Cars.com, independent dealer, AutoTrader, TrueCar and Norfolk towing without equating an empty run to a broken source.

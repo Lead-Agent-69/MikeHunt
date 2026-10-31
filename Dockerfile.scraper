@@ -20,7 +20,9 @@ COPY scripts/postinstall.js ./scripts/postinstall.js
 RUN HUSKY=0 npm ci --include=dev
 
 # Install OS dependencies alongside the browsers selected by the lockfile.
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xvfb \
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && printf 'Acquire::Retries "3";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAPT::Update::Error-Mode "any";\n' > /etc/apt/apt.conf.d/80dealerhunt-network \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xvfb \
     && npx playwright install --with-deps chromium chrome \
     && npx patchright install chromium \
     && rm -rf /var/lib/apt/lists/*

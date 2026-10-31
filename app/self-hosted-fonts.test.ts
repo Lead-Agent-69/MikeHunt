@@ -11,14 +11,20 @@ describe("fonts are self-hosted", () => {
     expect(css).not.toMatch(/@import\s+url\(["']?https?:/);
   });
 
-  it("layout loads Inter, Syne and Fraunces through next/font", () => {
-    expect(layout).toContain(
-      'import { Inter, Fraunces, Syne } from "next/font/google";',
-    );
+  it("layout loads licensed local variable fonts without build-time Google requests", () => {
+    expect(layout).toContain('from "next/font/local"');
+    expect(layout).not.toContain('from "next/font/google"');
+    for (const family of ["Inter", "Syne", "Fraunces"]) {
+      const asset = `app/fonts/${family.toLowerCase()}-latin.woff2`;
+      expect(readFileSync(asset).subarray(0, 4).toString()).toBe("wOF2");
+      expect(readFileSync(`app/fonts/${family}-OFL.txt`, "utf8")).toContain(
+        "SIL OPEN FONT LICENSE",
+      );
+      expect(layout).toContain(`./fonts/${family.toLowerCase()}-latin.woff2`);
+    }
     for (const v of ["--font-sans", "--font-syne", "--font-serif"]) {
       expect(layout).toContain(`variable: "${v}"`);
     }
-    expect(layout).toContain('axes: ["opsz"]');
   });
 
   it("the CSS font stacks use the next/font variables", () => {
