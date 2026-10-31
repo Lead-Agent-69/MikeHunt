@@ -6,101 +6,104 @@ import {
   isSupabaseConfigured,
 } from "@/lib/supabase";
 import { resolveCallerFlipDesk } from "@/lib/deals/deal-desk-access";
-import { fitDepreciationCurve } from "@/lib/scoring/depreciation";
-import { daysOnMarket } from "@/lib/intelligence/days-on-market";
+import { RECOMMENDATION_FIELDS } from "@/lib/deals/recommendation-evidence";
+import { titleCaseMake } from "@/lib/vehicle/canonical";
+import {
+  comparisonSample,
+  modelVariants,
+} from "@/lib/market/comparison-sample";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 
-// GET /api/market/compare?vehicles=Honda:Accord:2018,Toyota:Camry:2018
-// Side-by-side dealer economics: GO deals, avg profit, days-on-market, $/1k-mi depreciation, trend.
+const headers = { "Cache-Control": "private, no-store" };
 export async function GET(req: NextRequest) {
   const rl = rateLimit(req, { key: "compare", limit: 60, windowMs: 60_000 });
   if (!rl.allowed) return tooManyRequests(rl);
-
-  const raw = new URL(req.url).searchParams.get("vehicles") || "";
-  const specs = raw
+  const specs = (req.nextUrl.searchParams.get("vehicles") || "")
     .split(",")
     .map((s) => s.trim())
-    .filter(Boolean)
-    .slice(0, 4);
-  if (specs.length === 0) return NextResponse.json({ comparison: [] });
-
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ configured: false, comparison: [] });
-  }
-  const supabase = createServerComponentClient();
-  const flipDesk = await resolveCallerFlipDesk();
-
-  const comparison = await Promise.all(
-    specs.map(async (spec) => {
-      const [make, model, yearStr] = spec.split(":");
-      const year = parseInt(yearStr || "0", 10);
-      if (!make || !model) return null;
-
-      let q = applyBuyableInventory(
-        supabase
-          .from("deals")
-          .select(
-            "ask_price, true_net_profit, mileage, deal_verdict, first_seen_at",
-          ),
-      )
-        .ilike("make", make)
-        .ilike("model", `%${model.split(" ")[0]}%`)
-        .gt("ask_price", 0)
-        .limit(800);
-      if (year) q = q.gte("year", year - 1).lte("year", year + 1);
-      const { data } = await q;
-
-      const rows = data || [];
-      const go = rows.filter((d: any) => d.deal_verdict === "go");
-      const profits = go.map((d: any) => Number(d.true_net_profit) || 0);
-      const doms = rows
-        .map((d: any) => daysOnMarket(d.first_seen_at))
-        .filter((n): n is number => n != null);
-      const fit = fitDepreciationCurve(
-        rows.map((d: any) => ({
-          mileage: Number(d.mileage),
-          price: Number(d.ask_price),
-        })),
+    .filter(Boolean);
+  if (!specs.length) return NextResponse.json({ comparison: [] }, { headers });
+  if (
+    specs.length > 4 ||
+    specs.some((s) => {
+      const parts = s.split(":");
+      return (
+        parts.length > 3 ||
+        !parts[0] ||
+        !parts[1] ||
+        !parts
+          .slice(0, 2)
+          .every((v) =>
+            new RegExp("^[\\p{L}\\p{N} .'-]{1,60}$", "u").test(v),
+          ) ||
+        (parts[2] && !/^(19|20)\d{2}$/.test(parts[2]))
       );
-
-      // 30-day timing signal if we have one.
-      const { data: t } = await supabase
-        .from("market_timing_signals")
-        .select("signal, pct_change")
-        .ilike("make", make)
-        .ilike("model", `%${model.split(" ")[0]}%`)
-        .order("data_points", { ascending: false })
-        .limit(1);
-
-      return {
-        make,
-        model,
-        year: year || null,
-        totalListings: rows.length,
-        goDeals: go.length,
-        avgProfit: profits.length
-          ? Math.round(profits.reduce((s, x) => s + x, 0) / profits.length)
-          : 0,
-        avgDaysOnMarket: doms.length
-          ? Math.round(doms.reduce((s, x) => s + x, 0) / doms.length)
-          : null,
-        depreciationPer1000Miles: fit?.depreciationPer1000Miles ?? null,
-        timingSignal: t?.[0]?.signal ?? null,
-        pctChange30d: t?.[0]?.pct_change ?? null,
-      };
-    }),
-  );
-
-  const rows = comparison.filter(Boolean) as Array<Record<string, any>>;
+    })
+  )
+    return NextResponse.json(
+      {
+        error:
+          "Choose up to four vehicles with a full make, model and optional four-digit year.",
+      },
+      { status: 400, headers },
+    );
+  if (!isSupabaseConfigured()) return unavailable();
+  try {
+    const db = createServerComponentClient();
+    const flipDesk = await resolveCallerFlipDesk();
+    const comparison = await Promise.all(
+      specs.map(async (spec) => {
+        const [make, model, yearText] = spec.split(":");
+        const year = yearText ? Number(yearText) : undefined;
+        let q = applyBuyableInventory(
+          db
+            .from("deals")
+            .select(
+              `${RECOMMENDATION_FIELDS},fuel_type,drivetrain,transmission`,
+              { count: "exact" },
+            ),
+        )
+          .ilike("make", titleCaseMake(make))
+          .or(
+            modelVariants(model)
+              .map((v) => `model.ilike."${v}"`)
+              .join(","),
+          )
+          .order("last_seen_at", { ascending: false })
+          .order("id", { ascending: true })
+          .limit(800);
+        if (year) q = q.eq("year", year);
+        const { data, error, count } = await q.abortSignal(
+          AbortSignal.timeout(10000),
+        );
+        if (error || !Array.isArray(data))
+          throw new Error("Comparison unavailable");
+        const result = comparisonSample(
+          data,
+          { make, model, year },
+          count ?? null,
+        );
+        if (flipDesk) return result;
+        const { avgProfit: _profit, ...safe } = result;
+        return safe;
+      }),
+    );
+    return NextResponse.json(
+      { comparison, deskAccess: flipDesk ? "flip" : "personal" },
+      { headers },
+    );
+  } catch {
+    return unavailable();
+  }
+}
+function unavailable() {
   return NextResponse.json(
     {
-      // avgProfit is flip economics: only a saved reseller / dealer desk gets it.
-      comparison: flipDesk
-        ? rows
-        : rows.map(({ avgProfit: _p, ...rest }) => rest),
-      deskAccess: flipDesk ? "flip" : "personal",
+      error:
+        "Market comparison is temporarily unavailable. Your vehicle choices are unchanged.",
+      status: "unavailable",
     },
-    { headers: { "Cache-Control": "private, no-store" } },
+    { status: 503, headers },
   );
 }

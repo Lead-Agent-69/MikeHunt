@@ -5,196 +5,169 @@ import { createServerComponentClient } from "@/lib/supabase";
 import { hashApiKey } from "@/lib/api-keys";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { applyBuyableInventory } from "@/lib/search/customer-inventory";
+import {
+  RECOMMENDATION_FIELDS,
+  recommendationEvidence,
+  recommendationText,
+} from "@/lib/deals/recommendation-evidence";
+import {
+  readSavedBuyerMode,
+  isFlipDeskMode,
+} from "@/lib/deals/deal-desk-access";
+import {
+  exactVehicleModel,
+  modelVariants,
+} from "@/lib/market/comparison-sample";
+import { titleCaseMake } from "@/lib/vehicle/canonical";
 
-// /api/mcp — Model Context Protocol server (JSON-RPC 2.0 over HTTP). Lets AI assistants (Claude,
-// etc.) query the dealer market in natural language and get back PROFIT intelligence — GO verdicts,
-// net profit, max bid — which no other car-data MCP exposes. Auth: x-api-key (mint at /developer).
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type, x-api-key",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Cache-Control": "private, no-store",
 };
-
 const TOOLS = [
   {
     name: "search_deals",
     description:
-      "Search active vehicle deals with profit intelligence. Returns GO/HOLD/PASS verdicts, estimated net profit (after transport/recon/fees), and a recommended max bid.",
+      "Search current vehicle observations. Recommendations and economics require verified purchase evidence. Use verdict all to include research listings; default go returns verified buy candidates only.",
     inputSchema: {
       type: "object",
       properties: {
-        state: { type: "string", description: "US state code, e.g. TX" },
-        make: { type: "string", description: "Vehicle make, e.g. Ford" },
-        model: { type: "string", description: "Vehicle model, e.g. F-150" },
-        min_profit: {
-          type: "number",
-          description: "Minimum estimated net profit in dollars",
-        },
-        verdict: {
-          type: "string",
-          enum: ["go", "hold", "pass", "all"],
-          description: "Engine verdict filter (default go)",
-        },
-        limit: {
-          type: "number",
-          description: "Max results, 1-50 (default 10)",
-        },
+        state: { type: "string" },
+        make: { type: "string" },
+        model: { type: "string" },
+        min_profit: { type: "number" },
+        verdict: { type: "string", enum: ["go", "hold", "pass", "all"] },
+        limit: { type: "integer", minimum: 1, maximum: 50 },
       },
     },
   },
   {
     name: "market_pulse",
     description:
-      "The make/models with the most live GO deals right now, with average net profit and days-on-market.",
+      "A bounded current inventory sample with source-backed evidence status. Stored GO scores are not verified opportunities.",
     inputSchema: { type: "object", properties: {} },
   },
   {
     name: "get_next_best_buy",
     description:
-      "Calculates the single highest-margin, highest-velocity flip opportunity across the market tailored to an exact cash capital budget.",
+      "Find an evidence-backed resale candidate within a reported cash-price budget. Unknown purchase checks withhold recommendations; turnover is not inferred.",
     inputSchema: {
       type: "object",
       properties: {
-        capital: {
-          type: "number",
-          description: "Available cash budget in dollars (e.g. 10000, 25000)",
-        },
-        state: {
-          type: "string",
-          description:
-            "US state code filter (e.g. TX, CA, FL) or leave empty for nationwide",
-        },
+        capital: { type: "number", minimum: 0 },
+        state: { type: "string" },
         strategy: {
           type: "string",
           enum: ["max_roi", "fastest_flip", "max_profit"],
-          description:
-            "Ranking strategy: 'max_roi' for highest percentage return, 'fastest_flip' for under 14 days turn, or 'max_profit' for highest cash dollars",
         },
       },
     },
   },
 ];
 
-async function authed(req: NextRequest): Promise<boolean> {
-  const key = req.headers.get("x-api-key") || "";
-  if (!key) return false;
-  const supabase = createServerComponentClient();
-  const { data } = await supabase
-    .from("api_keys")
-    .select("id, revoked, request_count")
-    .eq("key_hash", hashApiKey(key))
-    .maybeSingle();
-  if (!data || data.revoked) return false;
-
-  // Best-effort usage tracking, same as the public REST API.
-  supabase
-    .from("api_keys")
-    .update({
-      request_count: (data.request_count || 0) + 1,
-      last_used_at: new Date().toISOString(),
-    })
-    .eq("id", data.id)
-    .then(
-      () => {},
-      () => {},
-    );
-  return true;
+function validArgs(args: any) {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return false;
+  return (
+    (args.state === undefined || /^[A-Z]{2}$/i.test(args.state)) &&
+    [args.make, args.model].every(
+      (v) =>
+        v === undefined ||
+        (typeof v === "string" &&
+          new RegExp("^[\\p{L}\\p{N} .'-]{1,60}$", "u").test(v)),
+    ) &&
+    [args.capital, args.min_profit].every(
+      (v) =>
+        v === undefined ||
+        (typeof v === "number" && Number.isFinite(v) && v >= 0),
+    ) &&
+    (args.limit === undefined ||
+      (Number.isInteger(args.limit) && args.limit >= 1 && args.limit <= 50)) &&
+    (args.verdict === undefined ||
+      ["go", "hold", "pass", "all"].includes(args.verdict)) &&
+    (args.strategy === undefined ||
+      ["max_roi", "fastest_flip", "max_profit"].includes(args.strategy))
+  );
 }
 
-async function runTool(name: string, args: any): Promise<string> {
-  const supabase = createServerComponentClient();
-  if (name === "search_deals") {
-    const verdict = args.verdict || "go";
-    const limit = Math.min(50, Math.max(1, Number(args.limit) || 10));
-    let q = applyBuyableInventory(
-      supabase
-        .from("deals")
-        .select(
-          "year, make, model, ask_price, true_net_profit, recommended_max_bid, deal_verdict, location_state, source",
-        ),
-    )
-      .gt("ask_price", 0)
-      .order("profit_score", { ascending: false, nullsFirst: false })
-      .limit(limit);
-    if (verdict !== "all") q = q.eq("deal_verdict", verdict);
-    if (args.state)
-      q = q.eq("location_state", String(args.state).toUpperCase());
-    if (args.make) q = q.ilike("make", args.make);
-    if (args.model)
-      q = q.ilike("model", `%${String(args.model).split(" ")[0]}%`);
-    if (args.min_profit) q = q.gte("true_net_profit", Number(args.min_profit));
-    const { data } = await q;
-    if (!data?.length) return "No matching deals found.";
-    return data
-      .map(
-        (d: any) =>
-          `${d.year} ${d.make} ${d.model} — $${Number(d.ask_price).toLocaleString()} [${(d.deal_verdict || "").toUpperCase()}] · ~$${Math.round(Number(d.true_net_profit) || 0).toLocaleString()} profit · max bid $${Math.round(Number(d.recommended_max_bid) || 0).toLocaleString()} · ${d.location_state || "?"} (${d.source})`,
-      )
-      .join("\n");
-  }
+async function runTool(db: any, ownerId: string, name: string, args: any) {
+  const allowEconomics = isFlipDeskMode(await readSavedBuyerMode(db, ownerId));
+  if (name === "get_next_best_buy" && !allowEconomics)
+    return "Resale recommendations require your saved resale buying preferences. No profit or purchase ceiling is established.";
+  if (name === "get_next_best_buy" && args.strategy === "fastest_flip")
+    return "Turnover evidence is not established. A fastest-flip recommendation cannot be made from asking prices or modeled profit.";
+  let query = applyBuyableInventory(
+    db.from("deals").select(RECOMMENDATION_FIELDS, { count: "exact" }),
+  )
+    .order("last_seen_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(800);
+  if (args.state) query = query.eq("location_state", args.state.toUpperCase());
+  if (args.make) query = query.ilike("make", titleCaseMake(args.make));
+  if (args.model)
+    query = query.or(
+      modelVariants(args.model)
+        .map((v) => `model.ilike."${v}"`)
+        .join(","),
+    );
+  const { data, error, count } = await query.abortSignal(
+    AbortSignal.timeout(10000),
+  );
+  if (error || !Array.isArray(data)) throw new Error("unavailable");
+  let rows = data.filter(
+    (row: any) =>
+      !args.model || exactVehicleModel(row, args.make || row.make, args.model),
+  );
+  const sample = `Sampled ${data.length} current observations${count == null ? "; full count unavailable" : count > data.length ? ` of ${count}; results are limited to this sample` : ""}.`;
   if (name === "market_pulse") {
-    const { data } = await supabase.rpc("get_market_pulse");
-    if (!data?.length) return "No market data yet.";
-    return data
-      .map(
-        (r: any) =>
-          `${r.make} ${r.model}: ${r.go_deals} GO deals · ~$${Math.round(Number(r.avg_profit) || 0).toLocaleString()} avg profit · ${r.avg_days}d on market`,
-      )
-      .join("\n");
+    const ready = rows.filter((row: any) => recommendationEvidence(row).ready);
+    return `${sample} ${ready.length} meet the existing purchase-evidence gates. ${rows.length - ready.length} need further evidence. Asking observations are not completed sales.\n${rows
+      .slice(0, 5)
+      .map((row: any) => recommendationText(row, allowEconomics))
+      .join("\n")}`;
   }
   if (name === "get_next_best_buy") {
-    const capital = Number(args.capital) || 0;
-    const state = args.state ? String(args.state).toUpperCase() : "";
-    const strategy = args.strategy || "max_roi";
-
-    let q = applyBuyableInventory(
-      supabase
-        .from("deals")
-        .select(
-          "id, year, make, model, trim, vin, mileage, ask_price, sell_estimate, true_net_profit, profit_score, deal_verdict, recommended_max_bid, location_state, source",
-        ),
-    )
-      .gt("true_net_profit", 0)
-      .order("true_net_profit", { ascending: false })
-      .limit(100);
-
-    if (state) q = q.eq("location_state", state);
-    if (capital > 0) q = q.lte("ask_price", capital * 1.1);
-
-    const { data } = await q;
-    if (!data?.length) return "No profitable deals found matching criteria.";
-
-    const sorted = data
-      .map((d: any) => {
-        const ask = Number(d.ask_price) || 0;
-        const profit = Number(d.true_net_profit) || 0;
-        const roi = ask > 0 ? (profit / ask) * 100 : 0;
-        return { ...d, ask, profit, roi };
-      })
-      .sort((a: any, b: any) =>
-        strategy === "max_profit" ? b.profit - a.profit : b.roi - a.roi,
+    rows = rows.filter((row: any) => {
+      const e = recommendationEvidence(row);
+      return (
+        e.ready &&
+        e.profit! > 0 &&
+        (!args.capital || e.price.cashPrice! <= args.capital)
       );
-
-    const top = sorted[0];
-    const maxBid = Math.round(
-      Number(top.recommended_max_bid) || top.ask * 0.92,
+    });
+    rows.sort((a: any, b: any) =>
+      args.strategy === "max_profit"
+        ? b.true_net_profit - a.true_net_profit
+        : b.true_net_profit / recommendationEvidence(b).price.cashPrice! -
+          a.true_net_profit / recommendationEvidence(a).price.cashPrice!,
     );
-
-    return (
-      `🔥 NEXT BEST BUY: ${top.year} ${top.make} ${top.model} ${top.trim || ""}\n` +
-      `Asking Price: $${top.ask.toLocaleString()} | Projected Net Profit: +$${Math.round(top.profit).toLocaleString()} (${top.roi.toFixed(1)}% ROI)\n` +
-      `Recommended Max Bid: $${maxBid.toLocaleString()} | Location: ${top.location_state || "N/A"}\n` +
-      `Verdict: ${(top.deal_verdict || "GO").toUpperCase()} | Source: ${top.source}\n` +
-      `Direct Link: https://mikehunt.app/deal/${top.id}`
-    );
+    return rows.length
+      ? `${sample} Evidence-backed candidate, not purchase approval. Cash-price budget excludes additional costs.\n${recommendationText(rows[0], true)}`
+      : `${sample} No verified buy candidate in this sample. Confirm price meaning, title, inspection, costs and dated comparable sold evidence before setting a purchase ceiling.`;
   }
-  return `Unknown tool: ${name}`;
+  const verdict = args.verdict || "go";
+  rows = rows.filter((row: any) => {
+    const e = recommendationEvidence(row);
+    if (verdict === "go" && (!allowEconomics || !e.ready)) return false;
+    if (["hold", "pass"].includes(verdict) && row.deal_verdict !== verdict)
+      return false;
+    return (
+      args.min_profit === undefined ||
+      (allowEconomics && e.ready && e.profit! >= args.min_profit)
+    );
+  });
+  return rows.length
+    ? `${sample}\n${rows
+        .slice(0, args.limit || 10)
+        .map((row: any) => recommendationText(row, allowEconomics))
+        .join("\n")}`
+    : `${sample} No matching verified candidates. Use verdict all for research observations; unverified profit and purchase ceilings remain withheld.`;
 }
 
 export async function POST(req: NextRequest) {
-  const rl = rateLimit(req, { key: "mcp", limit: 120, windowMs: 60_000 });
+  const rl = rateLimit(req, { key: "mcp", limit: 120, windowMs: 60000 });
   if (!rl.allowed) return tooManyRequests(rl);
-
   let msg: any;
   try {
     msg = await req.json();
@@ -208,7 +181,6 @@ export async function POST(req: NextRequest) {
       { headers: CORS },
     );
   }
-
   const id = msg?.id ?? null;
   const reply = (result: any) =>
     NextResponse.json({ jsonrpc: "2.0", id, result }, { headers: CORS });
@@ -217,49 +189,57 @@ export async function POST(req: NextRequest) {
       { jsonrpc: "2.0", id, error: { code, message } },
       { headers: CORS },
     );
-
-  switch (msg?.method) {
-    case "initialize":
+  if (!msg || msg.jsonrpc !== "2.0" || typeof msg.method !== "string")
+    return fail(-32600, "Invalid request");
+  if (msg.method === "initialize")
+    return reply({
+      protocolVersion: "2024-11-05",
+      capabilities: { tools: {} },
+      serverInfo: { name: "dealerhunt", version: "1.0.0" },
+    });
+  if (msg.method === "notifications/initialized")
+    return new NextResponse(null, { status: 204, headers: CORS });
+  if (msg.method === "tools/list") return reply({ tools: TOOLS });
+  if (msg.method !== "tools/call") return fail(-32601, "Method not found");
+  const name = msg.params?.name;
+  const args = msg.params?.arguments ?? {};
+  if (!TOOLS.some((t) => t.name === name) || !validArgs(args))
+    return fail(-32602, "Choose a supported tool and valid search parameters.");
+  try {
+    const key = req.headers.get("x-api-key");
+    if (!key || key.length > 256)
       return reply({
-        protocolVersion: "2024-11-05",
-        capabilities: { tools: {} },
-        serverInfo: { name: "dealerhunt", version: "1.0.0" },
+        content: [{ type: "text", text: "Supply a valid API key." }],
+        isError: true,
       });
-    case "notifications/initialized":
-      return new NextResponse(null, { status: 204, headers: CORS });
-    case "tools/list":
-      return reply({ tools: TOOLS });
-    case "tools/call": {
-      if (!(await authed(req))) {
-        return reply({
-          content: [
-            {
-              type: "text",
-              text: "Unauthorized — supply a valid x-api-key (mint one at /developer).",
-            },
-          ],
-          isError: true,
-        });
-      }
-      const name = msg?.params?.name;
-      const args = msg?.params?.arguments || {};
-      if (!TOOLS.some((t) => t.name === name))
-        return fail(-32602, `Unknown tool: ${name}`);
-      try {
-        const text = await runTool(name, args);
-        return reply({ content: [{ type: "text", text }] });
-      } catch (e: any) {
-        return reply({
-          content: [{ type: "text", text: `Error: ${e.message}` }],
-          isError: true,
-        });
-      }
-    }
-    default:
-      return fail(-32601, `Method not found: ${msg?.method}`);
+    const db = createServerComponentClient();
+    const { data: identity, error } = await db
+      .from("api_keys")
+      .select("id,user_id,revoked")
+      .eq("key_hash", hashApiKey(key))
+      .abortSignal(AbortSignal.timeout(5000))
+      .maybeSingle();
+    if (error || !identity?.user_id || identity.revoked !== false)
+      return reply({
+        content: [
+          { type: "text", text: "This API key is unavailable or revoked." },
+        ],
+        isError: true,
+      });
+    const text = await runTool(db, identity.user_id, name, args);
+    return reply({ content: [{ type: "text", text }] });
+  } catch {
+    return reply({
+      content: [
+        {
+          type: "text",
+          text: "Vehicle research is temporarily unavailable. No recommendation was produced; try again.",
+        },
+      ],
+      isError: true,
+    });
   }
 }
-
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }

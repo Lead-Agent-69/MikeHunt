@@ -37,6 +37,7 @@ function chain(result: any) {
     "or",
     "order",
     "limit",
+    "abortSignal",
   ])
     c[m] = vi.fn(() => c);
   c.then = (resolve: any, reject: any) =>
@@ -52,6 +53,9 @@ beforeEach(() => {
       ? chain({
           data: [
             {
+              make: "Ford",
+              model: "F-150",
+              year: 2018,
               ask_price: 9000,
               true_net_profit: 2000,
               mileage: 80000,
@@ -93,11 +97,11 @@ describe("GET /api/market/compare desk gate", () => {
     );
     const body = await res.json();
     expect(body.deskAccess).toBe("personal");
-    expect(body.comparison[0].goDeals).toBe(1);
+    expect(body.comparison[0].goDeals).toBe(0);
     expect(body.comparison[0]).not.toHaveProperty("avgProfit");
   });
 
-  it("flip comparison keeps avgProfit", async () => {
+  it("flip comparison withholds legacy profit without purchase evidence", async () => {
     resolveFlip.mockResolvedValue(true);
     const res = await compareGET(
       new NextRequest(
@@ -105,6 +109,6 @@ describe("GET /api/market/compare desk gate", () => {
       ),
     );
     const body = await res.json();
-    expect(body.comparison[0].avgProfit).toBe(2000);
+    expect(body.comparison[0].avgProfit).toBeNull();
   });
 });
