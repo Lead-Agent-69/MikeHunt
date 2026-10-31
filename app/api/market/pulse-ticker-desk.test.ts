@@ -29,6 +29,7 @@ function chain(result: any) {
     "limit",
     "gte",
     "lte",
+    "abortSignal",
   ])
     c[m] = vi.fn(() => c);
   c.eq = vi.fn((...args: unknown[]) => {
@@ -79,15 +80,12 @@ describe("/api/market/pulse desk gate", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("keeps rows for a flip desk", async () => {
+  it("withholds legacy aggregate profit when current evidence is missing", async () => {
     resolveFlip.mockResolvedValue(true);
     const res = await pulseGET(req("/api/market/pulse"));
     const body = await res.json();
-    expect(body.rows[0]).toMatchObject({
-      make: "Ford",
-      goDeals: 4,
-      avgProfit: 3100,
-    });
+    expect(body.rows).toEqual([]);
+    expect(rpc).not.toHaveBeenCalled();
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
   });
 });
@@ -99,17 +97,18 @@ describe("/api/market/ticker desk gate", () => {
     const text = JSON.stringify(body.items);
     expect(text).not.toMatch(/BUY|profit|Flash/i);
     expect(text).toContain("New listings today: 7");
-    expect(text).toContain("Honda Civic");
+    expect(text).not.toContain("Honda Civic");
     expect(eqCalls.some((a) => a[0] === "deal_verdict")).toBe(false);
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(rpc).not.toHaveBeenCalled();
   });
 
-  it("flip desk keeps BUY and avg profit", async () => {
+  it("flip desk does not turn stored GO scores into BUY counts or profit", async () => {
     resolveFlip.mockResolvedValue(true);
     const res = await tickerGET(req("/api/market/ticker"));
     const text = JSON.stringify((await res.json()).items);
-    expect(text).toContain("New BUY deals today");
-    expect(text).toContain("avg profit");
+    expect(text).toContain("New listings today: 7");
+    expect(text).not.toMatch(/BUY|profit|Flash/);
+    expect(rpc).not.toHaveBeenCalled();
   });
 });

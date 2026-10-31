@@ -2,6 +2,7 @@
 // SMS notification system using Twilio
 
 import twilio from "twilio";
+import { matchEvidence } from "./match-evidence";
 
 let twilioClient: ReturnType<typeof twilio> | null = null;
 
@@ -58,9 +59,11 @@ export async function sendAlertMatchSMS(options: {
   vehicleTitle: string;
   askPrice: number;
   estimatedProfit: number;
+  listingEvidence?: unknown;
   dealUrl: string;
 }) {
-  const message = `🎯 DealerHunt Alert: ${options.vehicleTitle} - $${options.askPrice.toLocaleString()} (Est. Profit: $${options.estimatedProfit.toLocaleString()}). View: ${options.dealUrl}`;
+  const evidence = matchEvidence(options);
+  const message = `DealerHunt match: ${options.vehicleTitle}. ${evidence.price}. ${evidence.profit} View: ${options.dealUrl}`;
 
   return sendSMS({
     to: options.to,

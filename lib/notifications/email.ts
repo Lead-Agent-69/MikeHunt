@@ -2,6 +2,7 @@
 // Email notification system using Resend
 
 import { Resend } from "resend";
+import { matchEvidence, emailText } from "./match-evidence";
 
 // Lazy — `new Resend(undefined)` throws "Missing API key", which would break the build when
 // this module is pulled into a route's build-time evaluation. Only construct when a key exists.
@@ -63,10 +64,12 @@ export async function sendAlertMatchEmail(options: {
   vehicleTitle: string;
   askPrice: number;
   estimatedProfit: number;
+  listingEvidence?: unknown;
   dealUrl: string;
   /** Open-tracking pixel URL (opaque delivery id only, never the recipient's email). */
   pixelUrl?: string;
 }) {
+  const evidence = matchEvidence(options);
   const pixel = options.pixelUrl
     ? `<img src="${options.pixelUrl}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0" />`
     : "";
@@ -132,13 +135,13 @@ export async function sendAlertMatchEmail(options: {
           <p>A vehicle matching your alert criteria was found</p>
         </div>
         <div class="content">
-          <p>Hi ${options.dealerName},</p>
+          <p>Hi ${emailText(options.dealerName)},</p>
           <p>We found a vehicle that matches your alert preferences:</p>
           
           <div class="deal-card">
-            <h2>${options.vehicleTitle}</h2>
-            <p class="price">Ask Price: $${options.askPrice.toLocaleString()}</p>
-            <p class="profit">Est. Profit: $${options.estimatedProfit.toLocaleString()}</p>
+            <h2>${emailText(options.vehicleTitle)}</h2>
+            <p class="price">${emailText(evidence.price)}</p>
+            <p class="${evidence.verified ? "profit" : "price"}">${emailText(evidence.profit)}</p>
           </div>
           
           <a href="${options.dealUrl}" class="cta">View Full Details</a>
@@ -154,7 +157,7 @@ export async function sendAlertMatchEmail(options: {
 
   return sendEmail({
     to: options.to,
-    subject: `🎯 New Deal: ${options.vehicleTitle}`,
+    subject: `New vehicle match: ${options.vehicleTitle}`,
     html,
   });
 }

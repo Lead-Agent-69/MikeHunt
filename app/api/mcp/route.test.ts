@@ -31,6 +31,7 @@ vi.mock("@/lib/supabase", () => ({
         "limit",
         "maybeSingle",
         "abortSignal",
+        "update",
       ]) {
         q[method] = (...args: any[]) => {
           state.calls.push([table, method, ...args]);
@@ -45,6 +46,7 @@ vi.mock("@/lib/supabase", () => ({
                   id: "key-a",
                   user_id: state.owner,
                   revoked: state.revoked,
+                  request_count: 0,
                 },
                 error: state.identityError ? {} : null,
               }
@@ -106,6 +108,8 @@ it("binds preferences to key ownership, not a browser account", async () => {
     "user_id",
     "owner-a",
   ]);
+  expect(state.calls).toContainEqual(["api_keys", "eq", "user_id", "owner-a"]);
+  expect(state.calls).toContainEqual(["api_keys", "eq", "request_count", 0]);
   state.mode = "personal";
   const r = await call("search_deals", { verdict: "all" });
   expect(r.result.content[0].text).not.toContain("maximum bid:");

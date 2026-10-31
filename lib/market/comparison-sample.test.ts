@@ -16,6 +16,16 @@ const candidate = () => ({
   location_state: "MO",
 });
 describe("evidence-backed comparison", () => {
+  it("uses the same purchase gate for zero-mileage evidence while keeping it out of mileage fitting", () => {
+    const sample = comparisonSample(
+      [briefCandidate()],
+      { make: "Honda", model: "Accord", year: 2003 },
+      1,
+    );
+    expect(sample.goDeals).toBe(1);
+    expect(sample.avgProfit).toBe(4100);
+    expect(sample.depreciationPer1000Miles).toBeNull();
+  });
   it("does not combine Model 3 and Model Y or adjacent requested years", () => {
     expect(
       exactVehicleModel(

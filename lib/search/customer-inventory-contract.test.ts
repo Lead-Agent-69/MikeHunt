@@ -23,6 +23,7 @@ const BUYER_COLLECTIONS = [
   "app/api/market/explore/route.ts",
   "app/api/market/heatmap/route.ts",
   "app/api/market/overview/route.ts",
+  "app/api/market/pulse/route.ts",
   "app/api/market/snapshot/route.ts",
   "app/api/market/ticker/route.ts",
   "app/api/mcp/route.ts",
@@ -39,7 +40,7 @@ const BUYER_COLLECTIONS = [
 ] as const;
 
 const POLICY_ENTRY =
-  /applyBuyableInventory|applyInventoryViewScope|new DealsService\(/;
+  /applyBuyableInventory|applyInventoryViewScope|new DealsService\(|verifiedInventory\(/;
 
 describe("buyer inventory route contract", () => {
   it.each(BUYER_COLLECTIONS)(
@@ -56,6 +57,7 @@ describe("buyer inventory route contract", () => {
       "lib/search/inventory-view-scope.ts",
       "lib/deals/similar-deals.ts",
       "lib/scoring/market-intelligence.ts",
+      "lib/market/verified-inventory.ts",
     ]) {
       const source = readFileSync(join(process.cwd(), relativePath), "utf8");
       expect(source, relativePath).toContain("applyBuyableInventory");

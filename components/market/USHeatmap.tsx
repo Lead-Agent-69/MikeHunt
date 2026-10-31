@@ -4,10 +4,14 @@ import React from "react";
 import Link from "next/link";
 import useSWR from "swr";
 
-// US opportunity heatmap — a state-tile grid colored by how many engine-vetted (GO/HOLD) deals each
-// state holds right now. The whole-country view at a glance: where the actionable money clusters.
+// State tiles summarize only purchase-evidence-backed candidates in the bounded sample.
+// An empty state is not proof that its entire market has no inventory.
 // Recognizable tile layout (not a precise map); each tile links into that state's discovery feed.
-const fetcher = (u: string) => fetch(u).then((r) => r.json());
+const fetcher = async (u: string) => {
+  const response = await fetch(u);
+  if (!response.ok) throw new Error("Market map unavailable");
+  return response.json();
+};
 
 // prettier-ignore
 const GRID: string[][] = [
@@ -25,12 +29,12 @@ const money = (n: number) =>
   n >= 1000 ? `$${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k` : `$${n}`;
 
 export function USHeatmap() {
-  const { data } = useSWR("/api/market/heatmap", fetcher, {
+  const { data, error, isLoading } = useSWR("/api/market/heatmap", fetcher, {
     revalidateOnFocus: false,
   });
   const states: Record<
     string,
-    { n: number; avgProfit: number; maxProfit: number }
+    { n: number; avgProfit?: number; maxProfit?: number }
   > = data?.states || {};
   const maxN: number = data?.maxN || 1;
 
@@ -41,7 +45,11 @@ export function USHeatmap() {
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-wide text-[var(--t3)]">
-          Opportunity heatmap · {data?.total ?? 0} GO/HOLD deals nationwide
+          {error
+            ? "Market map unavailable"
+            : isLoading
+              ? "Checking market evidence…"
+              : `Evidence-backed candidates · ${data?.total ?? 0} in the current sample`}
         </span>
         <span className="text-[10px] text-[var(--t5)]">
           click a state to drill in
@@ -67,8 +75,8 @@ export function USHeatmap() {
                   }}
                   title={
                     n
-                      ? `${st} · ${n} deal${n === 1 ? "" : "s"} · best ${money(s.maxProfit)} · avg ${money(s.avgProfit)}`
-                      : `${st} · no current GO/HOLD deals`
+                      ? `${st} · ${n} sampled candidate${n === 1 ? "" : "s"}${s.avgProfit != null && s.maxProfit != null ? ` · estimated net: best ${money(s.maxProfit)} · avg ${money(s.avgProfit)}` : ""}`
+                      : `${st} · no verified candidate in this sample; coverage may be incomplete`
                   }
                 >
                   <span className="text-[10px] font-black leading-none">

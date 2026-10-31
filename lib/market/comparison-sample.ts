@@ -46,7 +46,7 @@ export function comparisonSample(
       !evidence.title.unconfirmed
     );
   });
-  const ready = eligible.filter((row) => recommendationEvidence(row).ready);
+  const ready = matching.filter((row) => recommendationEvidence(row).ready);
   const ages = eligible
     .map((row) => daysOnMarket(row.first_seen_at))
     .filter((n): n is number => n != null);
