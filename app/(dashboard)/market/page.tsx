@@ -20,6 +20,7 @@ import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { ResponsiveWorkspacePanel } from "@/components/shared/ResponsiveWorkspacePanel";
 import { MarketSearchActions } from "@/components/market/MarketSearchActions";
+import { MarketQuickFilters } from "@/components/market/MarketQuickFilters";
 import { MarketLocation } from "@/components/market/MarketLocation";
 import {
   normalizeMarketArea,
@@ -935,121 +936,174 @@ export default function MarketPage() {
             }}
           />
         )}
-        <section
-          aria-label="Everyday search filters"
-          aria-busy={!ready}
-          className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-2 sm:py-3 md:grid-cols-3 lg:grid-cols-7"
+        <MarketQuickFilters
+          disabled={!ready}
+          fields={[
+            {
+              key: "makes",
+              label: "Make",
+              value: f.makes.join(", "),
+              inputLabel: "Quick make",
+            },
+            {
+              key: "model",
+              label: "Model",
+              value: f.model,
+              inputLabel: "Quick model",
+            },
+            {
+              key: "price",
+              label: "Price up to",
+              value: f.priceMax ? `$${f.priceMax}` : "",
+              inputLabel: "Quick price up to ($)",
+            },
+            {
+              key: "mileage",
+              label: "Mileage up to",
+              value: f.mileageMax ? `${f.mileageMax} mi` : "",
+              inputLabel: "Quick mileage up to",
+            },
+            {
+              key: "source",
+              label: "Source",
+              value:
+                f.sources.length > 1
+                  ? `${f.sources.length} selected`
+                  : INVENTORY_SOURCE_FILTERS.find(
+                      (source) => source.id === f.sources[0],
+                    )?.name || (f.sources.length ? "Selected" : "All"),
+              inputLabel: "Quick source or dealer",
+              disabled: busy,
+            },
+            {
+              key: "age",
+              label: "Inventory age",
+              value: inventoryFreshnessOption(details.seenWithin).shortLabel,
+              inputLabel: "Inventory freshness",
+              disabled: busy,
+            },
+          ]}
         >
-          {(
-            [
-              ["makes", "Make", f.makes.join(","), "Any make"],
-              ["model", "Model", f.model, "Any model"],
-              ["priceMax", "Price up to ($)", f.priceMax, "Any price"],
-              ["mileageMax", "Mileage up to", f.mileageMax, "Any mileage"],
-            ] as const
-          ).map(([key, label, value, placeholder]) => (
-            <label
-              key={key}
-              className="min-w-0 text-xs font-semibold text-[var(--t2)]"
-            >
-              {label}
-              <input
-                aria-label={`Quick ${label.toLowerCase()}`}
-                disabled={!ready}
-                value={value}
-                placeholder={placeholder}
-                type={
-                  key === "priceMax" || key === "mileageMax" ? "number" : "text"
-                }
-                min={
-                  key === "priceMax" || key === "mileageMax" ? "0" : undefined
-                }
-                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+          <section
+            aria-label="Everyday search filters"
+            aria-busy={!ready}
+            className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] py-2 sm:py-3 md:grid-cols-3 lg:grid-cols-7"
+          >
+            {(
+              [
+                ["makes", "Make", f.makes.join(","), "Any make"],
+                ["model", "Model", f.model, "Any model"],
+                ["priceMax", "Price up to ($)", f.priceMax, "Any price"],
+                ["mileageMax", "Mileage up to", f.mileageMax, "Any mileage"],
+              ] as const
+            ).map(([key, label, value, placeholder]) => (
+              <label
+                key={key}
+                className="min-w-0 text-xs font-semibold text-[var(--t2)]"
+              >
+                {label}
+                <input
+                  aria-label={`Quick ${label.toLowerCase()}`}
+                  disabled={!ready}
+                  value={value}
+                  placeholder={placeholder}
+                  type={
+                    key === "priceMax" || key === "mileageMax"
+                      ? "number"
+                      : "text"
+                  }
+                  min={
+                    key === "priceMax" || key === "mileageMax" ? "0" : undefined
+                  }
+                  className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+                  onChange={(event) =>
+                    set({
+                      [key]:
+                        key === "makes"
+                          ? event.target.value.split(",")
+                          : event.target.value,
+                    })
+                  }
+                />
+              </label>
+            ))}
+            <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+              Source or dealer
+              <select
+                aria-label="Quick source or dealer"
+                disabled={!ready || busy}
+                value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
                 onChange={(event) =>
                   set({
-                    [key]:
-                      key === "makes"
-                        ? event.target.value.split(",")
-                        : event.target.value,
+                    sources: event.target.value ? [event.target.value] : [],
                   })
                 }
-              />
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+              >
+                {f.sources.length > 1 && (
+                  <option value="__selected" disabled>
+                    {f.sources.length} selected sources
+                  </option>
+                )}
+                <option value="">All sources</option>
+                {quickSourceOptions.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.name} -{" "}
+                    {sourceMatchLabel(source.id, data?.sourceCoverage, {
+                      busy,
+                      error: !!error,
+                    })}
+                    {data?.sourceCoverage?.accessReviewIds?.includes(source.id)
+                      ? " - Access review"
+                      : ""}
+                  </option>
+                ))}
+                {!data?.sourceCoverage ? (
+                  <option value="__loading" disabled>
+                    Source matches load with results
+                  </option>
+                ) : quickSourceOptions.length <
+                  INVENTORY_SOURCE_FILTERS.length ? (
+                  <option value="__browse" disabled>
+                    Browse every source in All filters
+                  </option>
+                ) : null}
+              </select>
             </label>
-          ))}
-          <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
-            Source or dealer
-            <select
-              aria-label="Quick source or dealer"
-              disabled={!ready || busy}
-              value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
-              onChange={(event) =>
-                set({ sources: event.target.value ? [event.target.value] : [] })
-              }
-              className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+            <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
+              Inventory age
+              <select
+                aria-label="Inventory freshness"
+                disabled={!ready || busy}
+                value={inventoryFreshnessOption(details.seenWithin).value}
+                onChange={(event) =>
+                  setDetail(
+                    "seenWithin",
+                    event.target.value === "3" ? "" : event.target.value,
+                  )
+                }
+                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
+              >
+                {INVENTORY_FRESHNESS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label} - {option.shortLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setShowFilters(true);
+                setShowInsights(false);
+              }}
+              disabled={!ready}
+              className="col-span-2 min-h-11 w-full self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold md:col-span-1"
             >
-              {f.sources.length > 1 && (
-                <option value="__selected" disabled>
-                  {f.sources.length} selected sources
-                </option>
-              )}
-              <option value="">All sources</option>
-              {quickSourceOptions.map((source) => (
-                <option key={source.id} value={source.id}>
-                  {source.name} -{" "}
-                  {sourceMatchLabel(source.id, data?.sourceCoverage, {
-                    busy,
-                    error: !!error,
-                  })}
-                  {data?.sourceCoverage?.accessReviewIds?.includes(source.id)
-                    ? " - Access review"
-                    : ""}
-                </option>
-              ))}
-              {!data?.sourceCoverage ? (
-                <option value="__loading" disabled>
-                  Source matches load with results
-                </option>
-              ) : quickSourceOptions.length <
-                INVENTORY_SOURCE_FILTERS.length ? (
-                <option value="__browse" disabled>
-                  Browse every source in All filters
-                </option>
-              ) : null}
-            </select>
-          </label>
-          <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
-            Inventory age
-            <select
-              aria-label="Inventory freshness"
-              disabled={!ready || busy}
-              value={inventoryFreshnessOption(details.seenWithin).value}
-              onChange={(event) =>
-                setDetail(
-                  "seenWithin",
-                  event.target.value === "3" ? "" : event.target.value,
-                )
-              }
-              className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
-            >
-              {INVENTORY_FRESHNESS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label} - {option.shortLabel}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() => {
-              setShowFilters(true);
-              setShowInsights(false);
-            }}
-            disabled={!ready}
-            className="col-span-2 min-h-11 w-full self-end rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold md:col-span-1"
-          >
-            All filters
-          </button>
-        </section>
+              All filters
+            </button>
+          </section>
+        </MarketQuickFilters>
       </div>
       {inventoryFreshnessOption(details.seenWithin).value !== "3" && (
         <p role="status" className="text-xs text-[var(--t3)]">
