@@ -7,7 +7,13 @@ let host: HTMLDivElement;
 let view: ReturnType<
   typeof useScopedSourceHealth<{ scopeStatus: { label: string } }>
 >;
-function Harness({ url, enabled = true }: { url: string; enabled?: boolean }) {
+function Harness({
+  url,
+  enabled = true,
+}: {
+  url: string | null;
+  enabled?: boolean;
+}) {
   view = useScopedSourceHealth(url, enabled);
   return (
     <span>
@@ -16,7 +22,7 @@ function Harness({ url, enabled = true }: { url: string; enabled?: boolean }) {
     </span>
   );
 }
-const render = async (url: string, enabled = true) =>
+const render = async (url: string | null, enabled = true) =>
   act(async () => root.render(<Harness url={url} enabled={enabled} />));
 const tick = async () =>
   act(async () => {
@@ -145,4 +151,42 @@ it("refreshes immediately after a real task instead of waiting for the typing de
   });
   expect(fetch).toHaveBeenCalledTimes(2);
   expect(host.textContent).toBe("after real task");
+});
+it("an absent detail key does not fetch or remain loading", async () => {
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  await render(null);
+  await tick();
+  expect(view!.isLoading).toBe(false);
+  expect(fetch).not.toHaveBeenCalled();
+  await act(async () => {
+    expect(await view!.refresh()).toBeNull();
+  });
+});
+it("manual refresh cancels the pending debounce instead of starting a duplicate request", async () => {
+  const fetch = vi.fn().mockImplementation(async () => result("current"));
+  vi.stubGlobal("fetch", fetch);
+  await render("/api/scrape/health?q=ford");
+  await act(async () => {
+    await view!.refresh();
+  });
+  await tick();
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+it("enforces the timeout even when a request implementation ignores abort", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));
+  await render("/api/scrape/health");
+  await tick();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15000);
+  });
+  expect(view!.isLoading).toBe(false);
+  expect(view!.error).toContain("unavailable");
+});
+it("cleans up pending debounce and timeout resources when leaving", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockReturnValue(new Promise(() => {})));
+  await render("/api/scrape/health");
+  await tick();
+  await act(async () => root.render(<div />));
+  expect(vi.getTimerCount()).toBe(0);
 });

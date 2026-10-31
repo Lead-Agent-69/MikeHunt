@@ -2,29 +2,52 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Scoped metadata only: never let an old search publish health for a newer search. */
-export function useScopedSourceHealth<T extends { scopeStatus?: unknown }>(
-  url: string,
-  enabled: boolean,
+export function useScopedSourceHealth<T extends object>(
+  url: string | null,
+  enabled = true,
 ) {
+  enabled = enabled && Boolean(url);
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ url, enabled });
   latest.current = { url, enabled };
-  const request = useRef<{ id: number; controller: AbortController } | null>(
-    null,
-  );
+  const request = useRef<{
+    id: number;
+    controller: AbortController;
+    cancel: () => void;
+  } | null>(null);
   const generation = useRef(0);
   const [result, setResult] = useState<{
-    url: string;
+    url: string | null;
     data: T | null;
     loading: boolean;
     error: string | null;
   }>({ url, data: null, loading: false, error: null });
   const load = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
-      if (!latest.current.enabled || latest.current.url !== url) return null;
-      request.current?.controller.abort();
+      if (!url || !latest.current.enabled || latest.current.url !== url)
+        return null;
+      if (debounce.current) clearTimeout(debounce.current);
+      debounce.current = null;
+      request.current?.cancel();
       const controller = new AbortController();
       const id = ++generation.current;
-      request.current = { id, controller };
+      let cancelWait = () => {};
+      const cancelled = new Promise<never>((_resolve, reject) => {
+        cancelWait = () => reject(new Error("Source status cancelled"));
+      });
+      const timeout = setTimeout(() => {
+        controller.abort();
+        cancelWait();
+      }, 15000);
+      request.current = {
+        id,
+        controller,
+        cancel: () => {
+          clearTimeout(timeout);
+          controller.abort();
+          cancelWait();
+        },
+      };
       const current = () =>
         request.current?.id === id &&
         latest.current.url === url &&
@@ -37,14 +60,18 @@ export function useScopedSourceHealth<T extends { scopeStatus?: unknown }>(
           loading: true,
           error: null,
         }));
-      const timeout = setTimeout(() => controller.abort(), 15000);
       try {
-        const response = await fetch(url, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Source status unavailable");
-        const data = await response.json();
+        const data = await Promise.race([
+          (async () => {
+            const response = await fetch(url, {
+              cache: "no-store",
+              signal: controller.signal,
+            });
+            if (!response.ok) throw new Error("Source status unavailable");
+            return response.json();
+          })(),
+          cancelled,
+        ]);
         if (!current()) return null;
         if (!data || typeof data !== "object" || Array.isArray(data))
           throw new Error("Source status unavailable");
@@ -75,9 +102,11 @@ export function useScopedSourceHealth<T extends { scopeStatus?: unknown }>(
     if (!enabled) return;
     setResult({ url, data: null, loading: true, error: null });
     const timer = setTimeout(() => void load(), 350);
+    debounce.current = timer;
     return () => {
       clearTimeout(timer);
-      request.current?.controller.abort();
+      debounce.current = null;
+      request.current?.cancel();
       request.current = null;
     };
   }, [url, enabled, load]);

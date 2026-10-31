@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import useSWR from "swr";
+import { useScopedSourceHealth } from "@/hooks/useScopedSourceHealth";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -49,12 +49,6 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
-
-const fetcher = (url: string) =>
-  fetch(url).then((res) => {
-    if (!res.ok) throw new Error("Failed to load source health");
-    return res.json();
-  });
 
 // Computed once at module scope: how much of the researched catalog is actually wired into the
 // live scraper runner. Safe here — scraperCoverage() only reads the two static registries.
@@ -1771,10 +1765,8 @@ export default function SourcesPage() {
   const {
     data: health,
     error: healthError,
-    mutate: refreshHealth,
-  } = useSWR(healthUrl, fetcher, {
-    revalidateOnFocus: false,
-  });
+    refresh: refreshHealth,
+  } = useScopedSourceHealth<any>(healthUrl);
 
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
