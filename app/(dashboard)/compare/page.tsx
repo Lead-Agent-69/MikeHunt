@@ -40,11 +40,16 @@ const ROWS: {
 }[] = [
   {
     key: "goDeals",
-    label: "GO deals available",
+    label: "Evidence-backed buy candidates",
     fmt: (v) => String(v ?? 0),
     best: "high",
   },
-  { key: "avgProfit", label: "Avg profit / GO", fmt: money, best: "high" },
+  {
+    key: "avgProfit",
+    label: "Evidence-backed net estimate",
+    fmt: money,
+    best: "high",
+  },
   {
     key: "totalListings",
     label: "Total listings",
@@ -156,8 +161,9 @@ function CompareContent() {
         <>
           <h2 className="text-lg font-bold">Market segment research</h2>
           <p className="text-sm text-[var(--t3)]">
-            Listing-based estimates, not confirmed sales. Year filters include
-            the adjacent model years.
+            Nationwide research for the full model and exact year selected.
+            Asking prices are not confirmed sales; unknown purchase checks
+            withhold profit and bid estimates.
           </p>
           <div className="glass-panel p-5 space-y-3">
             {specs.map((s, i) => (
@@ -258,6 +264,26 @@ function CompareContent() {
                   ))}
                 </tbody>
               </table>
+              <div className="space-y-2 border-t border-[var(--b1)] p-3 text-xs text-[var(--t3)]">
+                {cols.map(
+                  (column, index) =>
+                    column.sample && (
+                      <p key={index}>
+                        <strong>
+                          {column.make} {column.model}:
+                        </strong>{" "}
+                        {column.sample.matched} sampled matches,{" "}
+                        {column.sample.eligible} eligible clean-retail cash
+                        observations, {column.sample.decisionReady}{" "}
+                        evidence-backed buy candidates.{" "}
+                        {column.sample.truncated
+                          ? "The sample is capped; these are not market-wide totals. "
+                          : ""}
+                        {column.sample.limitations.join(" ")}
+                      </p>
+                    ),
+                )}
+              </div>
             </div>
           )}
         </>
