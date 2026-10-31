@@ -1,5 +1,6 @@
 import * as http from "node:http";
 import { createRequire } from "node:module";
+import { runInNewContext } from "node:vm";
 import { afterEach, describe, expect, it } from "vitest";
 
 const redirectHttp = createRequire(import.meta.url)("follow-redirects")
@@ -60,6 +61,24 @@ afterEach(async () => {
 });
 
 describe("cross-origin redirect credential protection", () => {
+  it.each(["object", "array"] as const)(
+    "strips custom credentials with a cross-realm sensitive-header list (%s headers)",
+    async (format) => {
+      const names: string[] = runInNewContext('["X-API-Key"]');
+      expect(Array.isArray(names)).toBe(true);
+      expect(names instanceof Array).toBe(false);
+      const headers =
+        format === "array"
+          ? ["X-API-Key", "synthetic-cross-realm-token", "X-Public", "retained"]
+          : {
+              "X-API-Key": "synthetic-cross-realm-token",
+              "X-Public": "retained",
+            };
+      const received = await redirectedHeaders(headers, names);
+      expect(received["x-api-key"]).toBeUndefined();
+      expect(received["x-public"]).toBe("retained");
+    },
+  );
   it("strips credential headers supplied in Node's alternating array format", async () => {
     const received = await redirectedHeaders([
       "Authorization",
