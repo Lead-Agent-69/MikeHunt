@@ -133,9 +133,6 @@ export function DealResearchWorkspace({
             </p>
             <p className="text-xs text-[var(--t4)]">{selected.description}</p>
           </div>
-          <span className="rounded-full border border-[var(--b1)] bg-[var(--s1)] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[var(--t4)]">
-            One tool at a time
-          </span>
         </div>
 
         {selected.id === "deal-iq" && <DealIQCard dealId={dealId} />}

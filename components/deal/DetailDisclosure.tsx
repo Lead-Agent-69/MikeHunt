@@ -1,18 +1,21 @@
 "use client";
 
 import React from "react";
+import { ChevronDown } from "lucide-react";
 
 /** Mount expensive tools only when opened. Repeated checklist requests reopen and focus them. */
 export function DetailDisclosure({
   eyebrow,
   title,
   summary,
+  actionLabel = "View details",
   request = 0,
   children,
 }: {
   eyebrow: string;
   title: string;
   summary: string;
+  actionLabel?: string;
   request?: number;
   children: React.ReactNode;
 }) {
@@ -48,8 +51,12 @@ export function DetailDisclosure({
           </h2>
           <p className="mt-1 text-sm text-[var(--t4)]">{summary}</p>
         </div>
-        <span className="shrink-0 text-xs font-black text-[var(--blue)]">
-          {expanded ? "Hide" : "Examine"}
+        <span className="flex max-w-24 shrink-0 items-center gap-1 text-xs font-bold text-[var(--blue)] sm:max-w-36">
+          <span>{expanded ? "Close section" : actionLabel}</span>
+          <ChevronDown
+            aria-hidden="true"
+            className={`h-4 w-4 shrink-0 ${expanded ? "rotate-180" : ""}`}
+          />
         </span>
       </summary>
       {expanded ? (

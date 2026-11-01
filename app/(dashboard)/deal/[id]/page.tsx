@@ -1091,6 +1091,7 @@ export default function DealPage({
         eyebrow="Vehicle examination"
         title="Check condition, title, and history"
         summary="VIN signals, title history, and condition reported in the listing."
+        actionLabel="Review condition"
       >
         <div className="space-y-4">
           {serverDeal && (
@@ -1132,7 +1133,8 @@ export default function DealPage({
         key={`${id}:market`}
         eyebrow="Market evidence"
         title="Compare price and timing"
-        summary="Source-reported sale records, asking-price history, and local market timing."
+        summary="Compare asking prices with source-reported sales; they are different evidence."
+        actionLabel="View price evidence"
       >
         <div className="space-y-4">
           {serverDeal && (
@@ -1180,6 +1182,7 @@ export default function DealPage({
         eyebrow="Plan and record"
         title="Costs, seller, and private notes"
         summary="Build an all-in plan, contact the seller, and keep your research together."
+        actionLabel="Open cost plan"
       >
         <div className="space-y-4">
           {store.userType === "dealer" && serverDeal && (
@@ -1259,8 +1262,9 @@ export default function DealPage({
       <DetailDisclosure
         key={`${id}:research`}
         eyebrow="Research tools"
-        title="Open one focused tool"
-        summary="Deal IQ, an on-demand AI brief, and vehicle data—without stacking duplicate calculators."
+        title="Vehicle data and research"
+        summary="Manufacturer specifications and an optional research brief. Neither replaces a vehicle inspection."
+        actionLabel="Choose a research tool"
       >
         <DealResearchWorkspace
           dealId={id}
@@ -1317,15 +1321,6 @@ export default function DealPage({
           trim: serverDeal?.trim,
           askPrice:
             serverDeal?.ask_price || serverDeal?.askPrice || store.askPrice,
-          recommendedMaxBid: serverDeal?.recommendedMaxBid,
-          targetOffer:
-            serverDeal?.recommendedMaxBid ??
-            Math.round(
-              (serverDeal?.ask_price ||
-                serverDeal?.askPrice ||
-                store.askPrice ||
-                0) * 0.9,
-            ),
           locationCity: serverDeal?.locationCity,
           locationState: serverDeal?.locationState,
           sellerPhone: serverDeal?.contact?.phone,
