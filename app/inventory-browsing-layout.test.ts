@@ -18,7 +18,12 @@ describe("inventory browsing safety", () => {
     expect(page).toContain("primaryHref={`/scan?${query}`}");
   });
   it("makes the view switcher reachable directly from Discover", () => {
-    expect(read("app/(dashboard)/layout.tsx")).toContain(
+    const discover = read("app/(dashboard)/discover/page.tsx");
+    expect(discover).toContain("<DiscoveryViewAccess />");
+    expect(discover.indexOf("<DiscoveryViewAccess />")).toBeGreaterThan(
+      discover.indexOf("<h1"),
+    );
+    expect(read("app/(dashboard)/layout.tsx")).not.toContain(
       "<DiscoveryViewAccess />",
     );
     expect(read("components/search/DiscoveryViewAccess.tsx")).toContain(

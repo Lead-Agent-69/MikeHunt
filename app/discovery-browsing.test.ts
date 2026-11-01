@@ -26,7 +26,9 @@ describe("discovery browsing presentation safeguards", () => {
     expect(page).toContain("All market filters and results");
     expect(page).toContain("All filters");
     expect(page).toContain('aria-label="Open Market Explorer"');
-    expect(page).toContain("href={`/market${scopeQuery}`}");
+    expect(page).toContain("inventorySearchHref");
+    expect(page).toContain("openFilters: true");
+    expect(page).toContain("currentQuery: searchParams.toString()");
     expect(page).toContain("selectedStates,");
   });
   it("keeps mileage and source controls outside the additional filters disclosure", () => {

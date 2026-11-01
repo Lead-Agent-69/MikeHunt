@@ -75,7 +75,7 @@ export function MarketQuickFilters({
                 current === field.inputLabel ? null : field.inputLabel,
               );
             }}
-            className="flex min-h-12 min-w-0 items-center justify-between gap-1 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-2 py-1 text-left data-[selected=true]:border-[var(--blue)] disabled:opacity-50"
+            className="flex min-h-12 min-w-0 items-center justify-between gap-1 rounded-2xl border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-left data-[selected=true]:border-[var(--blue)] disabled:opacity-50"
           >
             <span className="min-w-0">
               <span className="block text-[11px] font-semibold text-[var(--t3)]">
@@ -101,7 +101,7 @@ export function MarketQuickFilters({
         <button
           type="button"
           onClick={close}
-          className="mb-2 min-h-11 w-full rounded-lg bg-[var(--blue)] px-3 text-sm font-bold text-white md:hidden"
+          className="mb-2 min-h-11 w-full rounded-full bg-[var(--accent)] px-3 text-sm font-semibold text-[var(--on-accent)] md:hidden"
         >
           Done with quick filters
         </button>

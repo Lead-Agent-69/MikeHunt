@@ -62,7 +62,8 @@ describe("mobile location regression protections", () => {
     );
     expect(page).toContain("router.replace");
     expect(page).toContain('aria-label="Buying for"');
-    expect(page).toContain("href={`/market${scopeQuery}`}");
+    expect(page).toContain("inventorySearchHref");
+    expect(page).toContain("currentQuery: searchParams.toString()");
     expect(page).toContain("matching vehicles");
     expect(page).not.toContain("mergedDuplicates.toLocaleString()");
     expect(page).toContain("(!discoverReady || isLoading) && !data");
