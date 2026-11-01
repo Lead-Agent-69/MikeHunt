@@ -40,9 +40,10 @@ describe("mobile fixed UI surfaces", () => {
     const scanPage = readFileSync("app/(dashboard)/scan/page.tsx", "utf8");
 
     expect(scanPage).toContain(
-      "bottom-[calc(76px+env(safe-area-inset-bottom))]",
+      "bottom-[calc(92px+env(safe-area-inset-bottom))]",
     );
-    expect(scanPage).toContain("md:bottom-6");
+    expect(scanPage).toContain("lg:bottom-6");
+    expect(scanPage).not.toContain("md:bottom-6");
     expect(scanPage).toContain("md:sticky md:top-4 md:z-20");
     expect(scanPage).not.toContain("items-center sticky top-4 z-20");
   });
@@ -69,8 +70,8 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain("prefetch={false}");
-    expect(bottomNav).toContain(
-      'layoutId={reducedMotion ? undefined : "bottom-nav-active-pill"}',
+    expect(bottomNav).toMatch(
+      /layoutId=\{\s*reducedMotion \? undefined : "bottom-nav-active-pill"\s*\}/,
     );
     expect(bottomNav).toContain('aria-current={isActive ? "page" : undefined}');
     expect(bottomNav).toContain("navigator.vibrate?.(8)");

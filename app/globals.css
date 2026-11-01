@@ -162,6 +162,8 @@
   --shadow3: 0 28px 70px rgba(15, 23, 42, 0.16);
   --shadow-amber: 0 12px 28px rgba(7, 91, 232, 0.16);
   --glass: rgba(255, 255, 255, 0.9);
+  --navigation-glass: rgba(255, 255, 255, 0.94);
+  --navigation-shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
 
   --r1: 5px;
   --r2: 8px;
@@ -218,8 +220,20 @@
   --shadow3: 0 24px 70px rgba(0, 0, 0, 0.6);
 
   --glass: rgba(10, 10, 15, 0.72);
+  --navigation-glass: rgba(28, 28, 30, 0.94);
+  --navigation-shadow: 0 8px 32px rgba(0, 0, 0, 0.38);
 
   color-scheme: dark;
+}
+
+/* Floating navigation keeps a high-opacity fallback; blur is progressive enhancement. */
+.navigation-capsule {
+  border: 1px solid var(--b2);
+  border-radius: 999px;
+  background: var(--navigation-glass);
+  box-shadow: var(--navigation-shadow);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
 }
 
 * {

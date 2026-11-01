@@ -450,7 +450,7 @@ function ToastStack({
 }) {
   if (!toasts.length) return null;
   return (
-    <div className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] right-3 z-40 flex max-w-[calc(100vw-24px)] flex-col gap-2 items-end pointer-events-none md:bottom-6 md:right-4 md:z-50 md:max-w-none">
+    <div className="fixed bottom-[calc(92px+env(safe-area-inset-bottom))] right-3 z-40 flex max-w-[calc(100vw-24px)] flex-col gap-2 items-end pointer-events-none lg:bottom-6 lg:right-4 lg:z-50 lg:max-w-none">
       {toasts.map((t) => (
         <div
           key={t.id}
