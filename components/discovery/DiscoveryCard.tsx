@@ -184,6 +184,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             className="absolute right-2.5 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.88)",
+              color: isSaved ? "var(--on-accent)" : "#ffffff",
             }}
             title={bookmark.label}
             aria-label={bookmark.label}
@@ -584,7 +585,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent-surface)] px-4 text-sm font-bold text-[var(--blue)] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent-surface)] px-4 text-sm font-bold text-[var(--blue)] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>

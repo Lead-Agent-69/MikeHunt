@@ -64,5 +64,6 @@ describe("inventory primary-action contrast", () => {
     expect(action).toContain("bg-[var(--accent-surface)]");
     expect(action).toContain("text-[var(--blue)]");
     expect(action).toContain("min-h-11");
+    expect(action).not.toContain("hover:opacity-");
   });
 });
