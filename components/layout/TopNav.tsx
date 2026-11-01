@@ -41,8 +41,7 @@ function IconBtn({
       prefetch={false}
       title={title}
       aria-label={title}
-      className="relative flex h-11 w-11 items-center justify-center rounded-lg transition-colors text-[var(--t3)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
-      style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
+      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b1)] transition-colors text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
     >
       {children}
       {badge != null && badge > 0 && (
@@ -68,8 +67,7 @@ function NavPill() {
       aria-hidden="true"
       className="absolute inset-0 rounded-full"
       style={{
-        background: "var(--grad)",
-        boxShadow: "0 2px 12px var(--amber-lo)",
+        background: "var(--accent-surface)",
       }}
       transition={
         reducedMotion
@@ -261,7 +259,7 @@ function TopNavContent() {
       {/* Desktop sides retain their content width; auto margins give navigation the remaining space. */}
       <nav
         aria-label="Primary desktop navigation"
-        className="hidden lg:flex items-center gap-0.5 shrink-0 lg:mx-auto"
+        className="navigation-capsule hidden lg:flex items-center gap-0.5 p-1 shrink-0 lg:mx-auto"
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);
@@ -277,7 +275,7 @@ function TopNavContent() {
               aria-label={item.name}
               className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 px-3.5 py-2 rounded-full text-[13px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${
                 active
-                  ? "text-white"
+                  ? "text-[var(--accent)]"
                   : "text-[var(--t4)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
               }`}
             >
