@@ -4,6 +4,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { observeScrollEdges } from "@/lib/ui/observe-scroll-edges";
 import Link from "next/link";
 import { ScrollSearchBar } from "@/components/search/ScrollSearchBar";
+import { VehicleSearchForm } from "@/components/search/VehicleSearchForm";
+import { DiscoveryViewAccess } from "@/components/search/DiscoveryViewAccess";
+import { inventorySearchHref } from "@/lib/search/browse-search";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { usePreferences } from "@/hooks/usePreferences";
 import { effectiveHome } from "@/lib/preferences/locations";
@@ -105,14 +108,16 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
     });
   };
   return (
-    <section className="space-y-2">
+    <section className="space-y-3">
       <div className="flex items-center justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h2 className="text-lg font-bold leading-tight text-[var(--t1)]">
+          <h2 className="text-xl font-semibold leading-tight tracking-tight text-[var(--t1)]">
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-0.5 text-xs text-[var(--t4)]">{subtitle}</p>
+            <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
+              {subtitle}
+            </p>
           )}
         </div>
         <div className="flex shrink-0 gap-1">
@@ -123,7 +128,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             aria-controls={railId}
             disabled={edges.start}
             onClick={() => browse(-1)}
-            className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b2)] bg-[var(--s1)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
@@ -134,7 +139,7 @@ function Rail({ rail }: { rail: DiscoveryRail }) {
             aria-controls={railId}
             disabled={edges.end}
             onClick={() => browse(1)}
-            className="flex h-11 w-11 items-center justify-center rounded-md border border-[var(--b2)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b2)] bg-[var(--s1)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
           >
             <ChevronRight size={18} aria-hidden="true" />
           </button>
@@ -178,11 +183,11 @@ function RailSkeleton() {
         {Array.from({ length: 5 }).map((_, i) => (
           <div
             key={i}
-            className="glass-panel overflow-hidden"
+            className="inventory-card overflow-hidden"
             style={{ padding: 0, width: 280, flex: "0 0 auto" }}
             aria-hidden="true"
           >
-            <div className="aspect-[4/3] w-full shimmer" />
+            <div className="aspect-[16/10] w-full shimmer" />
             <div className="flex flex-col gap-2 p-3.5">
               <div className="h-4 w-3/4 rounded-[var(--r1)] shimmer" />
               <div className="h-3 w-1/2 rounded-[var(--r1)] shimmer" />
@@ -297,7 +302,9 @@ export default function DiscoverPage() {
   const [showInsights, setShowInsights] = useState(false);
   const [quickFiltersOpen, setQuickFiltersOpen] = useState(false);
   const searchControls = useRef<HTMLElement>(null);
-  const [browseSearch, setBrowseSearch] = useState(searchParams.get("q") || "");
+  const searchQuery = searchParams.get("q") || "";
+  const [browseSearch, setBrowseSearch] = useState(searchQuery);
+  useEffect(() => setBrowseSearch(searchQuery), [searchQuery]);
   const [buyerScope, setBuyerScope] = useState<BuyerIntent | null>(urlScope);
   const [makeDraft, setMakeDraft] = useState("");
   const [budgetDraft, setBudgetDraft] = useState("");
@@ -438,9 +445,17 @@ export default function DiscoverPage() {
     Number(Boolean(makeDraft.trim())) +
     Number(Boolean(budgetDraft)) +
     Number(laneValueDraft !== "all");
+  const openInventorySearch = () => {
+    if (!discoverReady) return;
+    router.push(
+      inventorySearchHref(scopeQuery, browseSearch, {
+        currentQuery: searchParams.toString(),
+      }),
+    );
+  };
 
   return (
-    <div className="min-w-0 space-y-1.5 pb-4 md:space-y-2">
+    <div className="min-w-0 space-y-4 pb-4 md:space-y-6">
       <ScrollSearchBar
         anchorRef={searchControls}
         value={browseSearch}
@@ -448,26 +463,21 @@ export default function DiscoverPage() {
         disabled={!discoverReady}
         filterCount={quickFilterCount}
         onFilters={() => {
-          const params = new URLSearchParams(scopeQuery);
-          if (browseSearch.trim()) params.set("q", browseSearch.trim());
-          else params.delete("q");
-          router.push(`/market?${params.toString()}`);
+          if (discoverReady)
+            router.push(
+              inventorySearchHref(scopeQuery, browseSearch, {
+                openFilters: true,
+                currentQuery: searchParams.toString(),
+              }),
+            );
         }}
-        onSubmit={() => {
-          const params = new URLSearchParams(scopeQuery);
-          if (browseSearch.trim()) params.set("q", browseSearch.trim());
-          else params.delete("q");
-          router.push(`/market?${params.toString()}`);
-        }}
+        onSubmit={openInventorySearch}
       />
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="relative min-w-0">
-          <h1 className="relative flex items-center gap-2.5 text-xl font-bold text-[var(--t1)] md:text-2xl">
-            <span
-              className="flex h-9 w-9 items-center justify-center rounded-xl text-white shadow-lg"
-              style={{ background: "var(--grad)" }}
-            >
+          <h1 className="relative flex items-center gap-2.5 text-2xl font-semibold tracking-tight text-[var(--t1)] md:text-3xl">
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--accent-surface)] text-[var(--accent)]">
               <Sparkles
                 className="h-4.5 w-4.5"
                 strokeWidth={2.5}
@@ -476,7 +486,7 @@ export default function DiscoverPage() {
             </span>
             Discover
           </h1>
-          <p className="mt-1 min-h-[18px] text-xs text-[var(--t4)] md:text-sm">
+          <p className="mt-2 min-h-[18px] text-xs text-[var(--t3)] md:text-sm">
             {isValidating && data
               ? "Updating matching vehicles..."
               : !discoverReady || isLoading || (isValidating && !data)
@@ -487,15 +497,17 @@ export default function DiscoverPage() {
         <button
           type="button"
           disabled={!discoverReady}
-          onClick={() => router.push(`/market${scopeQuery}`)}
+          onClick={openInventorySearch}
           aria-label="Open Market Explorer"
           title="Open Market Explorer"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--b2)] bg-[var(--s0)] text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-3 text-xs font-semibold text-[var(--t2)] disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
         >
           <ScanSearch size={20} aria-hidden="true" />
+          All inventory
         </button>
       </div>
 
+      <DiscoveryViewAccess />
       <CoverageNotice
         coverage={data?.coverage}
         isRefreshing={isValidating}
@@ -504,8 +516,14 @@ export default function DiscoverPage() {
 
       <section
         ref={searchControls}
-        className="border-y border-[var(--b1)] py-2"
+        className="browse-panel space-y-3 p-3 sm:p-4"
       >
+        <VehicleSearchForm
+          value={browseSearch}
+          onChange={setBrowseSearch}
+          onSubmit={openInventorySearch}
+          disabled={!discoverReady}
+        />
         <p className="text-xs font-bold text-[var(--t1)] md:text-sm">
           {activeScopeLabel}
         </p>
@@ -518,14 +536,15 @@ export default function DiscoverPage() {
                   type="button"
                   aria-expanded={quickFiltersOpen}
                   aria-controls="discovery-quick-filters"
+                  aria-label="Refine matches"
                   onClick={() => setQuickFiltersOpen((open) => !open)}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-sm font-bold text-[var(--t1)] lg:hidden"
+                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-3 text-sm font-semibold text-[var(--t1)] lg:hidden"
                 >
                   <SlidersHorizontal
                     className="h-4 w-4 text-[var(--blue)]"
                     aria-hidden="true"
                   />
-                  Refine matches
+                  Filters
                   {quickFilterCount > 0 && (
                     <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--on-accent)]">
                       {quickFilterCount}
@@ -543,7 +562,7 @@ export default function DiscoverPage() {
                 aria-expanded={showInsights}
                 aria-controls="discovery-market-insights"
                 onClick={() => setShowInsights(!showInsights)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s1)]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s1)]"
               >
                 <BarChart3 className="h-4 w-4" aria-hidden="true" />
                 Insights
@@ -551,7 +570,7 @@ export default function DiscoverPage() {
             </div>
             <form
               id="discovery-quick-filters"
-              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-3 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-3 lg:flex lg:gap-2 lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0`}
+              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-3 py-2 lg:flex lg:gap-3`}
               aria-label="Buying for"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -590,7 +609,7 @@ export default function DiscoverPage() {
                     onChange={(event) => setMakeDraft(event.target.value)}
                     placeholder="Any"
                     aria-label="Make"
-                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                    className="mt-1 min-h-11 w-full rounded-xl border border-[var(--b2)] bg-[var(--s1)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
                 </label>
                 <label className="block text-xs font-semibold text-[var(--t3)]">
@@ -603,7 +622,7 @@ export default function DiscoverPage() {
                     }
                     placeholder="Any price"
                     aria-label="Price up to"
-                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                    className="mt-1 min-h-11 w-full rounded-xl border border-[var(--b2)] bg-[var(--s1)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   />
                 </label>
                 <label className="col-span-2 block text-xs font-semibold text-[var(--t3)] sm:col-span-1">
@@ -612,7 +631,7 @@ export default function DiscoverPage() {
                     value={laneValueDraft}
                     onChange={(event) => setLaneDraft(event.target.value)}
                     aria-label="Lane"
-                    className="mt-1 min-h-11 w-full rounded-lg border border-[var(--b1)] bg-[var(--s2)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
+                    className="mt-1 min-h-11 w-full rounded-xl border border-[var(--b2)] bg-[var(--s1)] px-3 text-sm font-semibold text-[var(--t1)] outline-none focus:border-[var(--b3)]"
                   >
                     {laneOptions.map(([value, label]) => (
                       <option key={value} value={value}>
@@ -626,16 +645,19 @@ export default function DiscoverPage() {
                 <button
                   type="submit"
                   disabled={!discoverReady}
-                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg bg-[var(--accent)] px-3 py-2.5 text-sm font-bold text-[var(--on-accent)] sm:flex-none"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full bg-[var(--accent)] px-3 py-2.5 text-sm font-bold text-[var(--on-accent)] sm:flex-none"
                 >
                   Search cars
                 </button>
                 {discoverReady && (
                   <Link
-                    href={`/market${scopeQuery}`}
+                    href={inventorySearchHref(scopeQuery, browseSearch, {
+                      openFilters: true,
+                      currentQuery: searchParams.toString(),
+                    })}
                     prefetch={false}
                     aria-label="All market filters and results"
-                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold text-[var(--blue)] sm:flex-none sm:border-0"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[var(--b2)] px-3 text-sm font-semibold text-[var(--blue)] sm:flex-none sm:border-0"
                   >
                     <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
                     All filters
@@ -801,7 +823,13 @@ export default function DiscoverPage() {
           </div>
         </div>
       ) : (
-        <div className="grid min-w-0 grid-cols-1 items-start gap-8 lg:grid-cols-2">
+        <div
+          className={
+            visibleRails.length > 1
+              ? "grid min-w-0 grid-cols-1 items-start gap-8 lg:grid-cols-2"
+              : "grid min-w-0 grid-cols-1 items-start gap-8"
+          }
+        >
           {visibleRails.map((rail) => (
             <Rail key={rail.key} rail={rail} />
           ))}

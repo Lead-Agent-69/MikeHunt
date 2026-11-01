@@ -53,7 +53,7 @@ export function InventoryViewNotice({
         <p className="text-sm text-[var(--t2)]">{message}</p>
         <Link
           href={`/market?${query}`}
-          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--blue)] px-4 text-sm font-semibold text-white"
+          className="inline-flex min-h-11 items-center gap-2 rounded-full bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)]"
         >
           <ListFilter className="h-4 w-4" aria-hidden="true" />
           Open Results
@@ -118,10 +118,10 @@ export function InventoryViewLinks({
         );
   }
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
       <nav
         aria-label="Inventory views"
-        className="grid w-full grid-cols-4 gap-1 sm:flex sm:w-auto sm:flex-wrap"
+        className="browse-segmented grid min-w-[12rem] flex-1 grid-cols-4 gap-0.5 p-1 sm:flex sm:w-auto sm:flex-none sm:flex-wrap"
       >
         {VIEWS.map(({ path, label, Icon }) => (
           <Link
@@ -135,9 +135,13 @@ export function InventoryViewLinks({
             }}
             title={label}
             aria-current={path === current ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "border-[var(--blue)] bg-[var(--s2)] text-[var(--blue)]" : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t2)]"}`}
+            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-transparent px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"}`}
           >
-            <Icon className="h-4 w-4" aria-hidden="true" /> {label}
+            <Icon
+              className="hidden h-4 w-4 min-[390px]:block"
+              aria-hidden="true"
+            />{" "}
+            {label}
           </Link>
         ))}
       </nav>
@@ -145,14 +149,15 @@ export function InventoryViewLinks({
         <BrowseFilterShortcut query={params.toString()} />
       )}
       <details
-        className="min-w-0 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-2 open:w-full"
+        className="min-w-0 shrink-0 rounded-2xl border border-[var(--b1)] bg-[var(--s1)] px-2 open:w-full"
         open={selectedFreshness.value !== "3" || Boolean(params.get("body"))}
       >
         <summary
-          className="min-h-7 cursor-pointer text-xs font-semibold text-[var(--t2)]"
+          className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)]"
           aria-label={`Browse options: ${selectedFreshness.label} ${selectedFreshness.shortLabel}`}
         >
-          Options · {selectedFreshness.shortLabel}
+          <span className="hidden sm:inline">Options · </span>
+          {selectedFreshness.shortLabel}
           {params.get("body") ? ` · ${params.get("body")}` : ""}
         </summary>
         <div className="mt-2 flex flex-wrap items-center gap-3">

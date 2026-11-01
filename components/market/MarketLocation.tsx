@@ -130,7 +130,7 @@ export function MarketLocation({
   return (
     <section
       aria-label="Vehicle search and area"
-      className={`grid min-w-0 gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-2 lg:p-3 ${search ? "md:grid-cols-[minmax(0,1fr)_minmax(14rem,24rem)]" : ""}`}
+      className={`browse-panel grid min-w-0 gap-3 p-3 sm:p-4 ${search ? "md:grid-cols-[minmax(0,1fr)_minmax(14rem,24rem)]" : ""}`}
     >
       {search && (
         <div className="relative min-w-0">
@@ -140,7 +140,7 @@ export function MarketLocation({
             placeholder="Make, model or VIN"
             value={search.value}
             onChange={(event) => search.onChange(event.target.value)}
-            className={`field min-h-11 min-w-0 !w-full !py-2 !text-base ${search.onInterpret ? "!pr-28" : ""}`}
+            className={`field min-h-12 min-w-0 !w-full !rounded-full !py-2 !pl-4 !text-base ${search.onInterpret ? "!pr-28" : ""}`}
           />
           {search.onInterpret && (
             <MarketSearchBuilder
@@ -158,7 +158,7 @@ export function MarketLocation({
             type="button"
             aria-label={`Search area: ${summary}`}
             title={summary}
-            className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-[var(--b1)] bg-[var(--s0)] px-3 text-left text-sm font-semibold"
+            className="flex min-h-12 min-w-0 items-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-4 text-left text-sm font-semibold"
           >
             <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{summary}</span>

@@ -15,16 +15,14 @@ function DiscoveryViews() {
   if (!ready)
     return (
       <div
-        className="mb-2 h-11 bg-[var(--s2)] shimmer"
+        className="h-12 rounded-full bg-[var(--s2)] shimmer"
         aria-label="Loading inventory views"
         role="status"
       />
     );
   return (
-    <div className="mb-2 border-b border-[var(--b1)] pb-3">
-      <div>
-        <InventoryViewLinks query={query} current="/discover" />
-      </div>
+    <div className="min-w-0">
+      <InventoryViewLinks query={query} current="/discover" />
     </div>
   );
 }

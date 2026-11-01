@@ -854,10 +854,10 @@ export default function MarketPage() {
     </>
   );
   return (
-    <div className="flex min-w-0 flex-col gap-1 sm:gap-2 lg:gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-1.5 border-b border-[var(--b1)] pb-1.5 sm:gap-2 sm:pb-3">
+    <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:gap-5">
+      <header className="flex flex-wrap items-center justify-between gap-3 pb-1">
         <div className="min-w-0">
-          <h1 className="text-lg font-extrabold text-[var(--t1)] sm:text-xl md:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--t1)] md:text-3xl">
             Market Explorer
           </h1>
           <p className="mt-1 hidden max-w-2xl text-sm text-[var(--t3)] lg:block">
@@ -1114,7 +1114,7 @@ export default function MarketPage() {
       )}
       <nav
         aria-label="Market workspace"
-        className="grid grid-cols-3 items-center gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-1 sm:flex sm:gap-2"
+        className="browse-segmented grid grid-cols-3 items-center gap-1 p-1 sm:flex sm:gap-2"
       >
         <button
           type="button"
@@ -1123,7 +1123,7 @@ export default function MarketPage() {
             setShowFilters(false);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold aria-pressed:bg-[var(--accent-surface)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <LayoutGrid className="hidden h-4 w-4 sm:block" /> Listings
           {!busy && (
@@ -1144,11 +1144,11 @@ export default function MarketPage() {
             setShowFilters(true);
             setShowInsights(false);
           }}
-          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-expanded:bg-[var(--s2)] aria-expanded:text-[var(--blue)] disabled:opacity-50 sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold aria-expanded:bg-[var(--accent-surface)] aria-expanded:text-[var(--blue)] disabled:opacity-50 sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <SlidersHorizontal className="hidden h-4 w-4 sm:block" /> Filters
           {activeCount > 0 && (
-            <span className="rounded-full bg-[var(--blue)] px-1.5 py-0.5 text-[9px] text-white">
+            <span className="rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-[9px] text-[var(--on-accent)]">
               {activeCount}
             </span>
           )}
@@ -1161,7 +1161,7 @@ export default function MarketPage() {
             setShowFilters(false);
             setShowInsights(true);
           }}
-          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
+          className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold aria-pressed:bg-[var(--accent-surface)] aria-pressed:text-[var(--blue)] sm:min-h-10 sm:gap-2 sm:px-3"
         >
           <BarChart3 className="hidden h-4 w-4 sm:block" />
           <span>
@@ -1270,7 +1270,7 @@ export default function MarketPage() {
             <button
               type="button"
               onClick={closeFilters}
-              className="min-h-11 flex-1 rounded-lg bg-[var(--blue)] px-4 text-sm font-bold text-white lg:flex-none"
+              className="min-h-11 flex-1 rounded-full bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] lg:flex-none"
             >
               Show {busy ? "updated" : total.toLocaleString()} listings
             </button>
@@ -1319,7 +1319,7 @@ export default function MarketPage() {
                 setShowFilters(false);
                 setShowInsights(false);
               }}
-              className="min-h-11 rounded-lg bg-[var(--blue)] px-4 text-xs font-bold text-white"
+              className="min-h-11 rounded-full bg-[var(--accent)] px-4 text-xs font-bold text-[var(--on-accent)]"
             >
               Show {busy ? "updated" : total.toLocaleString()} listings
             </button>

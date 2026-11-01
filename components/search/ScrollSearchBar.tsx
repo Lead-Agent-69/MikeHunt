@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
+import { VehicleSearchForm } from "./VehicleSearchForm";
 import { observeScrollReveal } from "@/lib/ui/observe-scroll-reveal";
 
 /** One small browsing control; existing filters remain the source of truth. */
@@ -63,31 +64,17 @@ export function ScrollSearchBar({
     >
       {visible && (
         <div className="mx-auto flex max-w-7xl items-center gap-2">
-          <form
-            role="search"
-            className="relative min-w-0 flex-1"
-            onSubmit={(event) => {
-              event.preventDefault();
+          <VehicleSearchForm
+            value={value}
+            onChange={onChange}
+            disabled={disabled}
+            label="Search vehicles while browsing"
+            showSubmit={false}
+            onSubmit={() => {
               onSubmit?.();
               root.current?.querySelector("input")?.blur();
             }}
-          >
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--t3)]"
-            />
-            <input
-              type="search"
-              aria-label="Search vehicles while browsing"
-              placeholder="Make, model or VIN"
-              value={value}
-              onChange={(event) => onChange(event.target.value)}
-              disabled={disabled}
-              enterKeyHint="search"
-              autoComplete="off"
-              className="min-h-11 w-full min-w-0 rounded-xl border border-[var(--b1)] bg-[var(--s1)] py-2 pl-9 pr-3 text-base text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
-            />
-          </form>
+          />
           <button
             type="button"
             ref={filterButtonRef}
@@ -97,11 +84,11 @@ export function ScrollSearchBar({
             aria-controls={panelId}
             aria-haspopup={panelId ? "dialog" : undefined}
             aria-expanded={panelId ? paused : undefined}
-            className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3 text-sm font-bold text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+            className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-4 text-sm font-semibold text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
           >
             <SlidersHorizontal aria-hidden="true" className="h-4 w-4" /> Filters
             {filterCount > 0 && (
-              <span className="rounded-full bg-[var(--blue)] px-1.5 text-xs text-white">
+              <span className="rounded-full bg-[var(--accent)] px-1.5 text-xs text-[var(--on-accent)]">
                 {filterCount}
               </span>
             )}
