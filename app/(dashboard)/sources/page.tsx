@@ -699,10 +699,12 @@ function weightedCompleteness(
 
 function SourceProofPanel({
   health,
+  errorMessage,
   onFocusSource,
   refreshAction,
 }: {
   health: any & { scope?: HealthScope; scopeFiltered?: boolean };
+  errorMessage?: string | null;
   onFocusSource: (sourceId: string) => void;
   refreshAction: React.ReactNode;
 }) {
@@ -963,7 +965,7 @@ function SourceProofPanel({
   };
 
   return (
-    <section className="glass-panel mb-6 p-5">
+    <section aria-label="Source coverage" className="glass-panel mb-6 p-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--t5)]">
@@ -975,15 +977,17 @@ function SourceProofPanel({
               : "See which markets have current listings for your next search."}
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-[var(--t4)]">
-            {loading
-              ? "Checking current market availability."
-              : health?.scopeStatus?.message
-                ? health.scopeStatus.message
-                : health?.scopeFiltered
-                  ? scopeParts.length
-                    ? `Filtered by ${scopeParts.join(" · ")}. Listing count, photos, detail, and freshness reflect that search.`
-                    : "Listing count, photos, detail, and freshness reflect this exact buying plan."
-                  : "Each market shows current listings, reported photos and details, and how recently it was updated."}
+            {errorMessage
+              ? "Current coverage is unavailable. Your search filters are unchanged."
+              : loading
+                ? "Checking current market availability."
+                : health?.scopeStatus?.message
+                  ? health.scopeStatus.message
+                  : health?.scopeFiltered
+                    ? scopeParts.length
+                      ? `Filtered by ${scopeParts.join(" · ")}. Listing count, photos, detail, and freshness reflect that search.`
+                      : "Listing count, photos, detail, and freshness reflect this exact buying plan."
+                    : "Each market shows current listings, reported photos and details, and how recently it was updated."}
           </p>
           {noScopeSources ? (
             <div className="mt-3 rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-xs font-bold leading-relaxed text-[var(--amber-d)]">
@@ -995,32 +999,39 @@ function SourceProofPanel({
           ) : null}
           {refreshAction}
         </div>
-        <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-3 xl:grid-cols-5">
+        <div
+          role="group"
+          aria-label="Source availability counts"
+          aria-busy={loading && !errorMessage}
+          className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-3 xl:grid-cols-5"
+        >
           <div className="rounded-[var(--r3)] border border-[var(--green)]/30 bg-[var(--green)]/10 px-3 py-2">
             <div className="font-black text-[var(--green)]">
-              {summary.ready}
+              {health ? summary.ready : "—"}
             </div>
             <div className="text-[var(--t5)]">available</div>
           </div>
           <div className="rounded-[var(--r3)] border border-[var(--red)]/25 bg-[var(--red)]/10 px-3 py-2">
             <div className="font-black text-[var(--red)]">
-              {summary.blocked}
+              {health ? summary.blocked : "—"}
             </div>
             <div className="text-[var(--t5)]">unavailable</div>
           </div>
           <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
-            <div className="font-black text-[var(--t1)]">{summary.noRows}</div>
+            <div className="font-black text-[var(--t1)]">
+              {health ? summary.noRows : "—"}
+            </div>
             <div className="text-[var(--t5)]">no matches</div>
           </div>
           <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] px-3 py-2">
             <div className="font-black text-[var(--t1)]">
-              {summary.needsRun}
+              {health ? summary.needsRun : "—"}
             </div>
-            <div className="text-[var(--t5)]">refreshing</div>
+            <div className="text-[var(--t5)]">needs refresh</div>
           </div>
           <div className="rounded-[var(--r3)] border border-[var(--amber)]/30 bg-[var(--amber)]/10 px-3 py-2">
             <div className="font-black text-[var(--amber-d)]">
-              {summary.needsLogin}
+              {health ? summary.needsLogin : "—"}
             </div>
             <div className="text-[var(--t5)]">account access</div>
           </div>
@@ -1104,6 +1115,7 @@ function SourceProofPanel({
             <button
               key={item.id}
               type="button"
+              disabled={!health}
               onClick={() => setFilter(item.id)}
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
@@ -1112,7 +1124,7 @@ function SourceProofPanel({
                   : "border-[var(--b1)] bg-[var(--s1)] text-[var(--t4)] hover:text-[var(--t1)]",
               )}
             >
-              {item.label} {count}
+              {item.label} {health ? count : "—"}
             </button>
           );
         })}
@@ -1121,7 +1133,7 @@ function SourceProofPanel({
       <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1.3fr]">
         <div className="rounded-[var(--r3)] border border-[var(--gbd)] bg-[var(--glo)] p-3">
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--green)]">
-            Available now
+            {health ? "Listings on file" : "Source availability"}
           </div>
           {readySources.length ? (
             <div className="mt-2 space-y-2">
@@ -1149,9 +1161,11 @@ function SourceProofPanel({
             </div>
           ) : (
             <p className="mt-2 text-xs leading-relaxed text-[var(--t4)]">
-              {loading
-                ? "Checking ready sources..."
-                : "No market has current matching listings yet."}
+              {errorMessage
+                ? "Coverage could not be checked. Retry the coverage check above."
+                : loading
+                  ? "Checking ready sources..."
+                  : "No market has current matching listings yet."}
             </p>
           )}
         </div>
@@ -1410,8 +1424,11 @@ function SourceCard({
       exit={{ opacity: 0, y: -20 }}
       className="glass-panel overflow-hidden"
     >
-      <div
-        className="p-4 cursor-pointer hover:bg-[var(--s2)] transition-colors"
+      <button
+        type="button"
+        aria-expanded={isExpanded}
+        aria-label={`${isExpanded ? "Hide" : "Show"} details for ${source.name}`}
+        className="w-full p-4 text-left hover:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--amber)]"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-start gap-3">
@@ -1432,7 +1449,8 @@ function SourceCard({
               </span>
             </div>
             <p className="text-xs text-[var(--t4)] truncate">
-              {source.description}
+              {source.category.replace(/-/g, " ")} · Confirm current
+              availability with the source
             </p>
             <div className="flex items-center gap-3 mt-2 text-[10px] text-[var(--t5)]">
               <span className="flex items-center gap-1">
@@ -1448,35 +1466,6 @@ function SourceCard({
                 </svg>
                 {source.location || "Nationwide"}
               </span>
-              {source.inventorySize && (
-                <span className="flex items-center gap-1">
-                  <svg
-                    className="w-3 h-3"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
-                  </svg>
-                  {source.inventorySize}
-                </span>
-              )}
-              {source.updateFrequency && (
-                <span className="flex items-center gap-1">
-                  <svg
-                    className="w-3 h-3"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M12 6v6l4 2" />
-                  </svg>
-                  {source.updateFrequency}
-                </span>
-              )}
             </div>
           </div>
           <svg
@@ -1492,7 +1481,7 @@ function SourceCard({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </div>
-      </div>
+      </button>
 
       <AnimatePresence>
         {isExpanded && (
@@ -1503,6 +1492,12 @@ function SourceCard({
             className="border-t border-[var(--b1)]"
           >
             <div className="p-4 space-y-3">
+              <p className="text-xs text-[var(--t4)]">
+                <span className="font-semibold">
+                  Directory description (not verified inventory):{" "}
+                </span>
+                {source.description}
+              </p>
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-[var(--t5)]">URL</span>
@@ -2302,6 +2297,7 @@ export default function SourcesPage() {
         )}
         <SourceProofPanel
           health={health}
+          errorMessage={healthError}
           refreshAction={
             <SourceRefreshAction
               scope={healthScope}
