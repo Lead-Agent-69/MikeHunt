@@ -232,9 +232,53 @@
   border: 1px solid var(--b2);
   border-radius: 999px;
   background: var(--navigation-glass);
-  box-shadow: var(--navigation-shadow);
+  box-shadow:
+    var(--navigation-shadow),
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent);
   backdrop-filter: blur(24px) saturate(140%);
   -webkit-backdrop-filter: blur(24px) saturate(140%);
+}
+
+/* Nuvio Mobile's glass rim and local accent glow, without a shader or moving hit targets. */
+.navigation-capsule::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1px solid transparent;
+  border-radius: inherit;
+  background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--accent) 65%, transparent),
+      transparent 32%,
+      transparent 64%,
+      color-mix(in srgb, var(--accent) 38%, transparent)
+    )
+    border-box;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) padding-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.navigation-capsule {
+  position: relative;
+}
+.navigation-mobile-capsule {
+  touch-action: pan-y pinch-zoom;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.navigation-selection {
+  background: var(--accent-surface);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 13%, transparent);
 }
 
 * {
