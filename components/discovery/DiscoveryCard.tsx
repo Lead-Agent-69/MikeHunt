@@ -136,13 +136,13 @@ export const DiscoveryCard = memo(function DiscoveryCard({
       style={{ scrollSnapAlign: "start" }}
     >
       <div
-        className="deal-card glass-panel interactive-surface group relative isolate flex flex-col overflow-hidden premium-focus"
-        style={{ padding: 0, height: "100%", borderRadius: 8 }}
+        className="deal-card inventory-card group relative isolate flex flex-col overflow-hidden premium-focus"
+        style={{ height: "100%" }}
       >
         {/* Image */}
         <div
           data-testid="discovery-card-photo"
-          className="relative aspect-[16/9] w-full overflow-hidden xl:aspect-[4/3]"
+          className="relative aspect-[16/10] w-full overflow-hidden"
           style={{ background: "var(--s2)" }}
         >
           <Link
@@ -184,6 +184,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             className="absolute right-2.5 top-2.5 z-20 inline-flex h-11 w-11 items-center justify-center rounded-full text-white motion-safe:transition-transform motion-safe:hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amber)] disabled:cursor-wait disabled:opacity-70"
             style={{
               background: isSaved ? "var(--amber)" : "rgba(20,10,20,.88)",
+              color: isSaved ? "var(--on-accent)" : "#ffffff",
             }}
             title={bookmark.label}
             aria-label={bookmark.label}
@@ -199,16 +200,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         </div>
 
         {/* Body */}
-        <div className="flex flex-1 flex-col gap-3 p-3 xl:p-4">
+        <div className="flex flex-1 flex-col gap-3 p-4">
           <div
             data-testid="discovery-card-price"
-            className="grid grid-cols-2 gap-2 border-b border-[var(--b1)] pb-2 xl:pb-3"
+            className="grid grid-cols-2 gap-2"
           >
             <div>
               <p className="text-[10px] font-bold uppercase text-[var(--t4)] mb-1">
                 {priceLabel}
               </p>
-              <span className="font-mono text-lg font-black text-[var(--t1)] xl:text-xl">
+              <span className="text-2xl font-bold tabular-nums text-[var(--t1)]">
                 {displayPrice}
               </span>
             </div>
@@ -250,7 +251,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
               target={external ? "_blank" : undefined}
               rel={external ? "noopener noreferrer" : undefined}
               data-testid="discovery-card-open"
-              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-black leading-tight text-[var(--t1)] transition-colors hover:text-[var(--blue)] after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+              className="inline-flex min-h-11 min-w-0 items-center break-words rounded-sm text-[17px] font-semibold leading-snug text-[var(--t1)] transition-colors hover:text-[var(--blue)] after:absolute after:inset-0 after:z-10 after:rounded-[var(--inventory-card-radius)] after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
             >
               {title}
             </Link>
@@ -387,25 +388,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             </span>
           )}
 
-          {
-            <details className="relative z-20 text-[11px] text-[var(--t3)]">
-              <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
-                Why shown
-              </summary>
-              <div className="mt-1 flex flex-wrap gap-1">
-                {(deal.matchReasons || []).slice(0, 4).map((reason) => (
-                  <span
-                    key={reason}
-                    className="rounded-full bg-[var(--s2)] px-1.5 py-0.5 font-bold text-[var(--t3)]"
-                  >
-                    {discoveryReason(reason)}
-                  </span>
-                ))}
-              </div>
-              <ValuationInputs valuation={deal.valuation} />
-            </details>
-          }
-
           <p className="text-[11px] font-semibold text-[var(--t4)]">
             {listingFreshnessLabel(deal)} /{" "}
             {deal.sourceUrl ? "source linked" : "source link unavailable"}
@@ -414,10 +396,27 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             {evidence.nextCheck}
           </p>
 
-          <details className="relative z-20 border-t border-[var(--b1)] pt-2">
-            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
-              Cost estimates and source details
+          <details className="relative z-20 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-3">
+            <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold text-[var(--t2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]">
+              Why shown &amp; cost details
             </summary>
+            <h4 className="mb-2 text-xs font-semibold text-[var(--t2)]">
+              Why shown
+            </h4>
+            <div className="mb-3 flex flex-wrap gap-1">
+              {(deal.matchReasons || []).slice(0, 4).map((reason) => (
+                <span
+                  key={reason}
+                  className="rounded-full bg-[var(--s2)] px-2 py-1 text-[11px] font-semibold text-[var(--t3)]"
+                >
+                  {discoveryReason(reason)}
+                </span>
+              ))}
+            </div>
+            <ValuationInputs valuation={deal.valuation} />
+            <h4 className="my-2 text-xs font-semibold text-[var(--t2)]">
+              Cost estimates and source details
+            </h4>
             <p className="text-[11px] leading-relaxed text-[var(--t3)]">
               {displayAmount > 0
                 ? `${priceLabel} $${displayAmount.toLocaleString()}`
@@ -586,7 +585,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
             prefetch={false}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-md bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
+            className="relative z-20 mt-1 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--accent-surface)] px-4 text-sm font-bold text-[var(--blue)] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--blue)]"
           >
             {external ? "View source listing" : "Review vehicle"}
           </Link>

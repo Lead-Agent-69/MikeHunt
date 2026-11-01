@@ -164,6 +164,7 @@
   --glass: rgba(255, 255, 255, 0.9);
   --navigation-glass: rgba(255, 255, 255, 0.94);
   --navigation-shadow: 0 8px 28px rgba(15, 23, 42, 0.14);
+  --inventory-card-radius: 20px;
 
   --r1: 5px;
   --r2: 8px;
@@ -493,6 +494,19 @@ html {
 .glass-panel:hover {
   box-shadow: var(--shadow);
   border-color: var(--b2);
+}
+
+/* Artwork-led browsing: quiet surfaces keep the source photo and facts in focus. */
+.inventory-card {
+  background: var(--s0);
+  border: 1px solid var(--b1);
+  border-radius: var(--inventory-card-radius);
+  box-shadow: none;
+  transition: border-color var(--base) var(--ease-out);
+}
+
+.inventory-card:hover {
+  border-color: var(--b3);
 }
 
 .panel {

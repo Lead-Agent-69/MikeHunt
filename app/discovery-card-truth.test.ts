@@ -38,6 +38,41 @@ const listing: DiscoveryDeal = {
   alsoOn: [],
 };
 
+it("keeps price checks visible while combining reasons and cost evidence in one disclosure", () => {
+  const host = document.createElement("div");
+  host.innerHTML = renderToStaticMarkup(
+    React.createElement(DiscoveryCard, {
+      deal: {
+        ...listing,
+        matchReasons: ["Source link verified", "Photo backed"],
+      },
+    }),
+  );
+  const disclosures = host.querySelectorAll("details");
+  expect(disclosures).toHaveLength(1);
+  const details = disclosures[0];
+  expect(details.hasAttribute("open")).toBe(false);
+  expect(details.querySelector("summary")?.textContent).toContain(
+    "Why shown & cost details",
+  );
+  expect(details.textContent).toContain("Source link available");
+  expect(details.textContent).toContain("Listing photos available");
+  expect(details.textContent).toContain("Cost estimates and source details");
+  expect(details.textContent).toContain("not an inspection or guaranteed sale");
+  const nextCheck = Array.from(host.querySelectorAll("p")).find((p) =>
+    p.textContent?.includes(
+      "Confirm whether this is an asking price or auction bid",
+    ),
+  );
+  expect(nextCheck).toBeDefined();
+  expect(nextCheck?.closest("details")).toBeNull();
+  expect(
+    host
+      .querySelector('[data-testid="discovery-card-price"]')
+      ?.closest("details"),
+  ).toBeNull();
+});
+
 it("renders conflicting sale terms honestly and keeps title separate from operability", () => {
   const html = renderToStaticMarkup(
     React.createElement(DiscoveryCard, { deal: listing }),
