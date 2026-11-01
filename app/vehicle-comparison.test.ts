@@ -201,7 +201,10 @@ describe("shortlist comparison", () => {
         askPrice: 300,
         sourceUrl: "https://seller.example/car/1",
         priceEvidence: { kind: "asking", askingPrice: 15000 },
-        dealAnalysis: { costs: { repair: 500, transport: 100 } },
+        dealAnalysis: {
+          costs: { repair: 500, transport: 100 },
+          evidenceGates: { costsConfirmed: true },
+        },
       },
     ];
     const html = render();
@@ -212,6 +215,22 @@ describe("shortlist comparison", () => {
       ),
     ).toContain("$15,600");
     expect(html).toContain("Advertised amount $300");
+  });
+  it("withholds unreviewed model allowances in both responsive comparisons", () => {
+    swr.result.data.cars = [
+      {
+        ...car,
+        sourceUrl: "https://seller.example/car/1",
+        priceEvidence: { kind: "asking", askingPrice: 15000 },
+        dealAnalysis: { costs: { repair: 400, transport: 600 } },
+      },
+    ];
+    const html = render();
+    expect(html).toContain("Unreviewed model allowances withheld");
+    expect(html).not.toContain("$400");
+    expect(html).not.toContain("$600");
+    expect(subtotalValues(html)).toContain("$15,000");
+    expect(subtotalValues(html)).not.toContain("$16,000");
   });
   it("retains typed auction buy-now prices but not bid-based purchase math", () => {
     swr.result.data.cars = [

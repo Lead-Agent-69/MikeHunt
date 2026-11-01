@@ -14,6 +14,7 @@ import { PhotoPreviewButton } from "@/components/shared/PhotoPreviewButton";
 import { signalUnsave } from "@/components/reco/deal-signals";
 import { toast } from "sonner";
 import { SavedCarCard, SavedCarStatus } from "@/components/saved/SavedCarCard";
+import { SavedRemovalDialog } from "@/components/saved/SavedRemovalDialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -102,6 +103,13 @@ export default function SavedCarsPage() {
   const [adding, setAdding] = useState(false);
   const [inputUrl, setInputUrl] = useState("");
   const [comparisonIds, setComparisonIds] = useState<string[]>([]);
+  const [removal, setRemoval] = useState<{
+    id: string;
+    ownerId: string;
+    label: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   function toggleComparison(id: string) {
     setComparisonIds((current) =>
       current.includes(id)
@@ -124,7 +132,12 @@ export default function SavedCarsPage() {
   } = useSavedCollection(dealerLoading ? null : dealerId, "page", filter);
   const currentOwner = React.useRef(dealerId);
   currentOwner.current = dealerId;
-  React.useEffect(() => setComparisonIds([]), [dealerId]);
+  React.useEffect(() => {
+    setComparisonIds([]);
+    setRemoval(null);
+    setDeleting(false);
+    setDeleteError(null);
+  }, [dealerId]);
 
   const authError =
     accountError ||
@@ -162,8 +175,25 @@ export default function SavedCarsPage() {
 
   const { mutate: invalidate } = useSWRConfig();
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this saved vehicle?")) return;
+  const handleDelete = (id: string) => {
+    const saved = saves?.find((item: any) => item.id === id);
+    if (!dealerId || !saved) return;
+    setRemoval({
+      id,
+      ownerId: dealerId,
+      label:
+        [saved.snapshot?.year, saved.snapshot?.make, saved.snapshot?.model]
+          .filter(Boolean)
+          .join(" ") || "this vehicle",
+    });
+    setDeleteError(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!removal || deleting || removal.ownerId !== dealerId) return;
+    const id = removal.id;
+    setDeleting(true);
+    setDeleteError(null);
 
     const dealId = saves?.find((item: any) => item.id === id)?.deal_id;
     try {
@@ -176,6 +206,7 @@ export default function SavedCarsPage() {
       const result = await res.json();
       if (currentOwner.current !== dealerId) return;
       if (res.ok && result.success === true && result.id === id) {
+        setRemoval(null);
         await mutate(
           (current) => current?.filter((item: any) => item.id !== id),
           false,
@@ -196,12 +227,19 @@ export default function SavedCarsPage() {
       } else {
         // Revert on error
         mutate();
-        toast.error("Failed to delete saved car");
+        setDeleteError(
+          "We couldn't confirm this change. Check your watchlist and try again.",
+        );
       }
     } catch (e: any) {
       console.error(e);
-      toast.error("Saved vehicle removal was not confirmed. Please retry.");
+      if (currentOwner.current !== dealerId) return;
+      setDeleteError(
+        "We couldn't confirm this change. Check your watchlist and try again.",
+      );
       mutate(); // Revert on error
+    } finally {
+      if (currentOwner.current === dealerId) setDeleting(false);
     }
   };
 
@@ -350,6 +388,17 @@ export default function SavedCarsPage() {
 
   return (
     <div className="min-w-0 space-y-4 pb-4 sm:space-y-6">
+      <SavedRemovalDialog
+        open={Boolean(removal)}
+        busy={deleting}
+        vehicleLabel={removal?.label || "this vehicle"}
+        error={deleteError}
+        onCancel={() => {
+          setRemoval(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => void confirmDelete()}
+      />
       {/* HEADER SECTION */}
       {comparisonIds.length > 0 && (
         <div className="sticky top-16 z-20 flex flex-wrap items-center gap-3 border border-[var(--b1)] bg-[var(--s0)] p-3 rounded-lg">
@@ -376,7 +425,11 @@ export default function SavedCarsPage() {
       )}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black text-[var(--t1)] tracking-tight">
+          <h1
+            id="saved-vehicles-heading"
+            tabIndex={-1}
+            className="text-3xl font-black text-[var(--t1)] tracking-tight"
+          >
             Saved Vehicles
           </h1>
           <p className="text-sm text-[var(--t3)]">
