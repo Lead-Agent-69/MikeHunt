@@ -91,7 +91,7 @@ export function DealResearchWorkspace({
                 aria-selected={isActive}
                 aria-controls={`research-panel-${tab.id}`}
                 onClick={() => setActive(tab.id)}
-                className="premium-focus interactive-surface flex min-h-12 items-center gap-3 rounded-[var(--r2)] px-3 py-2 text-left"
+                className="premium-focus flex min-h-12 items-center gap-3 rounded-[var(--r2)] px-3 py-2 text-left transition-colors"
                 style={{
                   background: isActive ? "var(--s0)" : "transparent",
                   boxShadow: isActive ? "var(--shadow1)" : "none",
