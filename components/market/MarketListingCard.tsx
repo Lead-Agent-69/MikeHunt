@@ -141,11 +141,11 @@ function ListingCard({
       ref={cardRef}
       data-market-vehicle={row.id}
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 520px" }}
-      className="relative min-w-0 overflow-hidden rounded-xl border border-[var(--b1)] bg-[var(--s1)] shadow-sm"
+      className="inventory-card relative min-w-0 overflow-hidden"
     >
       <div
         data-testid="market-card-photo"
-        className="relative z-20 aspect-[16/9] overflow-hidden bg-[var(--s2)]"
+        className="relative z-20 aspect-[16/10] overflow-hidden bg-[var(--s2)]"
       >
         {photos.length ? (
           <Link
@@ -233,16 +233,16 @@ function ListingCard({
           </div>
         )}
       </div>
-      <div className="space-y-2.5 p-3">
+      <div className="space-y-3 p-4">
         <div
           data-testid="market-card-price"
-          className="flex flex-wrap items-end justify-between gap-2 border-b border-[var(--b1)] pb-2.5"
+          className="flex flex-wrap items-end justify-between gap-2"
         >
           <div>
             <p className="text-[10px] font-semibold text-[var(--t3)]">
               {price?.label || "Unverified advertised amount"}
             </p>
-            <p className="text-xl font-extrabold tabular-nums">
+            <p className="text-2xl font-bold tabular-nums tracking-normal">
               {reportedPrice(price?.amount)}
             </p>
           </div>
@@ -271,14 +271,14 @@ function ListingCard({
           )}
           <h3
             data-testid="market-card-title"
-            className="mt-1 break-words text-base font-bold leading-snug"
+            className="mt-1 break-words text-[17px] font-semibold leading-snug"
           >
             <Link
               href={`/deal/${row.id}`}
               prefetch={false}
               onNavigate={rememberPosition}
               onClick={rememberNavigationClick}
-              className="hover:underline after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+              className="hover:underline after:absolute after:inset-0 after:z-10 after:rounded-[var(--inventory-card-radius)] after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
             >
               {row.title || `${row.year} ${row.make} ${row.model}`}
             </Link>
@@ -299,7 +299,7 @@ function ListingCard({
               : "Full purchase price needs confirmation at the source."}
           </p>
         )}
-        <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-[var(--s2)] p-2.5 text-xs">
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-[var(--s1)] p-3 text-xs">
           <div>
             <dt className="text-[var(--t3)]">Mileage</dt>
             <dd className="font-semibold">
@@ -416,8 +416,7 @@ function ListingCard({
         )}
         {flipDesk && row.valuationEvidence?.supported === false && (
           <p className="text-xs text-[var(--t3)]">
-            {row.valuationEvidence.label}. Review market evidence in listing
-            details.
+            {row.valuationEvidence.label}.
           </p>
         )}
         <p className="flex flex-wrap items-center gap-1 text-xs text-[var(--t3)]">
@@ -435,7 +434,7 @@ function ListingCard({
           <Link
             href={`/deal/${row.id}`}
             prefetch={false}
-            className="relative z-20 inline-flex min-h-11 items-center text-xs font-bold text-[var(--blue)]"
+            className="relative z-20 inline-flex min-h-11 items-center rounded-full bg-[var(--accent-surface)] px-4 text-xs font-bold text-[var(--blue)]"
             onNavigate={rememberPosition}
             onClick={rememberNavigationClick}
           >
