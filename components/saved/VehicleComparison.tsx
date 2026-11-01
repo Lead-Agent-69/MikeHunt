@@ -44,8 +44,24 @@ type Candidate = {
   damageType?: string;
   runAndDrive?: boolean;
   hasKeys?: boolean;
-  dealAnalysis?: { costs?: { repair?: number; transport?: number } };
+  dealAnalysis?: {
+    costs?: { repair?: number; transport?: number };
+    evidenceGates?: { costsConfirmed?: boolean };
+  };
 };
+
+// A stored model default is not a reviewed expense. This is the same cost gate
+// used by the economics evidence contract; sale evidence is not needed to show
+// a separately reviewed allowance.
+function reviewedCost(candidate: Candidate, kind: "repair" | "transport") {
+  const value = candidate.dealAnalysis?.costs?.[kind];
+  return candidate.dealAnalysis?.evidenceGates?.costsConfirmed === true &&
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+    ? value
+    : undefined;
+}
 
 const money = (value?: number) =>
   value == null || !Number.isFinite(value) || value < 0
@@ -282,11 +298,18 @@ export function VehicleComparison({
     },
     {
       label: "Repair allowance (estimate)",
-      value: (c) => money(c.dealAnalysis?.costs?.repair),
+      value: (c) => money(reviewedCost(c, "repair")),
     },
     {
       label: "Transport (estimate)",
-      value: (c) => money(c.dealAnalysis?.costs?.transport),
+      value: (c) => money(reviewedCost(c, "transport")),
+    },
+    {
+      label: "Cost evidence",
+      value: (c) =>
+        c.dealAnalysis?.evidenceGates?.costsConfirmed === true
+          ? "Reviewed allowances; confirm final quotes"
+          : "Unreviewed model allowances withheld",
     },
     {
       label: "Known-cost subtotal",
@@ -300,8 +323,8 @@ export function VehicleComparison({
         )
           return "Not confirmed";
         const extras = [
-          c.dealAnalysis?.costs?.repair,
-          c.dealAnalysis?.costs?.transport,
+          reviewedCost(c, "repair"),
+          reviewedCost(c, "transport"),
         ].filter(
           (value): value is number =>
             typeof value === "number" && Number.isFinite(value) && value >= 0,

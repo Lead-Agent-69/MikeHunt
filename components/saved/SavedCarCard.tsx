@@ -244,6 +244,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           <label className="relative z-20 flex min-h-11 items-center gap-2 px-3 text-sm">
             <input
               type="checkbox"
+              aria-label={`Compare ${snapshot.year || ""} ${snapshot.make || ""} ${snapshot.model || "vehicle"}`.trim()}
               checked={comparisonSelected}
               onChange={onToggleComparison}
             />
