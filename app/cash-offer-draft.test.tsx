@@ -98,6 +98,8 @@ describe("owner-chosen cash offer draft", () => {
     expect(button("Copy for SMS").disabled).toBe(true);
     expect(button("Print / Save PDF").disabled).toBe(true);
     expect(document.body.textContent).toContain("[Enter your offer]");
+    expect(document.body.textContent).not.toContain("Current Asking Price");
+    expect(document.body.textContent).not.toContain("$2,180");
     expect(document.activeElement).toBe(amount());
     await render({
       ...vehicle,

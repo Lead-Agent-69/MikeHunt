@@ -420,16 +420,6 @@ Please confirm if this works to schedule pickup and payment.`;
                           {locationFormatted}
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] font-bold uppercase text-[var(--t4)] print:text-gray-600">
-                          Current Asking Price
-                        </div>
-                        <Mono className="text-xs font-bold text-[var(--t3)] line-through mt-0.5 print:text-black">
-                          {deal.askPrice
-                            ? `$${deal.askPrice.toLocaleString()}`
-                            : "Unstated"}
-                        </Mono>
-                      </div>
                     </div>
 
                     {/* The Offer Amount Box */}
