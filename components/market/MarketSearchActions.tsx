@@ -36,7 +36,7 @@ export function MarketSearchActions({
         title="Save search on this device"
         disabled={disabled}
         onClick={onSave}
-        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--blue)] px-3 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
       >
         <BookmarkPlus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>

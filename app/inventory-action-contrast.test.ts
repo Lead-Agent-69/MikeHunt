@@ -11,18 +11,23 @@ const luminance = (hex: string) => {
 };
 describe("inventory primary-action contrast", () => {
   it.each([
-    ["#075be8", "#ffffff"],
-    ["#8eb6ff", "#07111f"],
-  ])("keeps %s / %s readable", (background, foreground) => {
-    const css = readFileSync("app/globals.css", "utf8");
-    expect(css).toContain(`--accent: ${background}`);
-    expect(css).toContain(`--on-accent: ${foreground}`);
-    const a = luminance(background),
-      b = luminance(foreground);
-    expect(
-      (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-    ).toBeGreaterThanOrEqual(4.5);
-  });
+    ["accent", "#075be8", "on-accent", "#ffffff"],
+    ["accent", "#8eb6ff", "on-accent", "#07111f"],
+    ["accent-surface", "#edf3ff", "blue", "#075be8"],
+    ["accent-surface", "#21354d", "blue", "#8eb6ff"],
+  ])(
+    "keeps %s %s / %s %s readable",
+    (backgroundToken, background, foregroundToken, foreground) => {
+      const css = readFileSync("app/globals.css", "utf8");
+      expect(css).toContain(`--${backgroundToken}: ${background}`);
+      expect(css).toContain(`--${foregroundToken}: ${foreground}`);
+      const a = luminance(background),
+        b = luminance(foreground);
+      expect(
+        (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+      ).toBeGreaterThanOrEqual(4.5);
+    },
+  );
   it.each([
     "components/feed/FeedVehicleCard.tsx",
     "components/search/QuickVehicleReview.tsx",
@@ -37,7 +42,7 @@ describe("inventory primary-action contrast", () => {
     "components/deal/VehicleSourceAction.tsx",
     "components/reco/SimilarInterestPrompt.tsx",
     "app/(dashboard)/discover/page.tsx",
-    "components/discovery/DiscoveryCard.tsx",
+    "components/market/MarketSearchActions.tsx",
     "components/settings/BuyingProfilePrefs.tsx",
     "app/(dashboard)/recon/page.tsx",
     "components/deal/ReportListing.tsx",
@@ -49,5 +54,15 @@ describe("inventory primary-action contrast", () => {
     expect(source).not.toMatch(
       /bg-\[var\(--blue\)\][^"]*text-white|text-white[^"]*bg-\[var\(--blue\)\]/,
     );
+  });
+  it("keeps the Discover tonal action paired with its contrasting foreground", () => {
+    const source = readFileSync(
+      "components/discovery/DiscoveryCard.tsx",
+      "utf8",
+    );
+    const action = source.slice(source.lastIndexOf("<Link"));
+    expect(action).toContain("bg-[var(--accent-surface)]");
+    expect(action).toContain("text-[var(--blue)]");
+    expect(action).toContain("min-h-11");
   });
 });
