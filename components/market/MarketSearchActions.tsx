@@ -36,7 +36,7 @@ export function MarketSearchActions({
         title="Save search on this device"
         disabled={disabled}
         onClick={onSave}
-        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg bg-[var(--blue)] px-2.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:px-3"
+        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--blue)] px-3 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
       >
         <BookmarkPlus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>
@@ -49,7 +49,7 @@ export function MarketSearchActions({
         title="Refresh results"
         disabled={disabled || refreshDisabled || refreshing}
         onClick={onRefresh}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--b1)] px-2.5 text-xs font-semibold disabled:opacity-50 sm:px-3"
+        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--b1)] px-3 text-xs font-semibold disabled:opacity-50 sm:px-4"
       >
         <RefreshCw className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>
@@ -61,7 +61,7 @@ export function MarketSearchActions({
         type="button"
         aria-label="Copy filtered search link"
         onClick={onCopy}
-        className="hidden min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold sm:inline-flex"
+        className="hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
       >
         <Copy className="h-4 w-4" />
         Copy search
@@ -70,7 +70,7 @@ export function MarketSearchActions({
         type="button"
         aria-label="Reset filters"
         onClick={onReset}
-        className="hidden min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-xs font-semibold sm:inline-flex"
+        className="hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
       >
         <RotateCcw className="h-4 w-4" />
         Reset
@@ -78,7 +78,7 @@ export function MarketSearchActions({
       <Menu.Root>
         <Menu.Trigger
           aria-label="Search actions"
-          className="grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] sm:hidden"
+          className="grid h-11 w-11 place-items-center rounded-full border border-[var(--b1)] sm:hidden"
         >
           <Ellipsis className="h-5 w-5" />
         </Menu.Trigger>
