@@ -105,7 +105,7 @@ describe("saved-card actions", () => {
     expect(
       host.querySelector('a[aria-label="Analyze 2022 Honda Civic"]')
         ?.parentElement?.className,
-    ).toContain("aspect-[16/9]");
+    ).toContain("aspect-[16/10]");
     expect(
       host.querySelector('a[href="/deal/vehicle-one"]')?.textContent,
     ).not.toBeUndefined();

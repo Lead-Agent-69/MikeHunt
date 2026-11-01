@@ -67,17 +67,20 @@ export function DealResearchWorkspace({
   }, [active, tabs]);
 
   const selected = tabs.find((tab) => tab.id === active) ?? tabs[0];
+  const controls = React.useRef<
+    Partial<Record<ResearchView, HTMLButtonElement | null>>
+  >({});
 
   return (
     <section
       aria-label="Focused vehicle research"
-      className="overflow-hidden rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)]"
+      className="browse-panel overflow-hidden"
     >
       <div className="border-b border-[var(--b1)] bg-[var(--s1)] p-2">
         <div
           role="tablist"
           aria-label="Vehicle research views"
-          className="grid grid-cols-1 gap-1 sm:grid-flow-col sm:auto-cols-fr"
+          className="flex min-w-0 gap-1 overflow-x-auto sm:grid sm:grid-flow-col sm:auto-cols-fr"
         >
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -90,15 +93,37 @@ export function DealResearchWorkspace({
                 id={`research-tab-${tab.id}`}
                 aria-selected={isActive}
                 aria-controls={`research-panel-${tab.id}`}
+                tabIndex={isActive ? 0 : -1}
+                ref={(element) => {
+                  controls.current[tab.id] = element;
+                }}
                 onClick={() => setActive(tab.id)}
-                className="premium-focus flex min-h-12 items-center gap-3 rounded-[var(--r2)] px-3 py-2 text-left transition-colors"
+                onKeyDown={(event) => {
+                  const index = tabs.findIndex((item) => item.id === tab.id);
+                  const next =
+                    event.key === "ArrowRight"
+                      ? (index + 1) % tabs.length
+                      : event.key === "ArrowLeft"
+                        ? (index + tabs.length - 1) % tabs.length
+                        : event.key === "Home"
+                          ? 0
+                          : event.key === "End"
+                            ? tabs.length - 1
+                            : -1;
+                  if (next < 0) return;
+                  event.preventDefault();
+                  setActive(tabs[next].id);
+                  controls.current[tabs[next].id]?.focus();
+                }}
+                className="premium-focus flex min-h-12 min-w-[8.5rem] shrink-0 items-center gap-2 rounded-full px-3 py-2 text-left transition-colors sm:min-w-0"
                 style={{
-                  background: isActive ? "var(--s0)" : "transparent",
-                  boxShadow: isActive ? "var(--shadow1)" : "none",
+                  background: isActive
+                    ? "var(--accent-surface)"
+                    : "transparent",
                 }}
               >
                 <span
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--r2)]"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
                   style={{
                     background: "var(--s2)",
                     color: isActive ? "var(--blue)" : "var(--t4)",
@@ -124,7 +149,8 @@ export function DealResearchWorkspace({
         role="tabpanel"
         id={`research-panel-${selected.id}`}
         aria-labelledby={`research-tab-${selected.id}`}
-        className="min-h-40 p-3 md:p-4"
+        tabIndex={0}
+        className="premium-focus min-h-40 p-3 md:p-4"
       >
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>

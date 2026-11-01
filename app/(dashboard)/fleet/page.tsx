@@ -48,7 +48,7 @@ const STAGE_LABELS: Record<string, string> = {
 function SkeletonCard() {
   return (
     <div
-      className="panel p-5 space-y-4"
+      className="browse-panel p-4 space-y-4 sm:p-5"
       style={{ animation: "pulse 1.8s ease-in-out infinite" }}
     >
       <div className="flex items-start justify-between">
@@ -393,7 +393,7 @@ function ExpenseModal({
     <dialog
       {...recordDialog}
       aria-label="Log vehicle expense"
-      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
+      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-3xl border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
     >
       <fieldset disabled={saving} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
@@ -490,8 +490,7 @@ function ExpenseModal({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-white border-none disabled:opacity-50"
-            style={{ background: "var(--grad)" }}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 bg-[var(--accent)] text-[var(--on-accent)] border-none disabled:opacity-50"
           >
             {saving ? (
               <span
@@ -570,7 +569,7 @@ function MarkSoldModal({
     <dialog
       {...recordDialog}
       aria-label="Record vehicle sale"
-      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-lg border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
+      className="fixed inset-0 m-auto w-[calc(100%-32px)] max-w-md max-h-[calc(100%-32px)] overflow-auto rounded-3xl border border-[var(--b2)] bg-[var(--s0)] p-5 text-[var(--t1)] backdrop:bg-black/50"
     >
       <fieldset disabled={saving} className="min-w-0 space-y-4">
         <div className="flex items-center justify-between">
@@ -679,8 +678,7 @@ function MarkSoldModal({
           <button
             onClick={handleSold}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 text-white border-none disabled:opacity-50"
-            style={{ background: "var(--grad)" }}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 bg-[var(--accent)] text-[var(--on-accent)] border-none disabled:opacity-50"
           >
             {saving ? (
               <span
@@ -802,7 +800,7 @@ function UnitCard({ item, now, onUpdated }: UnitCardProps) {
   return (
     <>
       <div
-        className="panel p-5 space-y-4 transition-all duration-300 reveal-on-scroll"
+        className="browse-panel p-4 space-y-4 sm:p-5"
         style={{
           borderColor: isPast ? "var(--rbd)" : undefined,
         }}
@@ -1141,7 +1139,7 @@ function FleetPageHeader({ count }: { count: number }) {
     <header className="border-b border-[var(--b1)] pb-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="mt-1 text-xl font-black text-[var(--t1)] md:text-2xl">
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--t1)] md:text-3xl">
             Pipeline
           </h1>
         </div>
@@ -1279,7 +1277,7 @@ function FleetWorkspace({
   );
 
   return (
-    <div className="space-y-5 pb-24">
+    <div className="min-w-0 max-w-full space-y-5 pb-24">
       <FleetPageHeader count={!loading && !error ? fleet.length : 0} />
 
       {!loading && !error && fleet.length > 0 && (
@@ -1370,7 +1368,7 @@ function FleetWorkspace({
       {/* Filter tabs */}
       {!loading && !error && fleet.length > 0 && (
         <div
-          className="flex gap-1.5 overflow-x-auto pb-1"
+          className="browse-segmented flex gap-1 overflow-x-auto p-1"
           style={{ scrollbarWidth: "none" }}
         >
           {FILTER_TABS.map((f) => {
@@ -1383,10 +1381,13 @@ function FleetWorkspace({
               <button
                 key={f.key}
                 onClick={() => setFilter(f.key)}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r3)] text-xs font-semibold transition-all"
+                aria-pressed={isActive}
+                className="min-h-11 shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors"
                 style={{
-                  background: isActive ? "var(--amber-lo)" : "var(--s3)",
-                  color: isActive ? "var(--amber)" : "var(--t4)",
+                  background: isActive
+                    ? "var(--accent-surface)"
+                    : "transparent",
+                  color: isActive ? "var(--accent)" : "var(--t3)",
                   border: `1px solid ${isActive ? "var(--amber-bd)" : "var(--b1)"}`,
                 }}
               >
@@ -1396,7 +1397,7 @@ function FleetWorkspace({
                     className="text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full"
                     style={{
                       background: isActive ? "var(--amber-bd)" : "var(--s5)",
-                      color: isActive ? "var(--amber)" : "var(--t4)",
+                      color: isActive ? "var(--accent)" : "var(--t3)",
                     }}
                   >
                     {count}

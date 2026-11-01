@@ -861,11 +861,11 @@ export default function DealPage({
 
       <nav
         aria-label="Vehicle detail sections"
-        className="sticky top-14 z-20 grid grid-cols-4 gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-1 shadow-sm"
+        className="browse-segmented sticky top-14 z-20 grid grid-cols-4 gap-1 p-1"
       >
         <button
           type="button"
-          className="premium-focus min-h-11 min-w-0 rounded-lg px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--t1)] hover:bg-[var(--s2)]"
+          className="premium-focus min-h-11 min-w-0 rounded-full px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--t1)] hover:bg-[var(--s2)]"
           onClick={() => {
             const overview = document.getElementById("vehicle-overview");
             overview?.scrollIntoView({ block: "start", behavior: "instant" });
@@ -885,7 +885,7 @@ export default function DealPage({
             key={section}
             type="button"
             onClick={() => openVerificationSection(section)}
-            className="premium-focus min-h-11 min-w-0 rounded-lg px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s2)]"
+            className="premium-focus min-h-11 min-w-0 rounded-full px-1 text-xs sm:px-3 sm:text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s2)]"
           >
             {label}
           </button>
@@ -927,7 +927,7 @@ export default function DealPage({
         )}
         <aside
           aria-label="Vehicle details and actions"
-          className="min-w-0 space-y-4 rounded-xl border border-[var(--b1)] bg-[var(--s1)] p-3 sm:p-4"
+          className="browse-panel min-w-0 space-y-4 p-3 sm:p-4"
         >
           <section
             aria-label="Vehicle actions"

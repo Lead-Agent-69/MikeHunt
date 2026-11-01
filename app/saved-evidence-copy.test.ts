@@ -67,6 +67,21 @@ it("retains unavailable vehicles and does not describe them as ready to buy", ()
   expect(html).toContain("Listing is no longer available");
   expect(html).toContain("Acura");
   expect(html).not.toContain("Ready to review");
+  expect(html).toContain("Last saved details retained");
+  expect(html).not.toContain("Listing Removed / Sold");
+  expect(html).not.toContain("opacity-60");
+});
+
+it("treats a saved auction reminder as a request to verify the current closing time", () => {
+  const html = renderToStaticMarkup(
+    React.createElement(SavedCarCard, {
+      save: { ...save, status: "ending_soon" },
+      onDelete: () => {},
+      onUpdateStatus: () => {},
+    }),
+  );
+  expect(html).toContain("Verify the current closing time");
+  expect(html).not.toContain("Bid Closing Urgent");
 });
 
 it("keeps payment meaning and withholds legacy saved profit and repair guesses", () => {

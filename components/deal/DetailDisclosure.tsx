@@ -35,24 +35,28 @@ export function DetailDisclosure({
     <details
       ref={details}
       name="vehicle-research-sections"
-      className="scroll-mt-36 rounded-[var(--r2)] border border-[var(--b1)] bg-[var(--s0)]"
+      className="browse-panel scroll-mt-36"
       onToggle={(event) => setExpanded(event.currentTarget.open)}
     >
       <summary
         ref={heading}
-        className="premium-focus flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 rounded-[inherit] p-4 transition-colors hover:bg-[var(--s1)] marker:hidden md:p-5 [&::-webkit-details-marker]:hidden"
+        className="premium-focus flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[inherit] p-4 transition-colors hover:bg-[var(--s1)] marker:hidden md:gap-4 md:p-5 [&::-webkit-details-marker]:hidden"
       >
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--t5)]">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--t3)]">
             {eyebrow}
           </p>
-          <h2 className="mt-1 text-base font-black text-[var(--t1)]">
+          <h2 className="mt-1 text-lg font-semibold tracking-tight text-[var(--t1)]">
             {title}
           </h2>
-          <p className="mt-1 text-sm text-[var(--t4)]">{summary}</p>
+          <p className="mt-1 text-sm leading-relaxed text-[var(--t3)]">
+            {summary}
+          </p>
         </div>
-        <span className="flex max-w-24 shrink-0 items-center gap-1 text-xs font-bold text-[var(--blue)] sm:max-w-36">
-          <span>{expanded ? "Close section" : actionLabel}</span>
+        <span className="flex min-h-9 w-9 shrink-0 items-center justify-center gap-1 rounded-full bg-[var(--accent-surface)] text-xs font-semibold text-[var(--blue)] sm:w-auto sm:max-w-36 sm:px-3">
+          <span className="sr-only sm:not-sr-only">
+            {expanded ? "Close section" : actionLabel}
+          </span>
           <ChevronDown
             aria-hidden="true"
             className={`h-4 w-4 shrink-0 ${expanded ? "rotate-180" : ""}`}
