@@ -70,9 +70,11 @@ describe("mobile fixed UI surfaces", () => {
     expect(aiFeatures).toContain("open-mikehunt-copilot");
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain("prefetch={false}");
-    expect(bottomNav).toMatch(
-      /layoutId=\{\s*reducedMotion \? undefined : "bottom-nav-active-pill"\s*\}/,
+    expect(bottomNav).toContain("useNavigationScrub");
+    expect(bottomNav).toContain(
+      "reducedMotion ? scrub.position : settledPosition",
     );
+    expect(bottomNav).toContain("draggable={false}");
     expect(bottomNav).toContain('aria-current={isActive ? "page" : undefined}');
     expect(bottomNav).toContain("navigator.vibrate?.(8)");
     expect(bottomNav).toContain(

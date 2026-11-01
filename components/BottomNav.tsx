@@ -2,11 +2,17 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  motion,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import { Lock } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
+import { useNavigationScrub } from "@/hooks/useNavigationScrub";
 import {
   mobileNavForMode,
   navItemForViewer,
@@ -15,6 +21,7 @@ import {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const reducedMotion = useReducedMotion();
 
   const { intent } = useBuyerIntent();
@@ -22,6 +29,19 @@ export function BottomNav() {
   const signedOut = !authLoading && !dealerId;
   const tabs = mobileNavForMode(intent?.buyerMode).map((item) =>
     navItemForViewer(item, signedOut),
+  );
+  const selected = tabs.findIndex((item) => navItemIsActive(item, pathname));
+  const scrub = useNavigationScrub(selected, tabs.length, pathname, (index) => {
+    tapFeedback();
+    router.push(tabs[index].href);
+  });
+  const settledPosition = useSpring(scrub.position, {
+    stiffness: 520,
+    damping: 36,
+  });
+  const pillX = useTransform(
+    reducedMotion ? scrub.position : settledPosition,
+    (value) => `${value * 100}%`,
   );
 
   const tapFeedback = () => {
@@ -41,17 +61,39 @@ export function BottomNav() {
       }}
     >
       <div
-        className="navigation-capsule pointer-events-auto grid h-16 w-[calc(100%-2.5rem)] max-w-[34rem] gap-0.5 p-1.5"
+        {...scrub.handlers}
+        data-navigation-scrub=""
+        data-pressed={scrub.pressed || undefined}
+        className="navigation-capsule navigation-mobile-capsule pointer-events-auto relative isolate grid h-16 w-[calc(100%-3.5rem)] max-w-[25rem] p-1"
         style={{
           gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
         }}
       >
+        {(selected >= 0 || scrub.preview !== null) && (
+          <motion.span
+            className="navigation-selection pointer-events-none absolute bottom-1 left-1 top-1 rounded-full"
+            style={{ width: `calc((100% - 8px) / ${tabs.length})`, x: pillX }}
+            animate={
+              reducedMotion
+                ? undefined
+                : {
+                    scaleX: scrub.pressed ? 1.06 : 1,
+                    scaleY: scrub.pressed ? 0.96 : 1,
+                  }
+            }
+            transition={{ type: "spring", stiffness: 520, damping: 36 }}
+            aria-hidden="true"
+          />
+        )}
         {tabs.map((item) => {
           const isActive = navItemIsActive(item, pathname);
+          const highlighted =
+            tabs.indexOf(item) === (scrub.preview ?? selected);
           return (
             <Link
               key={item.name}
               href={item.href}
+              draggable={false}
               prefetch={false}
               aria-current={isActive ? "page" : undefined}
               aria-label={
@@ -62,28 +104,13 @@ export function BottomNav() {
               onClick={tapFeedback}
               className="group relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-full transition-colors active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--accent)]"
               style={{
-                color: isActive ? "var(--accent)" : "var(--t3)",
+                color: highlighted ? "var(--accent)" : "var(--t3)",
                 WebkitTapHighlightColor: "transparent",
               }}
               title={
                 item.signInRequired ? `Sign in to use ${item.name}` : item.name
               }
             >
-              {isActive && (
-                <motion.span
-                  layoutId={
-                    reducedMotion ? undefined : "bottom-nav-active-pill"
-                  }
-                  className="absolute inset-0 rounded-full"
-                  style={{ background: "var(--accent-surface)" }}
-                  transition={
-                    reducedMotion
-                      ? { duration: 0 }
-                      : { type: "spring", stiffness: 430, damping: 34 }
-                  }
-                  aria-hidden="true"
-                />
-              )}
               <motion.span
                 className="relative z-10 grid h-7 w-8 place-items-center"
                 tabIndex={-1}
@@ -91,7 +118,7 @@ export function BottomNav() {
                   reducedMotion
                     ? undefined
                     : {
-                        scale: isActive ? 1.03 : 1,
+                        scale: highlighted ? 1.03 : 1,
                       }
                 }
                 whileTap={reducedMotion ? undefined : { scale: 0.92 }}
