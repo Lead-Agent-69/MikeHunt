@@ -42,14 +42,14 @@ export function VehicleSearchForm({
           disabled={disabled}
           enterKeyHint="search"
           autoComplete="off"
-          className="min-h-12 w-full min-w-0 rounded-full border border-[var(--b2)] bg-[var(--s1)] py-2 pl-11 pr-4 text-base text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+          className="feedback-input min-h-12 w-full min-w-0 rounded-full border border-[var(--b2)] bg-[var(--s1)] py-2 pl-11 pr-4 text-base text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         />
       </div>
       {showSubmit && (
         <button
           type="submit"
           disabled={disabled}
-          className="min-h-12 shrink-0 rounded-full bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+          className="feedback-action min-h-12 shrink-0 rounded-full bg-[var(--accent)] px-4 text-sm font-semibold text-[var(--on-accent)] disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
         >
           Search
         </button>

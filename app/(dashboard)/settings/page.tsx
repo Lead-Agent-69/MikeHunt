@@ -25,6 +25,14 @@ const fetcher = (url: string) =>
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
 function SettingsSectionNav({ business }: { business: boolean }) {
+  const [selected, setSelected] = useState("buying-preferences");
+  useEffect(() => {
+    const sync = () =>
+      setSelected(window.location.hash.slice(1) || "buying-preferences");
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, []);
   return (
     <nav
       aria-label="Settings sections"
@@ -41,6 +49,8 @@ function SettingsSectionNav({ business }: { business: boolean }) {
         <a
           key={id}
           href={`#${id}`}
+          aria-current={selected === id ? "location" : undefined}
+          onClick={() => setSelected(id)}
           className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
         >
           {label}

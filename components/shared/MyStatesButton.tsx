@@ -56,10 +56,10 @@ export function MyStatesButton({
     <>
       <button
         onClick={() => setOpen(true)}
-        className={
+        className={`feedback-control ${
           className ||
           "interactive-surface premium-focus inline-flex items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3.5 py-2 text-[13px] font-bold text-[var(--t2)] shadow-[var(--shadow2)] hover:text-[var(--t1)]"
-        }
+        }`}
         title={
           states.length === 0
             ? "Listings in all states"
@@ -68,6 +68,7 @@ export function MyStatesButton({
         aria-label={`Choose location: ${label}`}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-busy={prefsLoading || undefined}
         style={{ minHeight: 44, minWidth: 44 }}
       >
         <MapPin className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

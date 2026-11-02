@@ -48,7 +48,7 @@ function AvailablePreview({
         type="button"
         aria-label={`Enlarge photos of ${title}`}
         title={`View ${photos.length} ${photos.length === 1 ? "photo" : "photos"}`}
-        className={`${className} grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white focus-visible:outline-2 focus-visible:outline-white`}
+        className={`${className} feedback-action grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white focus-visible:outline-2 focus-visible:outline-white`}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={(event) => {
           event.preventDefault();

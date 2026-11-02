@@ -35,13 +35,15 @@ function IconBtn({
   children: React.ReactNode;
   badge?: number;
 }) {
+  const pathname = usePathname();
   return (
     <Link
       href={href}
       prefetch={false}
       title={title}
       aria-label={title}
-      className="relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b1)] transition-colors text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+      aria-current={pathname === href ? "page" : undefined}
+      className="feedback-control relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b1)] transition-colors text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
     >
       {children}
       {badge != null && badge > 0 && (
@@ -65,16 +67,15 @@ function NavPill() {
     <motion.span
       layoutId={reducedMotion ? undefined : "topnav-pill"}
       aria-hidden="true"
-      className="absolute inset-0 rounded-full"
-      style={{
-        background: "var(--accent-surface)",
-      }}
+      className="navigation-selection absolute inset-0 rounded-full"
       transition={
         reducedMotion
           ? { duration: 0 }
           : { type: "spring", stiffness: 400, damping: 30 }
       }
-    />
+    >
+      <span className="navigation-paint" />
+    </motion.span>
   );
 }
 
