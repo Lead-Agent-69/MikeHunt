@@ -19,6 +19,8 @@ it("preserves the recorded Expedition request in Market instead of silently savi
   expect(params.get("yearMin")).toBe("2018");
   expect(params.get("yearMax")).toBe("2022");
   expect(params.get("conditions")).toBe("clean_title");
+  expect(params.get("q")).toBeNull();
+  expect(p.unsupported).not.toContain("Additional keywords");
 });
 
 it("never treats a mileage limit as a dollar budget", () => {

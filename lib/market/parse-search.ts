@@ -69,6 +69,8 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
     return result;
   }
   let remaining = query;
+  // “within 100 miles of ZIP 63101” has two location cues; don't leave “of” as a vehicle keyword.
+  remaining = remaining.replace(/\bof\s+(?=zip\s*:?\s*\d{5}\b)/gi, " ");
   const consume = (pattern: RegExp) => {
     remaining = remaining.replace(pattern, " ");
   };
@@ -465,6 +467,7 @@ export function parseMarketSearch(input: string): MarketSearchInterpretation {
       " ",
     )
     .replace(/[,;]+/g, " ")
+    .replace(/[.!?]+\s*$/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (/\d/.test(remaining)) {
