@@ -294,9 +294,6 @@
   border-radius: 24px;
   background: var(--s1);
 }
-.browse-panel .field {
-  border-radius: 12px;
-}
 .browse-segmented a:focus-visible,
 .browse-segmented button:focus-visible {
   outline: 2px solid var(--accent);
@@ -759,6 +756,9 @@ html {
 .field:focus {
   border-color: rgba(37, 99, 111, 0.55);
   box-shadow: 0 0 0 3px rgba(37, 99, 111, 0.1);
+}
+.browse-panel .field {
+  border-radius: 12px;
 }
 
 /* ── Typography ── */
