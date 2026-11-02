@@ -298,7 +298,10 @@
     0 0 18px color-mix(in srgb, var(--accent) 13%, transparent);
 }
 @media (hover: hover) and (pointer: fine) {
-  .navigation-capsule > a[aria-current="page"]:hover .navigation-paint {
+  .navigation-capsule > a[aria-current="page"]:hover .navigation-paint,
+  .navigation-mobile-capsule:where(:has(> a[data-highlighted="true"]:hover))
+    > .navigation-selection
+    > .navigation-paint {
     background: color-mix(in srgb, var(--accent-surface) 88%, var(--accent));
     border-color: color-mix(in srgb, var(--accent) 48%, transparent);
     box-shadow:

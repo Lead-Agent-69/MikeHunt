@@ -12,7 +12,10 @@ vi.mock("@/lib/supabase", () => ({
   createClientComponentClient: () => ({ auth: mocks }),
   isSupabaseConfigured: () => true,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => mocks }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => mocks,
+  usePathname: () => "/saved",
+}));
 vi.mock("@/hooks/useBuyerIntent", () => ({
   useBuyerIntent: () => ({ intent: { buyerMode: "personal" } }),
 }));

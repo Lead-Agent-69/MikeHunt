@@ -6,13 +6,17 @@ const mocks = vi.hoisted(() => ({
   mode: "personal",
   dealerId: "user-one" as string | null,
   loading: false,
+  pathname: "/saved",
   replace: vi.fn(),
   refresh: vi.fn(),
   signOut: vi.fn(),
   detach: vi.fn(),
   errorToast: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => mocks }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => mocks,
+  usePathname: () => mocks.pathname,
+}));
 vi.mock("next/link", () => ({
   default: ({ children, ...props }: any) =>
     React.createElement("a", props, children),
@@ -41,6 +45,7 @@ beforeEach(() => {
   mocks.mode = "personal";
   mocks.dealerId = "user-one";
   mocks.loading = false;
+  mocks.pathname = "/saved";
   mocks.signOut.mockResolvedValue({ error: null });
   mocks.detach.mockResolvedValue(undefined);
   host = document.createElement("div");
@@ -62,6 +67,48 @@ async function open() {
 }
 
 describe("Account navigation", () => {
+  it("closes an open account panel when the route changes", async () => {
+    await open();
+    expect(host.querySelector("nav")).not.toBeNull();
+    mocks.pathname = "/tools";
+    await act(async () =>
+      root.render(React.createElement(AccountMenu, { floating: false })),
+    );
+    expect(host.querySelector("nav")).toBeNull();
+    expect(host.querySelector("button")?.getAttribute("aria-expanded")).toBe(
+      "false",
+    );
+  });
+
+  it("closes on same-path browser history changes and still opens normally afterward", async () => {
+    await open();
+    act(() => window.dispatchEvent(new PopStateEvent("popstate")));
+    expect(host.querySelector("nav")).toBeNull();
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("button")!.click(),
+    );
+    expect(host.querySelector("nav")).not.toBeNull();
+  });
+
+  it("exposes the current account destination without also marking its parent shortcut", async () => {
+    mocks.pathname = "/searches";
+    await open();
+    expect(
+      Array.from(host.querySelectorAll('nav a[aria-current="page"]'), (a) =>
+        a.getAttribute("href"),
+      ),
+    ).toEqual(["/searches"]);
+    await act(async () =>
+      host.querySelector<HTMLButtonElement>("button")!.click(),
+    );
+    mocks.pathname = "/deal-check";
+    await open();
+    expect(
+      Array.from(host.querySelectorAll('nav a[aria-current="page"]'), (a) =>
+        a.getAttribute("href"),
+      ),
+    ).toEqual(["/tools"]);
+  });
   it("keeps the session when device alert revocation fails", async () => {
     mocks.detach.mockRejectedValue(new Error("revocation failed"));
     await open();

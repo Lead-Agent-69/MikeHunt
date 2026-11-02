@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Bot,
@@ -41,6 +41,8 @@ import { useDealerId } from "@/hooks/useDealerId";
 import {
   accountMenuForMode,
   navItemForViewer,
+  navItemIsActive,
+  navItemMatchesPath,
 } from "@/components/layout/nav-items";
 import { ThemeToggle } from "@/components/shared/ThemeToggle";
 import { detachPushForLogout } from "@/lib/notifications/device-logout";
@@ -76,6 +78,7 @@ function menuIcon(href: string): LucideIcon {
 // it top-right; pass floating={false} to drop it inline into a nav bar's right side.
 export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { intent } = useBuyerIntent();
   // Keep account shortcuts compact; the role-aware tool catalog lives at /tools.
   const menu = accountMenuForMode(intent?.buyerMode);
@@ -87,6 +90,16 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [adminUserId, setAdminUserId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    const close = () => setOpen(false);
+    window.addEventListener("popstate", close);
+    return () => window.removeEventListener("popstate", close);
+  }, []);
   useEffect(() => {
     if (!open) return;
     ref.current?.querySelector<HTMLElement>(`[id="${panelId}"] a`)?.focus();
@@ -184,6 +197,15 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
           viewer.signInRequired ? `Sign in to use ${entry.name}` : undefined
         }
         onClick={() => setOpen(false)}
+        aria-current={
+          (
+            entry.href === "/tools"
+              ? navItemIsActive({ ...entry, icon: Icon }, pathname)
+              : navItemMatchesPath(entry, pathname)
+          )
+            ? "page"
+            : undefined
+        }
         className={item}
       >
         <Icon className="h-4 w-4" aria-hidden="true" /> {entry.name}
@@ -226,7 +248,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         <nav
           id={panelId}
           aria-label="Account navigation"
-          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-128px-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
+          className="absolute z-[70] top-11 right-0 w-64 max-w-[calc(100vw-24px)] max-h-[calc(100dvh-144px-env(safe-area-inset-bottom))] lg:max-h-[calc(100dvh-128px-env(safe-area-inset-bottom))] overflow-y-auto overscroll-contain p-1.5 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s0)] shadow-[var(--shadow)]"
         >
           <div className="px-3 py-2 text-xs font-bold text-[var(--t3)]">
             Account
