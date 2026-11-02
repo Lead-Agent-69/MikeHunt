@@ -76,6 +76,15 @@ describe("cross-view scope preservation", () => {
     expect(feed.getAttribute("aria-disabled")).toBe("true");
     expect(feed.getAttribute("href")).toContain("hasPhotos=no");
     expect(host.textContent).toContain("Feed and Swipe require photos");
+    const hint = host.querySelector(
+      `[id="${feed.getAttribute("aria-describedby")}"]`,
+    )!;
+    expect(hint.textContent).toContain("Feed and Swipe require photos");
+    expect(hint.closest("details")).toBeNull();
+    expect(feed.getAttribute("tabindex")).toBe("-1");
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    feed.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
   });
   it("preserves every selected market rather than just the onboarding state", async () => {
     saved.states = ["MO", "TX", "IL", "FL"];

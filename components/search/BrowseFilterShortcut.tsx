@@ -25,7 +25,7 @@ export function BrowseFilterShortcut({ query }: { query: string }) {
     <Link
       href={href}
       prefetch={false}
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4 text-sm font-semibold text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
+      className="feedback-control inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4 text-sm font-semibold text-[var(--t1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--blue)]"
       title="Open this search's full filters in Results"
     >
       <SlidersHorizontal size={17} aria-hidden="true" /> Search &amp; filters

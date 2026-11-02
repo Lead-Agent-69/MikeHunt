@@ -273,12 +273,39 @@
   -webkit-user-select: none;
   -webkit-touch-callout: none;
 }
-.navigation-selection {
+.navigation-paint {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
   background: var(--accent-surface);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
   border: 1px solid color-mix(in srgb, var(--accent) 32%, transparent);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, var(--accent) 22%, transparent),
     0 0 18px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  .navigation-capsule > a[aria-current="page"]:hover .navigation-paint {
+    background: color-mix(in srgb, var(--accent-surface) 88%, var(--accent));
+    border-color: color-mix(in srgb, var(--accent) 48%, transparent);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--accent) 32%, transparent),
+      0 0 18px color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+}
+.navigation-capsule > a[aria-current="page"]:active .navigation-paint,
+.navigation-mobile-capsule[data-pressed="true"]
+  > .navigation-selection
+  > .navigation-paint {
+  background: color-mix(in srgb, var(--accent-surface) 76%, var(--accent));
+  border-color: color-mix(in srgb, var(--accent) 62%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 20px color-mix(in srgb, var(--accent) 23%, transparent);
 }
 
 /* Browsing uses the navigation's rounded hierarchy without adding more floating layers. */
@@ -298,6 +325,152 @@
 .browse-segmented button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+/* Navigation and segmented controls share feedback without moving their hit targets. */
+:is(
+  .feedback-control,
+  .navigation-capsule > a,
+  .browse-segmented a,
+  .browse-segmented button
+) {
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+:is(.feedback-control, .browse-segmented a, .browse-segmented button):is(
+  [aria-current="page"],
+  [aria-current="true"],
+  [aria-current="location"],
+  [aria-selected="true"],
+  [aria-pressed="true"],
+  [aria-expanded="true"]
+) {
+  background: var(--accent-surface);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+@media (hover: hover) and (pointer: fine) {
+  :is(
+      .feedback-control,
+      .navigation-capsule > a,
+      .browse-segmented a,
+      .browse-segmented button
+    ):not(:disabled):not([aria-disabled="true"]):hover {
+    background: color-mix(in srgb, var(--s2) 88%, var(--accent));
+    color: var(--t1);
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+  :is(
+      .feedback-control,
+      .navigation-capsule > a,
+      .browse-segmented a,
+      .browse-segmented button
+    ):where(
+      [aria-current="page"],
+      [aria-current="true"],
+      [aria-current="location"],
+      [aria-selected="true"],
+      [aria-pressed="true"],
+      [data-highlighted="true"]
+    ):not(:disabled):not([aria-disabled="true"]):hover {
+    background: color-mix(in srgb, var(--accent-surface) 88%, var(--accent));
+    color: var(--accent);
+  }
+  :is(.btn, .feedback-action, .browse-panel button, .inventory-card button):not(
+      :disabled
+    ):not([aria-disabled="true"]):hover {
+    filter: brightness(1.08);
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+}
+:is(
+    .feedback-control,
+    .navigation-capsule > a,
+    .browse-segmented a,
+    .browse-segmented button
+  ):not(:disabled):not([aria-disabled="true"]):active {
+  background: color-mix(in srgb, var(--accent-surface) 76%, var(--accent));
+  color: var(--accent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+:is(.btn, .feedback-action, .browse-panel button, .inventory-card button):not(
+    :disabled
+  ):not([aria-disabled="true"]):active {
+  filter: brightness(0.92);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+:is(
+  .feedback-control,
+  .btn,
+  .feedback-action,
+  .navigation-capsule > a,
+  .browse-panel button,
+  .inventory-card button,
+  .browse-segmented a,
+  .browse-segmented button
+):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px var(--s0);
+}
+:is(
+  .feedback-control,
+  .btn,
+  .feedback-action,
+  .feedback-input,
+  .field,
+  .browse-panel button,
+  .inventory-card button,
+  .browse-segmented a,
+  .browse-segmented button
+):is(:disabled, [aria-disabled="true"]) {
+  cursor: not-allowed;
+  opacity: 0.45;
+  filter: none;
+  box-shadow: none;
+}
+:is(
+  .feedback-control,
+  .btn,
+  .feedback-action,
+  .browse-panel button,
+  .inventory-card button
+)[aria-busy="true"] {
+  cursor: progress;
+}
+.feedback-choice:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.feedback-choice:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+@media (hover: hover) and (pointer: fine) {
+  .feedback-choice:not(:has(input:disabled)):hover {
+    border-color: var(--accent);
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+}
+:is(.field, .feedback-input)[aria-invalid="true"] {
+  border-color: var(--red);
+}
+:is(.field, .feedback-input)[aria-invalid="true"]:focus {
+  outline-color: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 16%, transparent);
+}
+details.browse-panel[open] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--b1));
+}
+details.browse-panel[open] > summary {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
 }
 
 * {
@@ -352,6 +525,9 @@ html {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .btn:active {
+    transform: none;
   }
   .discovery-card .interactive-surface,
   .discovery-card .interactive-surface:hover,
@@ -554,9 +730,11 @@ html {
     transform var(--base) var(--ease-out);
 }
 
-.glass-panel:hover {
-  box-shadow: var(--shadow);
-  border-color: var(--b2);
+@media (hover: hover) and (pointer: fine) {
+  .glass-panel:hover {
+    box-shadow: var(--shadow);
+    border-color: var(--b2);
+  }
 }
 
 /* Artwork-led browsing: quiet surfaces keep the source photo and facts in focus. */
@@ -568,8 +746,10 @@ html {
   transition: border-color var(--base) var(--ease-out);
 }
 
-.inventory-card:hover {
-  border-color: var(--b3);
+@media (hover: hover) and (pointer: fine) {
+  .inventory-card:hover {
+    border-color: var(--b3);
+  }
 }
 
 .panel {
@@ -643,7 +823,7 @@ html {
 }
 
 .premium-focus:focus-visible {
-  outline: 2px solid rgba(7, 91, 232, 0.58);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
   box-shadow: 0 0 0 5px rgba(7, 91, 232, 0.1);
 }
@@ -697,15 +877,14 @@ html {
     background-color var(--base) var(--ease-out);
 }
 
-.btn:active {
+.btn:not(:disabled):not([aria-disabled="true"]):active {
   transform: scale(0.97);
 }
 
 .btn-primary {
-  background: var(--grad-amber);
-  color: #fff;
-  font-weight: 700;
-  box-shadow: 0 12px 24px rgba(7, 91, 232, 0.18);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 
 .btn-secondary {
@@ -715,7 +894,7 @@ html {
 }
 
 .btn-ghost {
-  background: rgba(255, 253, 248, 0.54);
+  background: var(--s1);
   color: var(--t2);
   border: 1px solid var(--b1);
 }
@@ -754,8 +933,8 @@ html {
 }
 
 .field:focus {
-  border-color: rgba(37, 99, 111, 0.55);
-  box-shadow: 0 0 0 3px rgba(37, 99, 111, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
 .browse-panel .field {
   border-radius: 12px;
@@ -868,9 +1047,11 @@ img {
     box-shadow 0.3s var(--ease-out);
 }
 
-.card-lift:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow);
+@media (hover: hover) and (pointer: fine) {
+  .card-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow);
+  }
 }
 
 /* ── Image zoom on hover ── */
@@ -882,8 +1063,10 @@ img {
   transition: transform 0.5s var(--ease-out);
 }
 
-.img-zoom:hover img {
-  transform: scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .img-zoom:hover img {
+    transform: scale(1.05);
+  }
 }
 
 /* ── Backdrop blur ── */
@@ -1104,10 +1287,12 @@ img {
   transition: all 0.3s var(--ease-out);
 }
 
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.12);
+    transform: translateY(-2px);
+  }
 }
 
 /* ── Neon glow ── */

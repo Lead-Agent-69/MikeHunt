@@ -74,6 +74,7 @@ export function InventoryViewLinks({
   disabled?: boolean;
   children?: React.ReactNode;
 }) {
+  const unavailableHintId = React.useId();
   if (disabled)
     return (
       <div
@@ -133,9 +134,14 @@ export function InventoryViewLinks({
             onClick={(event) => {
               if (unavailable(path)) event.preventDefault();
             }}
-            title={label}
+            aria-describedby={unavailable(path) ? unavailableHintId : undefined}
+            title={
+              unavailable(path)
+                ? `${label} unavailable for these filters; use Results or adjust the filters.`
+                : label
+            }
             aria-current={path === current ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-transparent px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"}`}
+            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-transparent px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t3)]"}`}
           >
             <Icon
               className="hidden h-4 w-4 min-[390px]:block"
@@ -177,7 +183,7 @@ export function InventoryViewLinks({
                   prefetch={false}
                   aria-current={active ? "true" : undefined}
                   title={option.description}
-                  className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-center text-[11px] font-semibold ${active ? "bg-[var(--s2)] text-[var(--blue)]" : "text-[var(--t2)] hover:text-[var(--t1)]"}`}
+                  className={`feedback-control inline-flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md px-2 text-center text-[11px] font-semibold ${active ? "bg-[var(--s2)] text-[var(--blue)]" : "text-[var(--t2)]"}`}
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                   <span className="min-w-0 leading-tight">
@@ -190,18 +196,6 @@ export function InventoryViewLinks({
               );
             })}
           </nav>
-          {wideRadius && (
-            <p role="status" className="w-full text-xs text-[var(--t2)]">
-              Map, Feed and Swipe support up to {MAX_RADIUS_MI} miles. Your
-              wider search stays available in Results.
-            </p>
-          )}
-          {params.get("hasPhotos") === "no" && (
-            <p role="status" className="w-full text-xs text-[var(--t2)]">
-              Listings without photos are available in Results and Map. Feed and
-              Swipe require photos.
-            </p>
-          )}
           {selectedFreshness.value !== "3" && (
             <p role="status" className="w-full text-xs text-[var(--t2)]">
               {selectedFreshness.description}. Older observations never count as
@@ -247,6 +241,26 @@ export function InventoryViewLinks({
           )}
         </div>
       </details>
+      {(wideRadius || params.get("hasPhotos") === "no") && (
+        <div
+          id={unavailableHintId}
+          role="status"
+          className="w-full space-y-1 text-xs text-[var(--t2)]"
+        >
+          {wideRadius && (
+            <p>
+              Map, Feed and Swipe support up to {MAX_RADIUS_MI} miles. Your
+              wider search stays available in Results.
+            </p>
+          )}
+          {params.get("hasPhotos") === "no" && (
+            <p>
+              Listings without photos are available in Results and Map. Feed and
+              Swipe require photos.
+            </p>
+          )}
+        </div>
+      )}
       {children}
       {params.get("body") && params.get("body") !== "all" && (
         <div className="flex w-full flex-wrap items-center gap-2 text-xs text-[var(--t2)]">

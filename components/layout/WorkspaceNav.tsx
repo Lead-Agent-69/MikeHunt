@@ -27,7 +27,7 @@ export function WorkspaceNav() {
   return (
     <nav
       aria-label={`${current.group} navigation`}
-      className="mb-4 flex gap-1 overflow-x-auto border-b border-[var(--b1)]"
+      className="browse-segmented mb-4 flex gap-1 overflow-x-auto p-1"
     >
       {peers.map((tool) => {
         const Icon = tool.icon;
@@ -41,7 +41,7 @@ export function WorkspaceNav() {
             href={tool.href}
             prefetch={false}
             aria-current={active ? "page" : undefined}
-            className={`flex min-h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-xs font-semibold ${active ? "border-[var(--accent)] text-[var(--t1)]" : "border-transparent text-[var(--t3)] hover:text-[var(--t1)]"}`}
+            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-full px-3 text-xs font-semibold ${active ? "text-[var(--accent)]" : "text-[var(--t3)]"}`}
           >
             {Icon && <Icon className="h-4 w-4" aria-hidden="true" />}
             {tool.name}

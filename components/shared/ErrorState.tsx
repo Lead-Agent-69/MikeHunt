@@ -55,8 +55,7 @@ export function ErrorState({
         <button
           type="button"
           onClick={onRetry}
-          className="flex min-h-11 items-center gap-2 text-sm font-bold rounded-xl px-5 py-2.5 transition-all text-white border-none"
-          style={{ background: "var(--grad)" }}
+          className="feedback-action flex min-h-11 items-center gap-2 rounded-full border-none bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--on-accent)] transition-colors"
         >
           <Ico name="refresh" size={16} />
           {retryLabel}
@@ -78,6 +77,7 @@ export function ErrorBanner({
 }) {
   return (
     <div
+      role="alert"
       className="flex items-center gap-3 px-4 py-3 rounded-[var(--r2)] text-sm"
       style={{ background: "var(--rlo)", color: "var(--red)" }}
     >
@@ -87,8 +87,10 @@ export function ErrorBanner({
       </span>
       {onDismiss && (
         <button
+          type="button"
+          aria-label="Dismiss message"
           onClick={onDismiss}
-          className="shrink-0 opacity-60 hover:opacity-100 transition-opacity"
+          className="feedback-control grid h-11 w-11 shrink-0 place-items-center rounded-full opacity-60 hover:opacity-100 transition-opacity"
         >
           <Ico name="close" size={14} />
         </button>

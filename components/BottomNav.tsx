@@ -83,7 +83,9 @@ export function BottomNav() {
             }
             transition={{ type: "spring", stiffness: 520, damping: 36 }}
             aria-hidden="true"
-          />
+          >
+            <span className="navigation-paint" />
+          </motion.span>
         )}
         {tabs.map((item) => {
           const isActive = navItemIsActive(item, pathname);
@@ -96,15 +98,15 @@ export function BottomNav() {
               draggable={false}
               prefetch={false}
               aria-current={isActive ? "page" : undefined}
+              data-highlighted={highlighted || undefined}
               aria-label={
                 item.signInRequired
                   ? `${item.name} (sign in required)`
                   : item.name
               }
               onClick={tapFeedback}
-              className="group relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-full transition-colors active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--accent)]"
+              className={`group relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-full transition-colors active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--accent)] ${highlighted ? "text-[var(--accent)]" : "text-[var(--t3)]"}`}
               style={{
-                color: highlighted ? "var(--accent)" : "var(--t3)",
                 WebkitTapHighlightColor: "transparent",
               }}
               title={
@@ -129,7 +131,7 @@ export function BottomNav() {
                   style={{
                     width: 26,
                     height: 26,
-                    strokeWidth: isActive ? 2.4 : 1.8,
+                    strokeWidth: highlighted ? 2.4 : 1.8,
                   }}
                 />
               </motion.span>

@@ -94,7 +94,7 @@ export function ThemeToggle({ showLabel = false }: { showLabel?: boolean }) {
       onClick={() => setTheme(next)}
       title={`Theme: ${LABEL[theme]} (tap for ${LABEL[next]})`}
       aria-label={`Theme: ${LABEL[theme]}. Switch to ${LABEL[next]}.`}
-      className="flex min-h-11 min-w-11 items-center justify-center gap-2 px-2.5 py-2 rounded-[var(--r2)] text-[var(--t3)] hover:text-[var(--t1)] hover:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+      className="feedback-control flex min-h-11 min-w-11 items-center justify-center gap-2 px-2.5 py-2 rounded-[var(--r2)] text-[var(--t3)] hover:text-[var(--t1)] hover:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
     >
       <Icon size={16} />
       {showLabel && <span className="text-sm font-medium">{LABEL[theme]}</span>}

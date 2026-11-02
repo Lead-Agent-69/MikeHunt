@@ -198,7 +198,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
   }
 
   const item =
-    "min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] active:bg-[var(--s2)] transition-colors rounded-lg flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]";
+    "feedback-control min-h-11 w-full text-left px-3 py-2 text-sm font-semibold text-[var(--t2)] hover:bg-[var(--s2)] active:bg-[var(--s2)] transition-colors rounded-lg flex items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--accent)]";
 
   return (
     <div
@@ -218,7 +218,7 @@ export function AccountMenu({ floating = true }: { floating?: boolean }) {
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         title="Account and tools"
-        className="w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] active:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] shadow-[var(--shadow2)]"
+        className="feedback-control w-11 h-11 grid place-items-center rounded-full border border-[var(--b1)] bg-[var(--s0)] text-[var(--t2)] hover:border-[var(--b3)] active:bg-[var(--s2)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] shadow-[var(--shadow2)]"
       >
         <CircleUserRound className="h-5 w-5" aria-hidden="true" />
       </button>

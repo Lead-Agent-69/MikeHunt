@@ -66,6 +66,27 @@ describe("profile and cost persistence", () => {
         .click(),
     );
   }
+  it("marks the chosen category and follows hash navigation without saving preferences", () => {
+    const nav = host.querySelector('nav[aria-label="Settings sections"]')!;
+    const notifications = nav.querySelector<HTMLAnchorElement>(
+      'a[href="#notifications"]',
+    )!;
+    notifications.addEventListener("click", (event) => event.preventDefault(), {
+      once: true,
+    });
+    act(() => notifications.click());
+    expect(notifications.getAttribute("aria-current")).toBe("location");
+    expect(nav.querySelectorAll('[aria-current="location"]')).toHaveLength(1);
+    act(() => {
+      window.history.replaceState({}, "", "/settings#buying-preferences");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(nav.querySelector('[aria-current="location"]')?.textContent).toBe(
+      "Buying preferences",
+    );
+    expect(state.save).not.toHaveBeenCalled();
+    window.history.replaceState({}, "", "/settings");
+  });
   it.each(["personal", "diy", "parts", "reseller", "dealer", "admin"])(
     "keeps %s settings role-appropriate and saves only visible cost fields",
     async (mode) => {

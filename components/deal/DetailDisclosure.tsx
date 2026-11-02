@@ -40,7 +40,7 @@ export function DetailDisclosure({
     >
       <summary
         ref={heading}
-        className="premium-focus flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[inherit] p-4 transition-colors hover:bg-[var(--s1)] marker:hidden md:gap-4 md:p-5 [&::-webkit-details-marker]:hidden"
+        className="feedback-control premium-focus flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-[inherit] p-4 transition-colors hover:bg-[var(--s1)] marker:hidden md:gap-4 md:p-5 [&::-webkit-details-marker]:hidden"
       >
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--t3)]">
