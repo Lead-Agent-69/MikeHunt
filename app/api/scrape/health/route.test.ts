@@ -445,7 +445,7 @@ describe("GET /api/scrape/health lane scoping", () => {
   it("keeps a blocked dealer distinct from a source that only needs refresh", async () => {
     const { GET } = await import("./route");
     const res = await GET(
-      req("/api/scrape/health?lane=damaged&state=MO&sources=recar"),
+      req("/api/scrape/health?lane=damaged&state=MO&dealerSourceIds=recar"),
     );
     const body = await res.json();
     const row = body.sources.find((source: any) => source.id === "recar");
@@ -456,6 +456,9 @@ describe("GET /api/scrape/health lane scoping", () => {
     });
     expect(row.termsReason).toMatch(/republication needs permission/i);
     expect(row.nextAction).toContain("written source permission");
+    expect(body.summary.unavailable).toBe(1);
+    expect(body.summary.blocked).toBe(0);
+    expect(body.sources.map((source: any) => source.id)).toEqual(["recar"]);
   });
 
   it("does not run public government probes for damaged-lane health", async () => {

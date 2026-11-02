@@ -13,6 +13,7 @@ import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
 import { sourceProofReadiness } from "@/lib/scrapers/source-proof-readiness";
 import { policyBlockFor } from "@/lib/scrapers/source-compliance";
 import { detailCompletenessCopy } from "@/lib/sources/completeness-copy";
+import { sourceAvailabilityGroup } from "@/lib/sources/availability-group";
 import { dbSourceValues as inventoryDbSourceValues } from "@/lib/search/inventory-filters";
 import {
   DEALER_SOURCE_DOMAINS,
@@ -1272,6 +1273,9 @@ function buildHealthSummary(health: any[]) {
     (row) => row.readiness === "needs_login",
   ).length;
   const blocked = health.filter((row) => row.readiness === "blocked").length;
+  const unavailable = health.filter(
+    (row) => sourceAvailabilityGroup(row.readiness) === "blocked",
+  ).length;
   const noRows = health.filter((row) => row.readiness === "no_rows").length;
   const needsRun = health.filter((row) => row.readiness === "needs_run").length;
   const termsOff = health.filter((row) => row.termsRestricted).length;
@@ -1298,6 +1302,7 @@ function buildHealthSummary(health: any[]) {
     ready: healthy,
     needsLogin,
     blocked,
+    unavailable,
     noRows,
     needsRun,
     termsOff,

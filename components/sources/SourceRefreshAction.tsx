@@ -25,9 +25,11 @@ const requestErrors: Record<number, string> = {
 export function SourceRefreshAction({
   scope,
   onSettled,
+  disabledReason,
 }: {
   scope: BuyerScope;
   onSettled: () => void;
+  disabledReason?: string;
 }) {
   const requests = useRef(createLatestRequest());
   const [busy, setBusy] = useState(false);
@@ -56,7 +58,7 @@ export function SourceRefreshAction({
   }, [scopeKey]);
 
   async function refresh() {
-    if (!validLocation || busy) return;
+    if (!validLocation || busy || (disabledReason && !jobId)) return;
     const task = requests.current.start();
     setBusy(true);
     setPhase(jobId ? "pending" : "requesting");
@@ -157,7 +159,7 @@ export function SourceRefreshAction({
       <button
         type="button"
         onClick={refresh}
-        disabled={!validLocation || busy}
+        disabled={!validLocation || busy || Boolean(disabledReason && !jobId)}
         className="btn btn-primary inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
       >
         <RefreshCw size={16} aria-hidden="true" />
@@ -189,7 +191,7 @@ export function SourceRefreshAction({
       >
         {!validLocation
           ? "Choose a state above to check for new matches."
-          : message}
+          : message || disabledReason}
       </p>
     </div>
   );

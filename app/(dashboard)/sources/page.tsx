@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { scanHrefForSource } from "@/lib/sources/source-lanes";
 import { dealerSourceOptions } from "@/lib/sources/source-meta";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
+import { sourceAvailabilityGroup } from "@/lib/sources/availability-group";
 import {
   detailCompletenessCopy,
   COMPLETENESS_EXPLANATION,
@@ -469,6 +470,7 @@ type SourceHealthRow = {
   priority?: string;
   enabled?: boolean;
   requiresAuth?: boolean;
+  termsRestricted?: boolean;
   stealthRequired?: boolean;
   frequencyMinutes?: number;
   isDue?: boolean;
@@ -724,7 +726,9 @@ function SourceProofPanel({
   const sourceCounts = {
     total: sources.length,
     ready: sources.filter((s) => s.readiness === "ready").length,
-    blocked: sources.filter((s) => s.readiness === "blocked").length,
+    blocked: sources.filter(
+      (s) => sourceAvailabilityGroup(s.readiness) === "blocked",
+    ).length,
     noRows: sources.filter((s) => s.readiness === "no_rows").length,
     needsRun: sources.filter((s) => s.readiness === "needs_run").length,
     needsLogin: sources.filter((s) => s.readiness === "needs_login").length,
@@ -732,7 +736,7 @@ function SourceProofPanel({
   const summary = {
     total: Number(apiSummary.total ?? sourceCounts.total),
     ready: Number(apiSummary.ready ?? apiSummary.healthy ?? sourceCounts.ready),
-    blocked: Number(apiSummary.blocked ?? sourceCounts.blocked),
+    blocked: Number(apiSummary.unavailable ?? sourceCounts.blocked),
     noRows: Number(apiSummary.noRows ?? sourceCounts.noRows),
     needsRun: Number(apiSummary.needsRun ?? sourceCounts.needsRun),
     needsLogin: Number(apiSummary.needsLogin ?? sourceCounts.needsLogin),
@@ -754,7 +758,11 @@ function SourceProofPanel({
     averageQuality: Number(apiSummary.averageQuality ?? 0),
   };
   const visible = [...sources]
-    .filter((source) => filter === "all" || source.readiness === filter)
+    .filter(
+      (source) =>
+        filter === "all" ||
+        sourceAvailabilityGroup(source.readiness) === filter,
+    )
     .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0))
     .slice(0, 40);
   const allReadySources = sources
@@ -762,11 +770,7 @@ function SourceProofPanel({
     .sort((a, b) => (b.activeRows || 0) - (a.activeRows || 0));
   const readySources = allReadySources.slice(0, 3);
   const actionSources = sources
-    .filter((source) =>
-      ["needs_login", "blocked", "needs_run", "no_rows"].includes(
-        source.readiness || "",
-      ),
-    )
+    .filter((source) => sourceAvailabilityGroup(source.readiness) !== "ready")
     .sort((a, b) => {
       const rank: Record<string, number> = {
         needs_login: 0,
@@ -774,7 +778,10 @@ function SourceProofPanel({
         needs_run: 2,
         no_rows: 3,
       };
-      return (rank[a.readiness || ""] ?? 9) - (rank[b.readiness || ""] ?? 9);
+      return (
+        (rank[sourceAvailabilityGroup(a.readiness)] ?? 9) -
+        (rank[sourceAvailabilityGroup(b.readiness)] ?? 9)
+      );
     })
     .slice(0, 4);
   const scopeParts = [
@@ -2301,6 +2308,14 @@ export default function SourcesPage() {
           refreshAction={
             <SourceRefreshAction
               scope={healthScope}
+              disabledReason={
+                health?.sources?.length &&
+                health.sources.every(
+                  (source: SourceHealthRow) => source.termsRestricted,
+                )
+                  ? "These sources require permission before they can be refreshed. Choose another source."
+                  : undefined
+              }
               onSettled={() => {
                 void refreshHealth();
               }}
