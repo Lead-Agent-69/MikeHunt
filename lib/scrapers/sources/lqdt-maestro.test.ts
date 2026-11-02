@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { maestroAssetToDeal, type MaestroAsset } from "./lqdt-maestro";
+import { listingPriceEvidence } from "@/lib/deals/acquisition-price";
 
 const GD = {
   source: "gov_auction",
@@ -59,6 +60,45 @@ describe("maestroAssetToDeal — images (A7)", () => {
     const d = maestroAssetToDeal({ ...BASE, photo: undefined }, GD)!;
     expect(d.images).toEqual([]);
   });
+
+  it("recovers the detail gallery, deduplicates the cover and rejects other lots or hosts", () => {
+    const d = maestroAssetToDeal(
+      {
+        ...BASE,
+        assetPhotos: [
+          "/photos/31897/31897_7_abc.jpg?cb=1",
+          "/photos/31897/31897_7_second.jpg?cb=2",
+          "https://webassets.lqdt1.com/assets/photos/31897/31897_7_third.png",
+          "/photos/31897/31897_8_other.jpg",
+          "https://unrelated.example/31897_7_ad.jpg",
+          "/photos/31897/../31897_7_bad.jpg",
+          "/photos/31897/31897_7_document.pdf",
+        ],
+      },
+      GD,
+    )!;
+    expect(d.images).toEqual(
+      ["abc.jpg", "second.jpg", "third.png"].map(
+        (file) =>
+          `https://webassets.lqdt1.com/assets/photos/31897/31897_7_${file}`,
+      ),
+    );
+  });
+
+  it("retains the existing twenty-photo bound", () => {
+    expect(
+      maestroAssetToDeal(
+        {
+          ...BASE,
+          assetPhotos: Array.from(
+            { length: 40 },
+            (_, i) => `/photos/31897/31897_7_photo${i}.jpg`,
+          ),
+        },
+        GD,
+      )!.images,
+    ).toHaveLength(20);
+  });
 });
 
 describe("maestroAssetToDeal — idPrefix + marketplace", () => {
@@ -74,6 +114,7 @@ describe("maestroAssetToDeal — idPrefix + marketplace", () => {
     expect((ad.metadata as Record<string, unknown>).marketplace).toBe(
       "allsurplus",
     );
+    expect(ad.source_url).toBe("https://www.allsurplus.com/asset/7/31897");
   });
 });
 
@@ -88,6 +129,13 @@ describe("maestroAssetToDeal — detail fields", () => {
       titleType: "Clean Title",
       meterAccurate: "Yes",
     });
+    expect(d.options).toMatchObject({
+      titleType: "Clean Title",
+      meterAccurate: "Yes",
+      auction: { marketplace: "govdeals" },
+    });
+    expect(d.condition).toBe("clean_title");
+    expect(d.title_source).toBe("listing");
   });
 
   it("rejects unknown/non-actual mileage text instead of storing fake odometer proof", () => {
@@ -108,6 +156,48 @@ describe("maestroAssetToDeal — detail fields", () => {
     )!;
 
     expect(d.mileage).toBeUndefined();
+  });
+
+  it("preserves real detail aliases and buyback disclosure without inventing running or clean condition", () => {
+    const d = maestroAssetToDeal(
+      {
+        ...BASE,
+        ...DETAIL,
+        assetShortDesc: "2000 Toyota Avalon — seller detail",
+        assetLongDesc:
+          "Title is branded Buyback<br>Not salvage or rebuilt<br>Every car must be towed.<script>doNotDisplay()</script>",
+        meterCount: 105637,
+        meterAccurate: "Unknown",
+      },
+      GD,
+    )!;
+    expect(d.title).toBe("2000 Toyota Avalon — seller detail");
+    expect(d.condition).toBeUndefined();
+    expect(d.title_source).toBeUndefined();
+    expect(d.mileage).toBeUndefined();
+    expect(d.options).toMatchObject({
+      titleType: "Buyback (seller-reported)",
+      reportedOdometer: { value: 105637, accuracy: "Unknown" },
+    });
+    expect(d.options?.description).toContain("Every car must be towed.");
+    expect(d.options?.description).not.toMatch(/<|doNotDisplay/);
+    expect(listingPriceEvidence(d)?.kind).toBe("current_bid");
+  });
+
+  it("does not assume operability or a title when only the search card is available", () => {
+    const d = maestroAssetToDeal(BASE, GD)!;
+    expect(d.condition).toBeUndefined();
+    expect(d.options?.titleType).toBeUndefined();
+    expect(d.options?.priceEvidence.kind).toBe("current_bid");
+  });
+
+  it("does not normalize a negated title disclosure as clean", () => {
+    const d = maestroAssetToDeal(
+      { ...BASE, titleRestrictionText: "Not a clean title" },
+      GD,
+    )!;
+    expect(d.condition).toBeUndefined();
+    expect(d.options?.titleType).toBe("Not a clean title");
   });
 });
 

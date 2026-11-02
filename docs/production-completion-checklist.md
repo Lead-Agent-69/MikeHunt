@@ -1,5 +1,7 @@
 # DealerHunt completion checklist
 
+Use [the November 2 pilot action register](pilot-next-actions-2026-11-02.md) for current released slices, pending source repairs and acceptance dependencies. This dated checklist is retained as history; unchecked release steps may have been superseded by later receipts.
+
 Updated October 31, 2026 (America/Chicago). This is the remaining-work checklist, not a whole-app acceptance certificate. Release receipts and the detailed six-phase register are maintained privately in `C:/MikeHunt/logs/phased-completion-register.json`. Preserve the existing free-service limits, three-day default freshness and 30-day research window.
 
 ## 1. Listing truth and source reliability — current priority

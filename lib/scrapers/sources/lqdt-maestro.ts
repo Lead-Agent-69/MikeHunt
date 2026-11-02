@@ -11,6 +11,7 @@
 // x-api-correlation-id is just a required request-trace UUID (any value).
 
 import type { Deal } from "@/types";
+import { load } from "cheerio";
 import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
 
@@ -36,6 +37,11 @@ export interface MaestroAsset {
   auctionId?: number;
   assetShortDescription?: string;
   assetLongDescription?: string | null;
+  assetShortDesc?: string;
+  assetLongDesc?: string | null;
+  assetPhotos?: string[];
+  titleRestrictionText?: string | null;
+  titleRestriction?: string | null;
   makebrand?: string;
   model?: string;
   modelYear?: string;
@@ -181,6 +187,12 @@ function parseMileage(raw: unknown): number | undefined {
 }
 
 function detailMileage(a: MaestroAsset): number | undefined {
+  if (
+    /^(unknown|no|not actual|exempt)$/i.test(
+      String(a.meterAccurate || "").trim(),
+    )
+  )
+    return undefined;
   if (/mile/i.test(String(a.meter || ""))) {
     const fromMeter = parseMileage(a.meterCount);
     if (fromMeter) return fromMeter;
@@ -197,7 +209,52 @@ function detailVin(a: MaestroAsset): string | undefined {
 }
 
 function detailTitleType(a: MaestroAsset): string | undefined {
-  return attrValue(a, /title/i);
+  return [a.titleRestrictionText, a.titleRestriction, attrValue(a, /title/i)]
+    .map((value) => String(value || "").trim())
+    .find(Boolean);
+}
+
+function descriptionText(a: MaestroAsset): string {
+  const $ = load(
+    String(a.assetLongDesc || a.assetLongDescription || "").replace(
+      /<br\s*\/?>/gi,
+      "\n",
+    ),
+  );
+  $("script,style,iframe,noscript").remove();
+  return $.root().text().replace(/\r/g, "").trim().slice(0, 12000);
+}
+
+function assetImages(a: MaestroAsset): string[] {
+  const account = String(a.accountId);
+  const images = new Set<string>();
+  for (const value of [
+    a.photo,
+    ...(Array.isArray(a.assetPhotos) ? a.assetPhotos : []),
+  ]) {
+    if (typeof value !== "string") continue;
+    const raw = value.split(/[?#]/)[0].trim();
+    const file = raw.match(
+      new RegExp(
+        `^(?:https://webassets\\.lqdt1\\.com/assets/photos/${account}/|/photos/${account}/)?(${account}_${a.assetId}_[a-zA-Z0-9_-]+\\.(?:jpg|jpeg|png|webp))$`,
+        "i",
+      ),
+    )?.[1];
+    if (file) images.add(`${IMAGE_BASE}/${account}/${file}`);
+    if (images.size === 20) break; // Preserve the existing catalogue gallery bound.
+  }
+  return Array.from(images);
+}
+
+function statedTitleCondition(title: string | undefined): string | undefined {
+  // This enum cannot represent buyback titles. Preserve the disclosure without
+  // coercing it to clean/salvage or inventing an operability claim.
+  const value = title?.trim().toLowerCase();
+  if (/^(clean|clear)(?: title)?$/.test(value || "")) return "clean_title";
+  if (/^(rebuilt|prior salvage)(?: title)?$/.test(value || ""))
+    return "rebuilt_title";
+  if (/^salvage(?: title)?$/.test(value || "")) return "salvage_title";
+  return undefined;
 }
 
 async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
@@ -235,30 +292,41 @@ export function maestroAssetToDeal(
 
   // currentBid is the live high bid (acquisition cost). Fall back to the opening bid price.
   const price = Math.round(Number(a.currentBid ?? a.assetBidPrice ?? 0));
-  if (!price || price < 1) return null; // no live bid value => not a usable lead yet
+  if (!Number.isFinite(price) || price < 1) return null; // no live bid value => not a usable lead yet
 
   const title =
-    (a.assetShortDescription || "").trim() ||
+    (a.assetShortDesc || a.assetShortDescription || "").trim() ||
     [a.modelYear, a.makebrand, a.model].filter(Boolean).join(" ");
   // Cars and trucks only: no trailers, buses, boats, aircraft, equipment or heavy trucks.
   if (!isCarOrTruck(`${title} ${a.makebrand || ""} ${a.model || ""}`))
     return null;
 
-  // A7: build the full image URL from the photo filename. Strip any `?cb=` cache-buster for a canonical URL.
-  const photoFile = (a.photo || "").split("?")[0].trim();
-  const images = photoFile ? [`${IMAGE_BASE}/${accountId}/${photoFile}`] : [];
+  const description = descriptionText(a);
+  const buyback = /\btitle\s+(?:is\s+)?branded\s+buyback\b/i.test(description);
+  const titleType = buyback ? "Buyback (seller-reported)" : detailTitleType(a);
+  const condition = statedTitleCondition(titleType);
+  const images = assetImages(a);
+  const metadata = {
+    auction: true,
+    channel: "gov_surplus",
+    marketplace: opts.idPrefix === "as" ? "allsurplus" : "govdeals",
+    lotNumber: a.lotNumber,
+    ...(titleType ? { titleType } : {}),
+    ...(a.meterAccurate ? { meterAccurate: a.meterAccurate } : {}),
+  };
 
   return {
     source: opts.source,
     // assetId is unique per lot but namespaced per account; combine (+ prefix) to be globally unique.
     source_deal_id: `${opts.idPrefix}-${assetId}-${accountId}`,
-    source_url: `https://www.govdeals.com/asset/${assetId}/${accountId}`,
+    source_url: `https://www.${opts.idPrefix === "as" ? "allsurplus" : "govdeals"}.com/asset/${assetId}/${accountId}`,
     title,
     year,
     make: (a.makebrand || "").trim(),
     model: (a.model || "").trim(),
     ask_price: price,
-    condition: "run_drive", // surplus; condition varies, treat as running unless the lot says otherwise
+    condition,
+    ...(condition ? { title_source: "listing" as const } : {}),
     location_city: a.locationCity?.trim() || undefined,
     location_state: a.locationState?.trim() || undefined,
     location_zip: a.locationZip?.trim() || undefined,
@@ -270,13 +338,26 @@ export function maestroAssetToDeal(
     bid_count: typeof a.bidCount === "number" ? a.bidCount : undefined,
     auction_end: a.assetAuctionEndDateUtc || a.assetAuctionEndDate || undefined,
     images,
-    metadata: {
-      auction: true,
-      channel: "gov_surplus",
-      marketplace: opts.idPrefix === "as" ? "allsurplus" : "govdeals",
-      lotNumber: a.lotNumber,
-      ...(detailTitleType(a) ? { titleType: detailTitleType(a) } : {}),
-      ...(a.meterAccurate ? { meterAccurate: a.meterAccurate } : {}),
+    description,
+    metadata,
+    options: {
+      ...metadata,
+      description,
+      auction: { marketplace: metadata.marketplace, lotNumber: a.lotNumber },
+      priceEvidence: {
+        kind: "current_bid",
+        listedAmount: price,
+        evidenceText: "Source-reported auction bid; not a cash asking price.",
+      },
+      ...(a.meterCount != null
+        ? {
+            reportedOdometer: {
+              value: a.meterCount,
+              unit: a.meter,
+              accuracy: a.meterAccurate || "Not reported",
+            },
+          }
+        : {}),
     },
     scraped_at: new Date().toISOString(),
   };
@@ -315,7 +396,7 @@ async function fetchMaestroPage(
 }
 
 /**
- * Walk the maestro pages for a category set and return the RAW assets (deduped by assetId). Mapper-
+ * Walk the maestro pages for a category set and return the RAW assets (deduped by account + asset). Mapper-
  * agnostic, so BOTH verticals reuse the exact fetch/pagination/pacing: cars map assets→Deal, HomeIQ maps
  * the same assets→Property (different categories: 95B/95F/959 real estate vs 94A/94Q vehicles).
  */
@@ -327,7 +408,7 @@ export async function fetchMaestroAssets(
   const DISPLAY_ROWS = 120;
   const maxPages = opts.maxPages ?? 8;
   const label = opts.label || businessId;
-  const byId = new Map<number, MaestroAsset>();
+  const byId = new Map<string, MaestroAsset>();
   let prevFirst = "";
 
   for (let page = 1; page <= maxPages; page++) {
@@ -346,11 +427,16 @@ export async function fetchMaestroAssets(
     if (!rows.length) break;
 
     // The API loops back to page 1 past the last real page — stop when the first lot repeats.
-    const first = String(rows[0]?.assetId ?? "");
+    const first =
+      rows[0]?.assetId != null && rows[0]?.accountId != null
+        ? `${rows[0].accountId}:${rows[0].assetId}`
+        : "";
     if (first && first === prevFirst) break;
     prevFirst = first;
 
-    for (const r of rows) if (r.assetId != null) byId.set(r.assetId, r);
+    for (const r of rows)
+      if (r.assetId != null && r.accountId != null)
+        byId.set(`${r.accountId}:${r.assetId}`, r);
     if (rows.length < DISPLAY_ROWS) break; // last page
     await new Promise((r) => setTimeout(r, 800)); // be polite to the public API
   }
@@ -376,7 +462,11 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
     if (index < detailLimit) {
       try {
         const detail = await fetchMaestroDetail(r, opts.businessId);
-        if (detail) {
+        if (
+          detail &&
+          detail.assetId === r.assetId &&
+          detail.accountId === r.accountId
+        ) {
           row = { ...r, ...detail };
           enriched++;
           await new Promise((resolve) => setTimeout(resolve, 150));
