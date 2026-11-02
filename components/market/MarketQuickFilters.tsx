@@ -67,7 +67,7 @@ export function MarketQuickFilters({
             disabled={disabled || field.disabled}
             aria-label={`Edit ${field.label.toLowerCase()}: ${field.value || "Any"}`}
             aria-controls={panelId}
-            aria-expanded={expanded}
+            aria-expanded={inputLabel === field.inputLabel}
             data-selected={inputLabel === field.inputLabel}
             onClick={(event) => {
               returnFocus.current = event.currentTarget;
@@ -75,7 +75,7 @@ export function MarketQuickFilters({
                 current === field.inputLabel ? null : field.inputLabel,
               );
             }}
-            className="flex min-h-12 min-w-0 items-center justify-between gap-1 rounded-2xl border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-left data-[selected=true]:border-[var(--blue)] disabled:opacity-50"
+            className="feedback-control flex min-h-12 min-w-0 items-center justify-between gap-1 rounded-2xl border border-[var(--b1)] bg-[var(--s0)] px-3 py-2 text-left data-[selected=true]:border-[var(--blue)] disabled:opacity-50"
           >
             <span className="min-w-0">
               <span className="block text-[11px] font-semibold text-[var(--t3)]">
@@ -101,7 +101,7 @@ export function MarketQuickFilters({
         <button
           type="button"
           onClick={close}
-          className="mb-2 min-h-11 w-full rounded-full bg-[var(--accent)] px-3 text-sm font-semibold text-[var(--on-accent)] md:hidden"
+          className="feedback-action mb-2 min-h-11 w-full rounded-full bg-[var(--accent)] px-3 text-sm font-semibold text-[var(--on-accent)] md:hidden"
         >
           Done with quick filters
         </button>

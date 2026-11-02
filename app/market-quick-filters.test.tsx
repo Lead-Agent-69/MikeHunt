@@ -61,6 +61,11 @@ it("opens the requested field and preserves the same entered control across clos
   const trigger = button("Edit mileage: 50000 mi");
   expect(trigger.getAttribute("aria-expanded")).toBe("false");
   act(() => trigger.click());
+  expect(trigger.getAttribute("aria-expanded")).toBe("true");
+  expect(button("Edit make: Ford").getAttribute("aria-expanded")).toBe("false");
+  expect(button("Edit source: All").getAttribute("aria-expanded")).toBe(
+    "false",
+  );
   const input = host.querySelector<HTMLInputElement>(
     '[aria-label="Quick mileage"]',
   )!;

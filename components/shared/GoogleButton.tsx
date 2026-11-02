@@ -15,6 +15,7 @@ export function GoogleButton({
   label?: string;
 }) {
   const [loading, setLoading] = useState(false);
+  const [pressed, setPressed] = useState(false);
   const [googleReady, setGoogleReady] = useState<boolean | null>(null);
   const configured = isSupabaseConfigured();
   const canUseGoogle = configured && googleReady !== false;
@@ -59,6 +60,28 @@ export function GoogleButton({
         href={canUseGoogle ? googleHref : undefined}
         role="button"
         aria-disabled={loading || !canUseGoogle}
+        aria-busy={loading || undefined}
+        tabIndex={loading || !canUseGoogle ? -1 : 0}
+        data-pressed={pressed || undefined}
+        onBlur={() => setPressed(false)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setPressed(false);
+            return;
+          }
+          if (event.key !== " " && event.key !== "Spacebar") return;
+          event.preventDefault();
+          if (!event.repeat && !loading && canUseGoogle) setPressed(true);
+        }}
+        onKeyUp={(event) => {
+          if (event.key !== " " && event.key !== "Spacebar") return;
+          event.preventDefault();
+          setPressed(false);
+          if (pressed && !loading && canUseGoogle) event.currentTarget.click();
+        }}
+        onAuxClick={(event) => {
+          if (loading || !canUseGoogle) event.preventDefault();
+        }}
         onClick={(event) => {
           if (loading || !canUseGoogle) {
             event.preventDefault();
@@ -66,7 +89,7 @@ export function GoogleButton({
           }
           setLoading(true);
         }}
-        className={`w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm hover:bg-[#f8f9fa] hover:shadow-md active:scale-[0.99] transition-all ${loading || !canUseGoogle ? "opacity-60 cursor-not-allowed" : ""}`}
+        className="google-auth-action w-full inline-flex items-center justify-center gap-3 h-11 rounded-[var(--r2)] bg-white text-[#1f1f1f] font-semibold text-sm border border-black/10 shadow-sm"
       >
         <GoogleG />
         {loading
@@ -75,17 +98,17 @@ export function GoogleButton({
             ? "Google sign-in unavailable"
             : canUseGoogle
               ? label
-              : "Google sign-in not configured"}
+              : "Google sign-in unavailable"}
       </a>
       {(!configured || googleReady === false) && (
         <div className="rounded-[var(--r2)] border border-[var(--amber-bd)] bg-[var(--amber-lo)] px-3 py-2 text-left">
           <p className="text-xs font-bold text-[var(--t2)]">
-            Continue with email
+            {configured ? "Continue with email" : "Sign-in unavailable"}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-[var(--t3)]">
             {configured
               ? "Google sign-in is unavailable right now. Use the email form below to continue."
-              : "Use the email form below in this local preview."}
+              : "Sign-in is temporarily unavailable. Please try again shortly."}
           </p>
         </div>
       )}

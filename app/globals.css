@@ -375,6 +375,7 @@
       [aria-current="location"],
       [aria-selected="true"],
       [aria-pressed="true"],
+      [aria-expanded="true"],
       [data-highlighted="true"]
     ):not(:disabled):not([aria-disabled="true"]):hover {
     background: color-mix(in srgb, var(--accent-surface) 88%, var(--accent));
@@ -408,6 +409,7 @@
   .feedback-control,
   .btn,
   .feedback-action,
+  .feedback-input,
   .navigation-capsule > a,
   .browse-panel button,
   .inventory-card button,
@@ -450,6 +452,36 @@
 .feedback-choice:has(input:disabled) {
   cursor: not-allowed;
   opacity: 0.45;
+}
+.google-auth-action {
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .google-auth-action:not([aria-disabled="true"]):hover {
+    background: #f8f9fa;
+    box-shadow: inset 0 0 0 1px
+      color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+}
+.google-auth-action:not([aria-disabled="true"]):is(
+    :active,
+    [data-pressed="true"]
+  ) {
+  background: #e8eef7;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.google-auth-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.google-auth-action[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.google-auth-action[aria-busy="true"] {
+  cursor: progress;
 }
 @media (hover: hover) and (pointer: fine) {
   .feedback-choice:not(:has(input:disabled)):hover {

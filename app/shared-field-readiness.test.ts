@@ -5,6 +5,42 @@ import { describe, expect, it, vi } from "vitest";
 import { Field, PasswordField, SelectField } from "@/components/shared/Field";
 
 describe("shared control readiness", () => {
+  it("keeps a password draft intact while showing, hiding and disabling visibility", () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    try {
+      act(() =>
+        root.render(
+          React.createElement(PasswordField, {
+            label: "Password",
+            defaultValue: "layout-test-only",
+          }),
+        ),
+      );
+      const input = host.querySelector("input")!;
+      const button = host.querySelector("button")!;
+      act(() => button.click());
+      expect(input.type).toBe("text");
+      expect(input.value).toBe("layout-test-only");
+      expect(button.getAttribute("aria-pressed")).toBe("true");
+      act(() => button.click());
+      expect(input.type).toBe("password");
+      expect(input.value).toBe("layout-test-only");
+      act(() =>
+        root.render(
+          React.createElement(PasswordField, {
+            label: "Password",
+            disabled: true,
+          }),
+        ),
+      );
+      act(() => button.click());
+      expect(input.type).toBe("password");
+      expect(button.disabled).toBe(true);
+    } finally {
+      act(() => root.unmount());
+    }
+  });
   for (const [name, Component, props] of [
     ["text", Field, { label: "Name" }],
     ["password", PasswordField, { label: "Password" }],
