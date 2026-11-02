@@ -11,6 +11,7 @@ import { planScrapeForBuyerScope } from "@/lib/scrapers/buyer-scope";
 import { INDEPENDENT_DEALERS } from "@/lib/scrapers/sources-registry";
 import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
 import { sourceProofReadiness } from "@/lib/scrapers/source-proof-readiness";
+import { policyBlockFor } from "@/lib/scrapers/source-compliance";
 import { detailCompletenessCopy } from "@/lib/sources/completeness-copy";
 import { dbSourceValues as inventoryDbSourceValues } from "@/lib/search/inventory-filters";
 import {
@@ -612,10 +613,17 @@ function readySourceImpact(row: any) {
  * not opted into through SCRAPE_SOURCES. Same rule as the sweep, scrape-ci and the public preview
  * routes (isAutomationAllowedSource), so health never tells anyone to "run" a source we won't run.
  */
+function dealerPolicyBlock(sourceId: string) {
+  return (DEALER_SOURCE_DOMAINS[sourceId.toLowerCase()] || [])
+    .map((host) => policyBlockFor(`https://${host}`))
+    .find((block) => block && block.kind !== "bot_challenge");
+}
+
 function termsOffForSource(sourceId: string, raw?: string) {
   const id = String(sourceId || "").toLowerCase();
   return (
-    Boolean(TOS_RESTRICTED_SOURCES[id]) && !isAutomationAllowedSource(id, raw)
+    Boolean(dealerPolicyBlock(id)) ||
+    (Boolean(TOS_RESTRICTED_SOURCES[id]) && !isAutomationAllowedSource(id, raw))
   );
 }
 
@@ -623,7 +631,9 @@ function termsFields(sourceId: string) {
   if (!termsOffForSource(sourceId)) return {};
   return {
     termsRestricted: true,
-    termsReason: TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
+    termsReason:
+      dealerPolicyBlock(sourceId)?.reason ||
+      TOS_RESTRICTED_SOURCES[String(sourceId).toLowerCase()],
   };
 }
 
@@ -640,8 +650,8 @@ function explainSource(
       userStatus: "Off for site terms",
       proofLevel: "off",
       userImpact: retainedRows
-        ? "This site's terms ban automated access, so DealerHunt does not import from it. Rows already on file are older imports and are not refreshed."
-        : "This site's terms ban automated access, so DealerHunt does not import from it.",
+        ? "This source restricts automated collection or inventory reuse. Imports are paused pending permission. Rows already on file are older imports and are not refreshed."
+        : "This source restricts automated collection or inventory reuse. Imports are paused pending permission.",
       nextAction:
         "Use a permitted official feed or obtain written source permission before enabling automated collection.",
     };

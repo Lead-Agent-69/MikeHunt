@@ -1,5 +1,6 @@
 import { load } from "cheerio";
 import { US_STATES } from "@/lib/geo";
+import { dealerVdpObservation } from "./dealer-vdp-observation";
 
 export interface ListingLocation {
   location_city?: string;
@@ -64,8 +65,17 @@ export function listingLocation(
   html: string,
   sourceUrl: string,
   vin?: string | null,
+  options: { allowDealerFallback?: boolean } = {},
 ): ListingLocation {
+  const vdp = dealerVdpObservation(html, sourceUrl, vin);
+  if (
+    vdp?.location &&
+    [...US_STATES, "DC"].includes(vdp.location.location_state)
+  )
+    return vdp.location;
   const $ = load(html);
+  // A contradictory primary identity invalidates page-wide fallback evidence too.
+  if ($(".vdp-identity-main").length && !vdp) return {};
   const nodes: any[] = [];
   function collect(value: any) {
     if (Array.isArray(value)) value.forEach(collect);
@@ -107,9 +117,14 @@ export function listingLocation(
     ? vehicle.offers
     : [vehicle.offers];
   const places = offers
-    .flatMap((o: any) => [o?.availableAtOrFrom, o?.seller, o?.offeredBy])
+    .flatMap((o: any) =>
+      options.allowDealerFallback === false
+        ? [o?.availableAtOrFrom]
+        : [o?.availableAtOrFrom, o?.seller, o?.offeredBy],
+    )
     .filter(Boolean);
-  if (vehicle.seller) places.push(vehicle.seller);
+  if (vehicle.seller && options.allowDealerFallback !== false)
+    places.push(vehicle.seller);
   if (vehicle.location) places.push(vehicle.location);
   const locations = places
     .map(address)
@@ -122,7 +137,12 @@ export function listingLocation(
   const sharedDealerAddress =
     new URL(sourceUrl).hostname.toLowerCase().replace(/^www\./, "") ===
     "traversautomotivegroup.com";
-  if (!locations.length && !craigslist && !sharedDealerAddress) {
+  if (
+    !locations.length &&
+    !craigslist &&
+    !sharedDealerAddress &&
+    options.allowDealerFallback !== false
+  ) {
     const dealers = nodes.filter((n) => types(n).includes("AutoDealer"));
     if (dealers.length === 1) out = address(dealers[0]);
   }

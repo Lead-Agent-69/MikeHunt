@@ -1011,16 +1011,59 @@ export async function scrapeIndependentDealer(
               signal: abortSignal,
             });
         if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
-        const photos = dealerDetailPhotos(response.body, url);
+        const observedAt =
+          "observedAt" in response && typeof response.observedAt === "string"
+            ? response.observedAt
+            : undefined;
+        const photos = dealerDetailPhotos(response.body, url, deal.vin);
         if (photos.length > (deal.images?.length || 0)) deal.images = photos;
-        const location = listingLocation(response.body, response.url, deal.vin);
-        if (location.lat != null && location.lng != null)
+        const location = listingLocation(
+          response.body,
+          response.url,
+          deal.vin,
+          { allowDealerFallback: false },
+        );
+        if (
+          location.location_city ||
+          location.location_zip ||
+          location.lat != null
+        ) {
+          const previous = {
+            city: deal.location_city,
+            state: deal.location_state,
+            zip: deal.location_zip,
+          };
+          const changed = Boolean(
+            (location.location_city &&
+              location.location_city !== deal.location_city) ||
+            (location.location_state &&
+              location.location_state !== deal.location_state) ||
+            (location.location_zip &&
+              location.location_zip !== deal.location_zip),
+          );
           Object.assign(deal, location);
-        else {
-          deal.location_city ||= location.location_city;
-          deal.location_state ||= location.location_state;
-          deal.location_zip ||= location.location_zip;
+          if (changed && location.lat == null) {
+            deal.lat = null;
+            deal.lng = null;
+          }
+          deal.options = {
+            ...deal.options,
+            vehicleLocation: {
+              sourceUrl: url,
+              ...(observedAt ? { observedAt } : {}),
+              ...location,
+              previous,
+              resetCoordinates: changed && location.lat == null,
+            },
+          };
         }
+        const priceEvidence = dealerDetailPriceEvidence(
+          (await import("cheerio")).load(response.body),
+          deal,
+          {},
+          observedAt,
+        );
+        if (priceEvidence) deal.options = { ...deal.options, priceEvidence };
       } catch (error) {
         abortSignal?.throwIfAborted();
         console.warn(

@@ -85,7 +85,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.crashedtoys.com", name: "CrashedToys", state: "MN", type: "salvage_yard" },
   { url: "https://www.rebuildables.com", name: "Rebuildables", type: "rebuilder_dealer" },
   { url: "https://www.erepairables.com", name: "eRepairables", type: "rebuilder_dealer" },
-  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer" },
+  { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer", inventoryUrl: "https://www.aeofmiami.com/latest-inventory" },
   { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
   { url: "https://www.74auto.com", name: "74Auto", type: "rebuilder_dealer" }, // salvage / repairable cars (verified)
   { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", type: "salvage_yard", inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php" }, // parts yard that ALSO sells rebuildable vehicles — inventory at /vehicles.php
@@ -159,7 +159,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.southsiderebuilders.com", name: "Southside Auto Sales", state: "MO", type: "salvage_yard", platform: "4cdg", inventoryUrl: "https://www.southsiderebuilders.com/all-vehicles.php" }, // Published inventory link verified 2026-10-18.
   { url: "https://www.prosalvage.com", name: "ProSalvage", state: "MO", type: "auction_proxy" },
   { url: "https://www.rebuildautos.com", name: "RebuildAutos", state: "MO", type: "auction_proxy" },
-  { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer" },
+  { url: "https://www.recar.com", name: "ReCar", state: "MO", type: "rebuilder_dealer", inventoryUrl: "https://www.recar.com/vehicles/" },
   { url: "https://repairableautos.com", name: "Ken's Auto Body & Sales", state: "ND", type: "rebuilder_dealer" },
 
   // ── West / Southwest ──

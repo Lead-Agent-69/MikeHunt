@@ -349,6 +349,12 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
             : undefined;
 
       const { condition, titleSource } = ingestCondition(deal);
+      const observedCoordinates: { lat?: number | null; lng?: number | null } =
+        coordinatesForPlace({ lat: deal.lat, lng: deal.lng }) ||
+        (deal.options?.vehicleLocation?.resetCoordinates === true &&
+        deal.options.vehicleLocation.sourceUrl === deal.source_url
+          ? { lat: null, lng: null }
+          : {});
 
       // Omit `id` to allow Supabase to generate UUID, but include source_deal_id
       return {
@@ -416,7 +422,7 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
         location_city: cleanCity(deal.location_city),
         location_state: deal.location_state,
         location_zip: deal.location_zip,
-        ...(coordinatesForPlace({ lat: deal.lat, lng: deal.lng }) || {}),
+        ...observedCoordinates,
         // Re-observation restores ordinary listings and rescheduled auctions, not known-ended lots.
         active: isWithinAuctionWindow({ auction_end_at: auctionEndAt }),
         // Listing photos (the `images` text[] column exists). Without this every scraped/ingested

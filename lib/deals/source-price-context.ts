@@ -83,7 +83,7 @@ export function sourcePriceContext(row: SourcePriceRow, now = Date.now()) {
           ? (positivePrice(evidence?.currentBid) ?? advertisedAmount)
           : kind === "reference"
             ? (positivePrice(evidence?.referenceValue) ?? advertisedAmount)
-            : advertisedAmount;
+            : (positivePrice(evidence?.listedAmount) ?? advertisedAmount);
   const fresh = isRecentPriceObservation(row.last_seen_at, now);
   const evidenceCurrent =
     evidence?.checkedAt == null ||
