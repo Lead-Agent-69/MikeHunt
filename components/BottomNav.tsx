@@ -64,7 +64,7 @@ export function BottomNav() {
         {...scrub.handlers}
         data-navigation-scrub=""
         data-pressed={scrub.pressed || undefined}
-        className="navigation-capsule navigation-mobile-capsule pointer-events-auto relative isolate grid h-16 w-[calc(100%-3.5rem)] max-w-[25rem] p-1"
+        className="navigation-capsule navigation-mobile-capsule pointer-events-auto relative isolate grid h-16 w-[calc(100%-3.5rem)] max-w-[25rem] p-1 sm:h-14"
         style={{
           gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
         }}

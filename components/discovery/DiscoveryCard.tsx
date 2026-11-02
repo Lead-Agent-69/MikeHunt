@@ -142,8 +142,7 @@ export const DiscoveryCard = memo(function DiscoveryCard({
         {/* Image */}
         <div
           data-testid="discovery-card-photo"
-          className="relative aspect-[16/10] w-full overflow-hidden"
-          style={{ background: "var(--s2)" }}
+          className="vehicle-photo-stage relative aspect-[16/10] w-full overflow-hidden"
         >
           <Link
             href={href}

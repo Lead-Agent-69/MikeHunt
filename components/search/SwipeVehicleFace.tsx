@@ -68,7 +68,7 @@ export function SwipeVehicleFace({
     <div className="flex h-full flex-col">
       <div
         data-testid="swipe-vehicle-photo"
-        className="relative h-[46%] w-full shrink-0 overflow-hidden bg-[var(--s2)]"
+        className="vehicle-photo-stage relative h-[46%] w-full shrink-0 overflow-hidden"
         {...photoNavigation}
       >
         {gallery.image && (

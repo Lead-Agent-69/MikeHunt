@@ -84,11 +84,15 @@ describe("appearance preference", () => {
     const css = readFileSync("app/globals.css", "utf8");
     expect(css).not.toContain("premium research skin");
     expect(css.match(/\[data-theme="dark"\]/g)).toHaveLength(1);
-    expect(css).toContain("--s0: #17191e");
-    expect(css).toContain("--s1: #0a0a0f");
-    expect(css).toContain("--t1: #f8f8ff");
-    expect(css).toContain(
-      "--glow-bg: linear-gradient(180deg, #111318, #0a0a0f)",
+    const darkGroup = css.slice(
+      css.indexOf("/* Dark theme */"),
+      css.indexOf("/* Floating navigation"),
+    );
+    expect(darkGroup).toContain("--s0: #191919");
+    expect(darkGroup).toContain("--s1: #090909");
+    expect(darkGroup).toContain("--t1: #fafafa");
+    expect(darkGroup).toContain(
+      "--glow-bg: linear-gradient(180deg, #141414, #090909)",
     );
     expect(css).toContain("color-scheme: dark");
     const offline = readFileSync("public/offline.html", "utf8");
@@ -100,8 +104,8 @@ describe("appearance preference", () => {
       css.indexOf("/* Dark theme */"),
     );
     expect(lightGroup).not.toContain('[data-theme="dark"]');
-    expect(lightGroup).toContain("--s1: #f6f8fb");
-    expect(lightGroup).toContain("--t1: #0b1220");
+    expect(lightGroup).toContain("--s1: #fafafa");
+    expect(lightGroup).toContain("--t1: #111111");
   });
 
   it("keeps the DealerHunt wordmark and mark on dark", () => {
