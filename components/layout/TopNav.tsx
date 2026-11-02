@@ -36,13 +36,17 @@ function IconBtn({
   badge?: number;
 }) {
   const pathname = usePathname();
+  const active = navItemIsActive(
+    { name: title, href, icon: Grid3X3 },
+    pathname,
+  );
   return (
     <Link
       href={href}
       prefetch={false}
       title={title}
       aria-label={title}
-      aria-current={pathname === href ? "page" : undefined}
+      aria-current={active ? "page" : undefined}
       className="feedback-control relative flex h-11 w-11 items-center justify-center rounded-full border border-[var(--b1)] transition-colors text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)] active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
     >
       {children}
