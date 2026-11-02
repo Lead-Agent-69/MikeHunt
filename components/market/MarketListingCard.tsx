@@ -145,7 +145,7 @@ function ListingCard({
     >
       <div
         data-testid="market-card-photo"
-        className="relative z-20 aspect-[16/10] overflow-hidden bg-[var(--s2)]"
+        className="vehicle-photo-stage relative z-20 aspect-[16/10] overflow-hidden"
       >
         {photos.length ? (
           <Link

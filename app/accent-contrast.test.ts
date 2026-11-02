@@ -34,6 +34,11 @@ describe("paired accent and connection-notice colors", () => {
       ["--accent", "--on-accent"],
       ["--red", "--on-status"],
       ["--green", "--on-status"],
+      ["--s0", "--t1"],
+      ["--s0", "--t2"],
+      ["--s0", "--t3"],
+      ["--s0", "--t4"],
+      ["--s1", "--navigation-ink"],
     ])(
       `${theme} %s / %s meets normal-text contrast`,
       (background, foreground) => {

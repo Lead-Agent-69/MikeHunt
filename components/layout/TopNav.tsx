@@ -71,7 +71,7 @@ function NavPill() {
       transition={
         reducedMotion
           ? { duration: 0 }
-          : { type: "spring", stiffness: 400, damping: 30 }
+          : { type: "spring", stiffness: 520, damping: 36 }
       }
     >
       <span className="navigation-paint" />
@@ -260,7 +260,7 @@ function TopNavContent() {
       {/* Desktop sides retain their content width; auto margins give navigation the remaining space. */}
       <nav
         aria-label="Primary desktop navigation"
-        className="navigation-capsule hidden lg:flex items-center gap-0.5 p-1 shrink-0 lg:mx-auto"
+        className="navigation-capsule hidden lg:flex min-h-14 items-center gap-0.5 p-1 shrink-0 lg:mx-auto"
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);

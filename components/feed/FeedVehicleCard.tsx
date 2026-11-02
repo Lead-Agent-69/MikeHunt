@@ -75,12 +75,12 @@ export function FeedVehicleCard({
   return (
     <article
       data-testid="feed-vehicle"
-      className="overflow-hidden rounded-lg border border-[var(--b1)] bg-[var(--s0)] lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
+      className="inventory-card overflow-hidden lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 600px" }}
     >
       <div
         data-testid="feed-vehicle-photo"
-        className="relative aspect-[4/3] min-w-0 bg-[var(--s2)] lg:aspect-auto lg:min-h-[380px]"
+        className="vehicle-photo-stage relative aspect-[4/3] min-w-0 lg:aspect-auto lg:min-h-[380px]"
       >
         {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
