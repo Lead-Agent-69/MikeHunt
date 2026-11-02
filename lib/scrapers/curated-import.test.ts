@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+let detailCache: string;
 const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   browser: vi.fn(),
@@ -47,6 +51,38 @@ const profile = {
 };
 
 describe("curated import receipts", () => {
+  it("enriches a different bounded set on the next 12-hour dealer run", async () => {
+    vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "12");
+    const clock = vi.spyOn(Date, "now");
+    const inventory = Array.from(
+      { length: 48 },
+      (_, i) =>
+        `<article><h2>2020 Ford Escape</h2><span class="price">$12,500</span><a href="/cars/${i}">View</a></article>`,
+    ).join("");
+    const batches: string[][] = [];
+    for (const hour of [0, 12]) {
+      clock.mockReturnValue(hour * 3_600_000);
+      const requested: string[] = [];
+      await scrapeIndependentDealer(
+        profile,
+        "https://dealer.example",
+        undefined,
+        async (url) => {
+          if (/\/cars\/\d+$/.test(url)) {
+            requested.push(url);
+            return '<div data-gallery><img src="/front.jpg"><img src="/rear.jpg"></div>';
+          }
+          return inventory;
+        },
+      );
+      batches.push(requested);
+    }
+    expect(batches.map((batch) => batch.length)).toEqual([12, 12]);
+    expect(new Set(batches.flat()).size).toBe(24);
+    expect(mocks.save.mock.calls.map((call) => call[0].length)).toEqual([
+      48, 48,
+    ]);
+  });
   it("replaces the branch default with the VIN-matched vehicle location during bounded detail enrichment", async () => {
     vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
     const vin = "1FMDE7BH5RLA05037";
@@ -129,15 +165,24 @@ describe("curated import receipts", () => {
     expect(photos).toHaveLength(12);
     expect(photos).not.toContain("https://dealer.example/other-car.jpg");
   });
-  beforeEach(() => {
+  beforeEach(async () => {
+    detailCache = await mkdtemp(path.join(tmpdir(), "dealer-import-test-"));
+    vi.stubEnv("LOCAL_CACHE_PATH", detailCache);
     vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "0");
     vi.clearAllMocks();
     mocks.save.mockResolvedValue(0);
     mocks.ai.mockResolvedValue([]);
   });
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    if (
+      !path
+        .resolve(detailCache)
+        .startsWith(path.resolve(tmpdir(), "dealer-import-test-"))
+    )
+      throw new Error("Unexpected test cache path");
+    await rm(detailCache, { recursive: true, force: true });
   });
   it("rotates a capped photo batch beyond the first inventory card", async () => {
     vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
@@ -152,6 +197,19 @@ describe("curated import receipts", () => {
         ? '<div class="vehicle-gallery"><img src="/one.jpg"><img src="/two.jpg"></div>'
         : twoCars,
     );
+    await scrapeIndependentDealer(
+      profile,
+      "https://dealer.example",
+      undefined,
+      fetcher,
+    );
+    expect(
+      fetcher.mock.calls
+        .filter(([url]) => url.includes("/cars/"))
+        .map(([url]) => url),
+    ).toEqual(["https://dealer.example/cars/123"]);
+    fetcher.mockClear();
+    mocks.save.mockClear();
     await scrapeIndependentDealer(
       profile,
       "https://dealer.example",

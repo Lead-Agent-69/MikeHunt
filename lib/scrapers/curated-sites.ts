@@ -88,7 +88,7 @@ export const CURATED_SITES: CuratedSite[] = [
   { url: "https://www.aeofmiami.com", name: "A&E of Miami", state: "FL", type: "independent_dealer", inventoryUrl: "https://www.aeofmiami.com/latest-inventory" },
   { url: "https://www.autosavvy.com", name: "AutoSavvy", state: "UT", type: "rebuilder_dealer" }, // multi-state chain (UT/AZ/CO/ID/NV/NM/TX)
   { url: "https://www.74auto.com", name: "74Auto", type: "rebuilder_dealer" }, // salvage / repairable cars (verified)
-  { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", type: "salvage_yard", inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php" }, // parts yard that ALSO sells rebuildable vehicles — inventory at /vehicles.php
+  { url: "https://rebuilders.stjamesautoparts.com", name: "St. James Auto & Truck (Rebuilders)", state: "MO", city: "Saint James", type: "salvage_yard", inventoryUrl: "https://rebuilders.stjamesautoparts.com/vehicles.php" }, // Same location as the approved native adapter; also sells rebuildable vehicles.
   { url: "https://www.rebuildtrucks.com", name: "RebuildTrucks", type: "rebuilder_dealer" }, // rebuildable / ready-to-drive trucks & SUVs (verified)
   { url: "https://www.globalautoauctions.com", name: "Global Auto Auctions", type: "auction_proxy" }, // IAAI reseller, damaged/rebuildable (verified)
   // ── Wave 3 — surfaced by blocking the known network in search (genuinely new, curl-verified) ──

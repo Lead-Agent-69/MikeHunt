@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+let detailCache: string;
 const mocks = vi.hoisted(() => ({
   crawl: vi.fn(),
   upsert: vi.fn(),
@@ -14,7 +18,9 @@ import { scrapeDealerCms } from "./index";
 import { dealerCmsSiteFor, type DealerCmsSite } from "../platforms/dealer-cms";
 
 describe("dealer CMS accepted-record receipt", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    detailCache = await mkdtemp(path.join(tmpdir(), "cms-detail-test-"));
+    vi.stubEnv("LOCAL_CACHE_PATH", detailCache);
     vi.clearAllMocks();
     vi.stubEnv("CDG_DETAIL_LIMIT", "0");
     mocks.crawl.mockResolvedValue([
@@ -22,9 +28,16 @@ describe("dealer CMS accepted-record receipt", () => {
       { title: "2018 Honda Civic" },
     ]);
   });
-  afterEach(() => {
+  afterEach(async () => {
     vi.unstubAllEnvs();
     vi.restoreAllMocks();
+    if (
+      !path
+        .resolve(detailCache)
+        .startsWith(path.resolve(tmpdir(), "cms-detail-test-"))
+    )
+      throw new Error("Unexpected test cache path");
+    await rm(detailCache, { recursive: true, force: true });
   });
   const site = {
     name: "Test dealer",

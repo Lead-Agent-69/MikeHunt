@@ -49,6 +49,7 @@ import { politeFetch } from "@/lib/scrapers/polite/polite-fetch";
 import { getSweepPlan, type SweepPlan } from "@/lib/scrapers/sweep-plan";
 import { dealerDetailPhotos } from "../dealer-detail-photos";
 import { listingLocation } from "../listing-location";
+import { withDealerDetailRotation } from "../detail-enrichment-rotation";
 import pLimit from "p-limit";
 import { arsenalCuratedSites } from "@/lib/scrapers/arsenal";
 import { fetchPublicHtml } from "@/lib/net/fetch-public-html";
@@ -988,89 +989,92 @@ export async function scrapeIndependentDealer(
       (deal.images?.length || 0) < 2 ||
       (!deal.location_city && !deal.location_zip),
   );
-  // Advance the bounded batch hourly; stable inventory order must not starve later cars.
-  const photoOffset = photoCandidates.length
-    ? (Math.floor(Date.now() / 3600_000) * photoLimit) % photoCandidates.length
-    : 0;
-  const photoTargets = [
-    ...photoCandidates.slice(photoOffset),
-    ...photoCandidates.slice(0, photoOffset),
-  ].slice(0, photoLimit);
-  if (photoTargets.length) {
-    for (const deal of photoTargets) {
-      abortSignal?.throwIfAborted();
-      const url = deal.source_url;
-      if (!url || !isSameSiteHref(url, baseUrl) || policyBlockFor(url))
-        continue;
-      try {
-        const response = fetchPageHtml
-          ? { ok: true, url, body: await fetchPageHtml(url) }
-          : await politeFetch(url, {
-              freshForMs: 24 * 3600_000,
-              maxRetries: 0,
-              signal: abortSignal,
-            });
-        if (!response.ok || !isSameSiteHref(response.url, baseUrl)) continue;
-        const observedAt =
-          "observedAt" in response && typeof response.observedAt === "string"
-            ? response.observedAt
-            : undefined;
-        const photos = dealerDetailPhotos(response.body, url, deal.vin);
-        if (photos.length > (deal.images?.length || 0)) deal.images = photos;
-        const location = listingLocation(
-          response.body,
-          response.url,
-          deal.vin,
-          { allowDealerFallback: false },
-        );
-        if (
-          location.location_city ||
-          location.location_zip ||
-          location.lat != null
-        ) {
-          const previous = {
-            city: deal.location_city,
-            state: deal.location_state,
-            zip: deal.location_zip,
-          };
-          const changed = Boolean(
-            (location.location_city &&
-              location.location_city !== deal.location_city) ||
-            (location.location_state &&
-              location.location_state !== deal.location_state) ||
-            (location.location_zip &&
-              location.location_zip !== deal.location_zip),
-          );
-          Object.assign(deal, location);
-          if (changed && location.lat == null) {
-            deal.lat = null;
-            deal.lng = null;
+  if (photoLimit && photoCandidates.length) {
+    await withDealerDetailRotation(
+      baseUrl,
+      photoCandidates,
+      async (ordered, attempted) => {
+        for (const deal of ordered.slice(0, photoLimit)) {
+          abortSignal?.throwIfAborted();
+          const url = deal.source_url;
+          if (!url || !isSameSiteHref(url, baseUrl) || policyBlockFor(url))
+            continue;
+          attempted(deal);
+          try {
+            const response = fetchPageHtml
+              ? { ok: true, url, body: await fetchPageHtml(url) }
+              : await politeFetch(url, {
+                  freshForMs: 24 * 3600_000,
+                  maxRetries: 0,
+                  signal: abortSignal,
+                });
+            if (!response.ok || !isSameSiteHref(response.url, baseUrl))
+              continue;
+            const observedAt =
+              "observedAt" in response &&
+              typeof response.observedAt === "string"
+                ? response.observedAt
+                : undefined;
+            const photos = dealerDetailPhotos(response.body, url, deal.vin);
+            if (photos.length > (deal.images?.length || 0))
+              deal.images = photos;
+            const location = listingLocation(
+              response.body,
+              response.url,
+              deal.vin,
+              { allowDealerFallback: false },
+            );
+            if (
+              location.location_city ||
+              location.location_zip ||
+              location.lat != null
+            ) {
+              const previous = {
+                city: deal.location_city,
+                state: deal.location_state,
+                zip: deal.location_zip,
+              };
+              const changed = Boolean(
+                (location.location_city &&
+                  location.location_city !== deal.location_city) ||
+                (location.location_state &&
+                  location.location_state !== deal.location_state) ||
+                (location.location_zip &&
+                  location.location_zip !== deal.location_zip),
+              );
+              Object.assign(deal, location);
+              if (changed && location.lat == null) {
+                deal.lat = null;
+                deal.lng = null;
+              }
+              deal.options = {
+                ...deal.options,
+                vehicleLocation: {
+                  sourceUrl: url,
+                  ...(observedAt ? { observedAt } : {}),
+                  ...location,
+                  previous,
+                  resetCoordinates: changed && location.lat == null,
+                },
+              };
+            }
+            const priceEvidence = dealerDetailPriceEvidence(
+              (await import("cheerio")).load(response.body),
+              deal,
+              {},
+              observedAt,
+            );
+            if (priceEvidence)
+              deal.options = { ...deal.options, priceEvidence };
+          } catch (error) {
+            abortSignal?.throwIfAborted();
+            console.warn(
+              `[IndiDealer] ${profile.name}: photo enrichment failed for ${url}: ${String(error)}`,
+            );
           }
-          deal.options = {
-            ...deal.options,
-            vehicleLocation: {
-              sourceUrl: url,
-              ...(observedAt ? { observedAt } : {}),
-              ...location,
-              previous,
-              resetCoordinates: changed && location.lat == null,
-            },
-          };
         }
-        const priceEvidence = dealerDetailPriceEvidence(
-          (await import("cheerio")).load(response.body),
-          deal,
-          {},
-          observedAt,
-        );
-        if (priceEvidence) deal.options = { ...deal.options, priceEvidence };
-      } catch (error) {
-        abortSignal?.throwIfAborted();
-        console.warn(
-          `[IndiDealer] ${profile.name}: photo enrichment failed for ${url}: ${String(error)}`,
-        );
-      }
-    }
+      },
+    );
   }
   // dealer_id is a UUID FK; these auto-discovered sites have no dealers-table row, so leave it null.
   // A hostname slug ("auto-www.damage.com") fails the uuid type and silently drops every row.
@@ -2093,33 +2097,37 @@ export async function scrapeDealerCms(
   );
   let enriched = 0;
   let attemptedDetails = 0;
-  const detailOffset =
-    deals.length && enrichLimit
-      ? (Math.floor(Date.now() / 3600_000) * enrichLimit) % deals.length
-      : 0;
-  for (let i = 0; i < enrichLimit; i++) {
-    execution?.abortSignal?.throwIfAborted();
-    // Save the complete inventory within this job. Gallery requests are paced and can take
-    // longer than the executor's deadline; cached details make later refreshes progress.
-    if (Date.now() >= (execution?.deadlineAt ?? Infinity) - 60_000) break;
-    const index = (detailOffset + i) % deals.length;
-    const next = await enrichCdgDetail(
-      deals[index],
-      site,
-      execution?.abortSignal,
+  if (enrichLimit)
+    await withDealerDetailRotation(
+      site.baseUrl,
+      deals,
+      async (ordered, attempted) => {
+        for (const deal of ordered.slice(0, enrichLimit)) {
+          execution?.abortSignal?.throwIfAborted();
+          // Save the complete inventory within this job. Gallery requests are paced and can take
+          // longer than the executor's deadline; cached details make later refreshes progress.
+          if (Date.now() >= (execution?.deadlineAt ?? Infinity) - 60_000) break;
+          const index = deals.indexOf(deal);
+          attempted(deal);
+          const next = await enrichCdgDetail(
+            deals[index],
+            site,
+            execution?.abortSignal,
+          );
+          attemptedDetails++;
+          if (
+            (next.vin && next.vin !== deals[index].vin) ||
+            (next.images?.length || 0) > (deals[index].images?.length || 0) ||
+            next.mileage !== deals[index].mileage ||
+            next.options?.priceEvidence?.checkedAt !==
+              deals[index].options?.priceEvidence?.checkedAt ||
+            next.condition !== deals[index].condition
+          )
+            enriched += 1;
+          deals[index] = next;
+        }
+      },
     );
-    attemptedDetails++;
-    if (
-      (next.vin && next.vin !== deals[index].vin) ||
-      (next.images?.length || 0) > (deals[index].images?.length || 0) ||
-      next.mileage !== deals[index].mileage ||
-      next.options?.priceEvidence?.checkedAt !==
-        deals[index].options?.priceEvidence?.checkedAt ||
-      next.condition !== deals[index].condition
-    )
-      enriched += 1;
-    deals[index] = next;
-  }
   if (enrichLimit)
     console.log(
       `[CuratedSites] ${site.name} detail enriched ${enriched}/${attemptedDetails}; ${enrichLimit - attemptedDetails} deferred`,
