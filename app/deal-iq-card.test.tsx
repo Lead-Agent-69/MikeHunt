@@ -30,6 +30,15 @@ afterEach(() => {
   state.mutate.mockClear();
 });
 describe("Deal IQ evidence display", () => {
+  it("does not render a legacy cached score without explicit evidence readiness", () => {
+    state.data = { iq: { score: 99, tier: "elite", signals: [] } };
+    const host = render();
+    expect(host.textContent).toContain(
+      "Profit and a buying score are not established",
+    );
+    expect(host.textContent).not.toContain("Elite");
+    expect(host.textContent).not.toContain("99");
+  });
   it("shows source-backed missing checks instead of legacy buying claims", () => {
     state.data = {
       iq: null,

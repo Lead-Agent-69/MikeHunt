@@ -33,7 +33,7 @@ export function DealIQCard({ dealId }: { dealId: string }) {
       shouldRetryOnError: false,
     },
   );
-  const iq = data?.iq;
+  const iq = data?.evidence?.ready === true ? data?.iq : null;
   if (error)
     return (
       <div className="space-y-3" role="status">
