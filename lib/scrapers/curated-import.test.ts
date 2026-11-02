@@ -47,6 +47,31 @@ const profile = {
 };
 
 describe("curated import receipts", () => {
+  it("replaces the branch default with the VIN-matched vehicle location during bounded detail enrichment", async () => {
+    vi.stubEnv("DEALER_PHOTO_ENRICH_MAX", "1");
+    const vin = "1FMDE7BH5RLA05037";
+    const inventory = `<article><h2>2024 Ford Bronco Big Bend</h2><span class="price">$38,139</span><a href="/vehicle-info/${vin}">View</a></article>`;
+    const detail = `<div class="vdp-identity-main"><h1>2024 Ford Bronco Big Bend</h1><dl><div><dt>VIN</dt><dd>${vin}</dd></div><div><dt>Location</dt><dd>Charlotte County · Port Charlotte, FL 33952</dd></div></dl></div><section class="vdp-gallery"><img src="/front.jpg"><img src="/rear.jpg"></section>`;
+    await scrapeIndependentDealer(
+      { ...profile, city: "Dade City", state: "FL" },
+      "https://dealer.example",
+      undefined,
+      async (url) => (url.includes("vehicle-info") ? detail : inventory),
+    );
+    expect(mocks.save.mock.calls[0][0][0]).toMatchObject({
+      location_city: "Port Charlotte",
+      location_state: "FL",
+      location_zip: "33952",
+      lat: null,
+      lng: null,
+      options: {
+        vehicleLocation: {
+          resetCoordinates: true,
+          previous: { city: "Dade City" },
+        },
+      },
+    });
+  });
   it("keeps same-numbered vehicles from different dealers separate and reads real lazy photos", async () => {
     const page = html
       .replace(

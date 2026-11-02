@@ -5,6 +5,7 @@ import {
   type PriceEvidence,
 } from "@/lib/deals/acquisition-price";
 import { extractVin, isValidVin, normalizeVin } from "@/lib/vehicle/vin";
+import { dealerVdpObservation } from "../dealer-vdp-observation";
 
 /** Read explicit price terms only after matching the detail page to this vehicle. */
 export function dealerDetailPriceEvidence(
@@ -36,6 +37,20 @@ export function dealerDetailPriceEvidence(
   ) {
     return undefined;
   }
+  const vdp = dealerVdpObservation(
+    $.html(),
+    deal.source_url || "",
+    expectedVin,
+  );
+  if ($(".vdp-identity-main").length && !vdp) return undefined;
+  if (vdp?.advertisedFinal != null)
+    return {
+      kind: "unknown",
+      listedAmount: vdp.advertisedFinal,
+      checkedAt: observedAt,
+      evidenceText:
+        "VIN-matched seller Final Price panel. Advertised amount only; verify cash eligibility, mandatory fees, tax, title and license. Savings and retail reference amounts are separate.",
+    };
   // Ignore other cars, calculators, scripts and site-wide finance advertisements.
   const primary = $.root().clone();
   primary

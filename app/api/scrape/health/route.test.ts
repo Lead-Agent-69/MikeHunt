@@ -442,6 +442,22 @@ describe("GET /api/scrape/health lane scoping", () => {
     }
   });
 
+  it("keeps a blocked dealer distinct from a source that only needs refresh", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(
+      req("/api/scrape/health?lane=damaged&state=MO&sources=recar"),
+    );
+    const body = await res.json();
+    const row = body.sources.find((source: any) => source.id === "recar");
+    expect(row).toMatchObject({
+      readiness: "disabled",
+      termsRestricted: true,
+      isDue: false,
+    });
+    expect(row.termsReason).toMatch(/republication needs permission/i);
+    expect(row.nextAction).toContain("written source permission");
+  });
+
   it("does not run public government probes for damaged-lane health", async () => {
     previewGovDeals.mockClear();
     previewPublicSurplus.mockClear();
@@ -470,11 +486,12 @@ describe("GET /api/scrape/health lane scoping", () => {
       body.sources.find((source: any) => source.id === "ae-of-miami"),
     ).toMatchObject({
       name: "AE of Miami",
-      readiness: "not_configured",
+      readiness: "disabled",
+      termsRestricted: true,
       activeRows: 0,
       rowsWithPhotos: 0,
       proofSummary:
-        "This source is known, but matching rows cannot be saved until Supabase is connected.",
+        "This source restricts automated collection or inventory reuse. Imports are paused pending permission.",
     });
     expect(previewGovDeals).not.toHaveBeenCalled();
     expect(previewPublicSurplus).not.toHaveBeenCalled();

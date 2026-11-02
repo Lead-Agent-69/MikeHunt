@@ -1,10 +1,23 @@
 import { load } from "cheerio";
 import { genericExtract } from "./generic-extractor";
 import { isPlaceholderPhotoUrl } from "@/lib/images/photo-evidence";
+import { dealerVdpObservation } from "./dealer-vdp-observation";
+import { extractVin } from "@/lib/vehicle/vin";
 
 /** Read only the listing's gallery, never page-wide images or related inventory. */
-export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
+export function dealerDetailPhotos(
+  html: string,
+  listingUrl: string,
+  expectedVin?: string,
+): string[] {
   const $ = load(html);
+  const vin = extractVin(expectedVin || "") || extractVin(listingUrl);
+  if (
+    vin &&
+    $(".vdp-identity-main").length &&
+    !dealerVdpObservation(html, listingUrl, vin)
+  )
+    return [];
   const photos = new Set<string>();
   const add = (raw?: string) => {
     if (!raw) return;
@@ -19,6 +32,7 @@ export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
   };
   const structured = genericExtract(html);
   for (const row of structured) {
+    if (vin && row.vin && row.vin.toUpperCase() !== vin) continue;
     if (row.source_url) {
       try {
         const candidate = new URL(row.source_url, listingUrl);
@@ -35,7 +49,7 @@ export function dealerDetailPhotos(html: string, listingUrl: string): string[] {
     row.images?.forEach(add);
   }
   const gallery = $(
-    ".car-details .flexslider, .single-car .flexslider, .vehicle-gallery, #vehicle-gallery, .vehicle-photos, .product-gallery, [data-gallery]",
+    ".car-details .flexslider, .single-car .flexslider, .vehicle-gallery, #vehicle-gallery, .vehicle-photos, .product-gallery, .vdp-gallery, [data-gallery]",
   );
   gallery.find("[data-full]").each((_, node) => {
     add($(node).attr("data-full"));
