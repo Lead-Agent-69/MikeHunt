@@ -399,7 +399,7 @@ function IndependentDealerCoverage() {
       </div>
 
       <div className="grid gap-3 p-5 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
           {(
             Object.entries(SITE_TYPE_META) as Array<
               [CuratedSiteType, (typeof SITE_TYPE_META)[CuratedSiteType]]
@@ -407,10 +407,10 @@ function IndependentDealerCoverage() {
           ).map(([type, meta]) => (
             <div
               key={type}
-              className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
+              className="min-w-0 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3"
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-black text-[var(--t1)]">
+                <div className="min-w-0 text-sm font-black text-[var(--t1)]">
                   {meta.label}
                 </div>
                 <span
@@ -427,8 +427,8 @@ function IndependentDealerCoverage() {
           ))}
         </div>
 
-        <div className="rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
-          <div className="mb-3 flex items-center justify-between">
+        <div className="min-w-0 rounded-[var(--r3)] border border-[var(--b1)] bg-[var(--s1)] p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-black text-[var(--t1)]">
               Requested shops
             </div>
@@ -440,13 +440,13 @@ function IndependentDealerCoverage() {
             {featuredDealerRows.map((site) => (
               <div
                 key={site!.url}
-                className="flex items-center justify-between gap-3 rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2"
+                className="flex flex-col items-start gap-2 rounded-[var(--r2)] bg-[var(--s0)] px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-xs font-bold text-[var(--t2)]">
+                  <div className="break-words text-xs font-bold text-[var(--t2)]">
                     {site!.name}
                   </div>
-                  <div className="truncate text-[10px] text-[var(--t5)]">
+                  <div className="break-words text-[10px] text-[var(--t5)]">
                     {site!.state || "multi-state"} ·{" "}
                     {SITE_TYPE_META[site!.type].label}
                   </div>
@@ -1123,6 +1123,7 @@ function SourceProofPanel({
               key={item.id}
               type="button"
               disabled={!health}
+              aria-pressed={active}
               onClick={() => setFilter(item.id)}
               className={cn(
                 "rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
