@@ -115,6 +115,59 @@ it("shows progress when Google navigation begins", async () => {
   });
   expect(host.textContent).toContain("Connecting");
   expect(link.getAttribute("aria-disabled")).toBe("true");
+  expect(link.getAttribute("aria-busy")).toBe("true");
+  expect(link.tabIndex).toBe(-1);
+});
+it("supports Space activation once and cancels a keyboard press when focus leaves", async () => {
+  await render(GoogleButton);
+  const link = host.querySelector<HTMLAnchorElement>('a[role="button"]')!;
+  const navigation = vi.fn((event: Event) => event.preventDefault());
+  link.addEventListener("click", navigation);
+  const key = (type: string) =>
+    link.dispatchEvent(
+      new KeyboardEvent(type, { key: " ", bubbles: true, cancelable: true }),
+    );
+  act(() => {
+    key("keydown");
+  });
+  expect(link.dataset.pressed).toBe("true");
+  act(() => link.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  act(() => {
+    key("keyup");
+  });
+  expect(navigation).not.toHaveBeenCalled();
+  act(() => {
+    key("keydown");
+  });
+  act(() =>
+    link.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    ),
+  );
+  act(() => {
+    key("keyup");
+  });
+  expect(navigation).not.toHaveBeenCalled();
+  act(() => {
+    key("keydown");
+  });
+  act(() => {
+    key("keyup");
+  });
+  expect(navigation).toHaveBeenCalledOnce();
+  expect(link.getAttribute("aria-busy")).toBe("true");
+  act(() => {
+    key("keydown");
+    key("keyup");
+  });
+  expect(navigation).toHaveBeenCalledOnce();
+  const auxiliary = new MouseEvent("auxclick", {
+    button: 1,
+    bubbles: true,
+    cancelable: true,
+  });
+  act(() => link.dispatchEvent(auxiliary));
+  expect(auxiliary.defaultPrevented).toBe(true);
 });
 it("cancels the auth-provider status request when its form leaves the page", async () => {
   await render(GoogleButton);
@@ -139,6 +192,9 @@ it("offers email recovery without advertising a protected guest preview", async 
   expect(host.querySelector('a[role="button"]')?.hasAttribute("href")).toBe(
     false,
   );
+  expect(
+    host.querySelector<HTMLAnchorElement>('a[role="button"]')?.tabIndex,
+  ).toBe(-1);
 });
 it("exposes admin navigation only for the server-verified current identity", async () => {
   vi.stubGlobal(

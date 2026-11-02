@@ -27,7 +27,7 @@ export function MarketSearchActions({
   disabled?: boolean;
 }) {
   const itemClass =
-    "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm outline-none focus:bg-[var(--s2)]";
+    "feedback-control flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm outline-none data-[highlighted]:bg-[var(--accent-surface)] data-[highlighted]:text-[var(--accent)]";
   return (
     <div className="flex shrink-0 gap-1.5 sm:gap-2">
       <button
@@ -36,7 +36,7 @@ export function MarketSearchActions({
         title="Save search on this device"
         disabled={disabled}
         onClick={onSave}
-        className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+        className="feedback-action inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--accent)] px-3 text-xs font-semibold text-[var(--on-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
       >
         <BookmarkPlus className="hidden h-4 w-4 sm:block" aria-hidden="true" />
         <span>
@@ -48,10 +48,14 @@ export function MarketSearchActions({
         aria-label="Refresh results"
         title="Refresh results"
         disabled={disabled || refreshDisabled || refreshing}
+        aria-busy={refreshing || undefined}
         onClick={onRefresh}
-        className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--b1)] px-3 text-xs font-semibold disabled:opacity-50 sm:px-4"
+        className="feedback-control inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-[var(--b1)] px-3 text-xs font-semibold disabled:opacity-50 sm:px-4"
       >
-        <RefreshCw className="hidden h-4 w-4 sm:block" aria-hidden="true" />
+        <RefreshCw
+          className={`hidden h-4 w-4 sm:block ${refreshing ? "animate-spin" : ""}`}
+          aria-hidden="true"
+        />
         <span>
           {refreshing ? "Refreshing…" : "Refresh"}
           <span className="hidden sm:inline">{!refreshing && " results"}</span>
@@ -60,8 +64,9 @@ export function MarketSearchActions({
       <button
         type="button"
         aria-label="Copy filtered search link"
+        disabled={disabled}
         onClick={onCopy}
-        className="hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
+        className="feedback-control hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
       >
         <Copy className="h-4 w-4" />
         Copy search
@@ -69,16 +74,18 @@ export function MarketSearchActions({
       <button
         type="button"
         aria-label="Reset filters"
+        disabled={disabled}
         onClick={onReset}
-        className="hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
+        className="feedback-control hidden min-h-11 items-center gap-2 rounded-full border border-[var(--b1)] px-4 text-xs font-semibold sm:inline-flex"
       >
         <RotateCcw className="h-4 w-4" />
         Reset
       </button>
       <Menu.Root>
         <Menu.Trigger
+          disabled={disabled}
           aria-label="Search actions"
-          className="grid h-11 w-11 place-items-center rounded-full border border-[var(--b1)] sm:hidden"
+          className="feedback-control grid h-11 w-11 place-items-center rounded-full border border-[var(--b1)] sm:hidden"
         >
           <Ellipsis className="h-5 w-5" />
         </Menu.Trigger>
@@ -88,11 +95,19 @@ export function MarketSearchActions({
             sideOffset={6}
             className="z-[90] min-w-48 rounded-xl border border-[var(--b1)] bg-[var(--s0)] p-1 text-[var(--t1)] shadow-xl"
           >
-            <Menu.Item onSelect={onCopy} className={itemClass}>
+            <Menu.Item
+              disabled={disabled}
+              onSelect={onCopy}
+              className={itemClass}
+            >
               <Copy className="h-4 w-4" />
               Copy search link
             </Menu.Item>
-            <Menu.Item onSelect={onReset} className={itemClass}>
+            <Menu.Item
+              disabled={disabled}
+              onSelect={onReset}
+              className={itemClass}
+            >
               <RotateCcw className="h-4 w-4" />
               Reset filters
             </Menu.Item>

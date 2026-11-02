@@ -106,7 +106,7 @@ export function PasswordField({
           onClick={() => setVisible((current) => !current)}
           aria-label={visible ? "Hide password" : "Show password"}
           aria-pressed={visible}
-          className="absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-[var(--r2)] text-[var(--t4)] transition-colors hover:text-[var(--t1)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--amber)]"
+          className="feedback-control absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center rounded-r-[var(--r2)] text-[var(--t3)] transition-colors"
         >
           {visible ? (
             <EyeOff size={18} aria-hidden />

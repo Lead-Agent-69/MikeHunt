@@ -38,12 +38,16 @@ export function Btn({
   return (
     <button
       disabled={disabled || loading}
-      className={`btn ${sizeClasses[size]} ${variantClasses[variant]} disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={`btn inline-flex min-h-11 items-center justify-center gap-2 ${sizeClasses[size]} ${variantClasses[variant]} disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
       style={variant === "danger" ? dangerStyle : undefined}
       {...props}
+      aria-busy={loading ? true : props["aria-busy"]}
     >
       {loading && (
-        <span className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        <span
+          aria-hidden="true"
+          className="inline-block w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"
+        />
       )}
       {children}
     </button>

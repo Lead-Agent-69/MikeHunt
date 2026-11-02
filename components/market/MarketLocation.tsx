@@ -158,7 +158,7 @@ export function MarketLocation({
             type="button"
             aria-label={`Search area: ${summary}`}
             title={summary}
-            className="flex min-h-12 min-w-0 items-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-4 text-left text-sm font-semibold"
+            className="feedback-control flex min-h-12 min-w-0 items-center gap-2 rounded-full border border-[var(--b2)] bg-[var(--s1)] px-4 text-left text-sm font-semibold"
           >
             <MapPin className="h-4 w-4 shrink-0" aria-hidden="true" />
             <span className="min-w-0 flex-1 truncate">{summary}</span>
@@ -183,7 +183,7 @@ export function MarketLocation({
               </div>
               <Dialog.Close
                 aria-label="Close search area"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--b1)]"
+                className="feedback-control grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[var(--b1)]"
               >
                 <X className="h-5 w-5" />
               </Dialog.Close>
@@ -203,7 +203,7 @@ export function MarketLocation({
                   ).map(([key, label]) => (
                     <label
                       key={key}
-                      className={`flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-2 text-center text-sm font-bold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--blue)] ${mode === key ? "bg-[var(--accent)] text-[var(--on-accent)]" : "text-[var(--t3)]"}`}
+                      className={`feedback-choice flex min-h-11 cursor-pointer items-center justify-center rounded-lg px-2 text-center text-sm font-bold has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[var(--blue)] ${mode === key ? "bg-[var(--accent)] text-[var(--on-accent)]" : "text-[var(--t3)]"}`}
                     >
                       <input
                         className="sr-only"
@@ -251,6 +251,7 @@ export function MarketLocation({
                     <button
                       type="button"
                       disabled={locating}
+                      aria-busy={locating || undefined}
                       onClick={() => {
                         stopLocating();
                         if (!navigator.geolocation) {
@@ -291,7 +292,7 @@ export function MarketLocation({
                           { timeout: 10000, maximumAge: 300000 },
                         );
                       }}
-                      className="flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold disabled:opacity-50"
+                      className="feedback-control flex min-h-11 items-center gap-2 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold disabled:opacity-50"
                     >
                       <LocateFixed
                         className={`h-4 w-4 ${locating ? "animate-pulse" : ""}`}
@@ -308,7 +309,7 @@ export function MarketLocation({
                           setNear(homePlace);
                           setRadius(String(home?.radiusMi || 100));
                         }}
-                        className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
+                        className="feedback-control min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
                       >
                         Use saved home
                       </button>
@@ -344,7 +345,7 @@ export function MarketLocation({
                       onChange={(event) =>
                         setRadius(String(steps[Number(event.target.value)]))
                       }
-                      className="mt-2 min-h-11 w-full accent-[var(--blue)]"
+                      className="feedback-input mt-2 min-h-11 w-full accent-[var(--blue)]"
                     />
                     <span
                       aria-hidden="true"
@@ -369,7 +370,7 @@ export function MarketLocation({
                     <button
                       type="button"
                       onClick={() => setStates(surroundingStates(anchor))}
-                      className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
+                      className="feedback-control min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-semibold"
                     >
                       {anchor} + surrounding states
                     </button>
@@ -389,7 +390,7 @@ export function MarketLocation({
                       type="button"
                       onClick={() => setStates([])}
                       disabled={!states.length}
-                      className="min-h-11 self-end rounded-lg px-3 text-sm font-semibold disabled:opacity-40"
+                      className="feedback-control min-h-11 self-end rounded-lg px-3 text-sm font-semibold disabled:opacity-40"
                     >
                       Clear
                     </button>
@@ -405,7 +406,7 @@ export function MarketLocation({
                     ).map((code) => (
                       <label
                         key={code}
-                        className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${states.includes(code) ? "border-[var(--blue)] bg-[var(--s2)]" : "border-[var(--b1)]"}`}
+                        className={`feedback-choice flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm ${states.includes(code) ? "border-[var(--blue)] bg-[var(--s2)]" : "border-[var(--b1)]"}`}
                       >
                         <input
                           type="checkbox"
@@ -458,14 +459,14 @@ export function MarketLocation({
                   : searchAreaLabel(draft)}
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Dialog.Close className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-bold">
+                <Dialog.Close className="feedback-control min-h-11 rounded-lg border border-[var(--b1)] px-3 text-sm font-bold">
                   Cancel
                 </Dialog.Close>
                 <button
                   type="button"
                   disabled={!canApply}
                   onClick={applyArea}
-                  className="min-h-11 rounded-lg bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] disabled:opacity-40"
+                  className="feedback-action min-h-11 rounded-lg bg-[var(--accent)] px-3 text-sm font-bold text-[var(--on-accent)] disabled:opacity-40"
                 >
                   Apply area
                 </button>
