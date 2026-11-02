@@ -8,24 +8,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerComponentClient } from "@/lib/supabase";
 import { getServerUser } from "@/lib/server-supabase";
 import { getDealerCalibration } from "@/lib/scoring/calibration";
-import { categorize } from "@/lib/discovery/categorize";
+import {
+  RECOMMENDATION_FIELDS,
+  recommendationEvidence,
+} from "@/lib/deals/recommendation-evidence";
+import { vendorIdentity } from "@/lib/sources/vendor-identity";
 import {
   computeDealIQ,
   type Confidence,
   type IQInputs,
 } from "@/lib/intelligence/deal-iq";
 import { extractWinPatterns, matchWin } from "@/lib/intelligence/win-patterns";
-import { mispricingOf } from "@/lib/intelligence/mispricing";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 
-// GET /api/deal-iq/[id] — the unified Deal IQ for one deal. Assembles every intelligence signal the
-// platform produces (market position, profit, demand, timing, your win-patterns, mispricing, your
-// calibration) and fuses them into one explainable score. All-free except the (optional) per-dealer
-// personalization, which is cheap DB reads.
-function modelToken(model?: string | null): string {
-  return (model || "").split(" ")[0] || "";
-}
-
+// Apply the same purchase-evidence rules used by recommendation outputs.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -38,71 +34,31 @@ export async function GET(
 
   const { data: d, error } = await supabase
     .from("deals")
-    .select(
-      "id, title, year, make, model, condition, damage_type, ask_price, sell_estimate, mmr_value, true_net_profit, deal_verdict, location_state, deal_analysis",
-    )
+    .select(RECOMMENDATION_FIELDS)
     .eq("id", id)
     .maybeSingle();
 
-  if (error || !d)
-    return NextResponse.json({ error: "Deal not found" }, { status: 404 });
-
-  const sellBasis = d.deal_analysis?.sellBasis as string | undefined;
-  const compsConfidence: Confidence =
-    sellBasis === "comps" ? "high" : sellBasis === "market" ? "medium" : "none";
-  const distressed = categorize({ ...d, sellBasis }).distressed;
-
-  // ── Demand (state-scoped) ──
-  let demand: IQInputs["demand"] = null;
-  if (d.make && d.model && d.location_state) {
-    try {
-      const { getMarketDemand } =
-        await import("@/lib/hotFunctions/demandIndex");
-      const dm = await getMarketDemand(d.make, d.model, d.location_state);
-      demand = dm.demandLevel as IQInputs["demand"];
-    } catch {
-      /* optional */
-    }
-  }
-
-  // ── Timing ──
-  let timing: IQInputs["timing"] = null;
-  try {
-    const { data: t } = await supabase
-      .from("market_timing_signals")
-      .select("signal")
-      .eq("make", d.make)
-      .ilike("model", `%${modelToken(d.model)}%`)
-      .order("data_points", { ascending: false })
-      .limit(1);
-    timing = (t?.[0]?.signal as IQInputs["timing"]) ?? null;
-  } catch {
-    /* optional */
-  }
-
-  // ── Mispricing vs the make/model/year cluster ──
-  let mispricing: IQInputs["mispricing"] = null;
-  try {
-    let q = supabase
-      .from("deals")
-      .select("ask_price")
-      .eq("active", true)
-      .eq("make", d.make)
-      .gt("ask_price", 0)
-      .neq("id", id)
-      .limit(300);
-    if (d.model) q = q.ilike("model", `%${modelToken(d.model)}%`);
-    if (d.year) q = q.gte("year", d.year - 1).lte("year", d.year + 1);
-    const { data: peers } = await q;
-    mispricing = mispricingOf(
-      Number(d.ask_price),
-      (peers || []).map((p: any) => Number(p.ask_price)),
+  if (error)
+    return NextResponse.json(
+      { error: "Vehicle research is temporarily unavailable. Try again." },
+      { status: 503 },
     );
-  } catch {
-    /* optional */
-  }
+  if (!d)
+    return NextResponse.json({ error: "Vehicle not found" }, { status: 404 });
 
-  // ── Personalized: win-match + calibration (requires a signed-in dealer) ──
+  const checked = recommendationEvidence(d);
+  const evidence = {
+    ready: checked.ready,
+    label: checked.ready ? "Evidence-backed research" : checked.decision.label,
+    nextCheck: checked.decision.nextCheck,
+    priceMeaning: checked.price.label,
+    sourceUrl: vendorIdentity(d.source, d.source_url).href || null,
+    observedAt: d.last_seen_at || null,
+  };
+  // An incomplete record cannot support profit, a buy score or a guessed price-cause claim.
+  if (!checked.ready) return NextResponse.json({ iq: null, evidence });
+  const compsConfidence = d.deal_analysis.valuation.confidence as Confidence;
+
   let winMatch: IQInputs["winMatch"] = null;
   let calibrationProfitBiasPct: number | null = null;
   try {
@@ -133,19 +89,15 @@ export async function GET(
   }
 
   const iq = computeDealIQ({
-    askPrice: Number(d.ask_price) || 0,
+    askPrice: checked.price.cashPrice!,
     sellEstimate: d.sell_estimate ?? d.mmr_value,
     compsConfidence,
-    trueNetProfit: d.true_net_profit,
+    trueNetProfit: checked.profit,
     dealVerdict: d.deal_verdict,
     priceImplausible: !!d.deal_analysis?.priceImplausible,
-    demand,
-    timing,
     winMatch,
-    mispricing,
     calibrationProfitBiasPct,
-    distress: distressed,
   });
 
-  return NextResponse.json({ iq });
+  return NextResponse.json({ iq, evidence });
 }
