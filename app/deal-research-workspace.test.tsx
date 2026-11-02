@@ -94,4 +94,47 @@ describe("focused deal research", () => {
     expect(firstPoint.getAttribute("aria-pressed")).toBe("true");
     expect(host.textContent).toContain("$30,000");
   });
+
+  it.each([true, false])(
+    "supports roving keyboard focus and one panel with dealerMode=%s",
+    (dealerMode) => {
+      act(() =>
+        root.render(
+          <DealResearchWorkspace dealId="deal-1" dealerMode={dealerMode} />,
+        ),
+      );
+      const tabs = Array.from(
+        host.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+      );
+      expect(tabs).toHaveLength(dealerMode ? 3 : 2);
+      expect(tabs.filter((tab) => tab.tabIndex === 0)).toHaveLength(1);
+      const press = (index: number, key: string) =>
+        act(() =>
+          tabs[index].dispatchEvent(
+            new KeyboardEvent("keydown", {
+              key,
+              bubbles: true,
+              cancelable: true,
+            }),
+          ),
+        );
+      press(0, "ArrowRight");
+      expect(document.activeElement).toBe(tabs[1]);
+      expect(tabs[1].getAttribute("aria-selected")).toBe("true");
+      expect(host.querySelectorAll('[role="tabpanel"]')).toHaveLength(1);
+      expect(
+        host
+          .querySelector('[role="tabpanel"]')
+          ?.getAttribute("aria-labelledby"),
+      ).toBe(tabs[1].id);
+      press(1, "Home");
+      expect(document.activeElement).toBe(tabs[0]);
+      press(0, "ArrowLeft");
+      expect(document.activeElement).toBe(tabs[tabs.length - 1]);
+      press(tabs.length - 1, "Home");
+      press(0, "End");
+      expect(document.activeElement).toBe(tabs[tabs.length - 1]);
+      expect(tabs.filter((tab) => tab.tabIndex === 0)).toHaveLength(1);
+    },
+  );
 });

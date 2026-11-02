@@ -529,7 +529,7 @@ export default function DiscoverPage() {
         </p>
         <div className="grid grid-cols-2 items-start gap-x-3">
           <div className="col-span-2 min-w-0">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 lg:hidden">
               <h2 className="text-sm font-semibold text-[var(--t2)]">
                 <span className="hidden lg:inline">Quick filters</span>
                 <button
@@ -570,7 +570,7 @@ export default function DiscoverPage() {
             </div>
             <form
               id="discovery-quick-filters"
-              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-3 py-2 lg:flex lg:gap-3`}
+              className={`${quickFiltersOpen ? "flex" : "hidden"} flex-col gap-3 py-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end lg:gap-3 lg:py-0`}
               aria-label="Buying for"
               onSubmit={(event) => {
                 event.preventDefault();
@@ -663,6 +663,17 @@ export default function DiscoverPage() {
                     All filters
                   </Link>
                 )}
+                <button
+                  type="button"
+                  aria-label="Market insights and saved interests"
+                  aria-expanded={showInsights}
+                  aria-controls="discovery-market-insights"
+                  onClick={() => setShowInsights(!showInsights)}
+                  className="hidden min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-[var(--blue)] hover:bg-[var(--s1)] lg:inline-flex"
+                >
+                  <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                  Insights
+                </button>
               </div>
             </form>
           </div>

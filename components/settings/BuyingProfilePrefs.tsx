@@ -9,7 +9,7 @@ import { BuyingPurposeChoices } from "@/components/buyer/BuyingPurposeChoices";
 
 type Scope = NonNullable<Prefs["buyerScope"]>;
 const field =
-  "w-full min-w-0 min-h-11 rounded-lg border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-base text-[var(--t1)]";
+  "w-full min-w-0 min-h-11 rounded-xl border border-[var(--b2)] bg-[var(--s1)] px-3 py-2 text-base text-[var(--t1)]";
 const POPULAR_MAKES = [
   "Ford",
   "Chevrolet",
@@ -137,7 +137,7 @@ export function BuyingProfilePrefs() {
   return (
     <section
       id="buying-preferences"
-      className="scroll-mt-20"
+      className="browse-panel scroll-mt-36 p-4 sm:p-5"
       aria-labelledby="buying-preferences-title"
     >
       <h2

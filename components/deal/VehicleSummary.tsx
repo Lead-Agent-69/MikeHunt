@@ -85,14 +85,14 @@ export function VehicleSummary({
   return (
     <section aria-label="Vehicle summary" className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <h1 className="min-w-0 max-w-full break-words text-xl font-bold text-[var(--t1)]">
+        <h1 className="min-w-0 max-w-full break-words text-2xl font-semibold tracking-tight text-[var(--t1)] md:text-3xl">
           {title}
         </h1>
         <div className="shrink-0">
           <p className="text-xs text-[var(--t3)]">
             {priceEvidenceLabel(deal.priceEvidence) || price.label}
           </p>
-          <p className="text-xl font-bold text-[var(--t1)]">
+          <p className="text-2xl font-bold tabular-nums tracking-tight text-[var(--t1)] md:text-3xl">
             {reportedMoney(
               nonCashPriceLabel(deal.priceEvidence)
                 ? deal.priceEvidence?.listedAmount
@@ -194,7 +194,7 @@ export function VehicleFacts({
     >
       {facts.map(([label, value]) => (
         <div key={label} className="min-w-0">
-          <dt className="text-[var(--t4)]">{label}</dt>
+          <dt className="text-[var(--t3)]">{label}</dt>
           <dd className="mt-0.5 break-words font-semibold text-[var(--t2)]">
             {value}
           </dd>

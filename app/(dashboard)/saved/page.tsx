@@ -401,7 +401,7 @@ export default function SavedCarsPage() {
       />
       {/* HEADER SECTION */}
       {comparisonIds.length > 0 && (
-        <div className="sticky top-16 z-20 flex flex-wrap items-center gap-3 border border-[var(--b1)] bg-[var(--s0)] p-3 rounded-lg">
+        <div className="browse-panel sticky top-16 z-20 flex flex-wrap items-center gap-3 p-3">
           <span>{comparisonIds.length} of 4 selected</span>
           {comparisonIds.length >= 2 ? (
             <Link
@@ -428,7 +428,7 @@ export default function SavedCarsPage() {
           <h1
             id="saved-vehicles-heading"
             tabIndex={-1}
-            className="text-3xl font-black text-[var(--t1)] tracking-tight"
+            className="text-2xl font-semibold text-[var(--t1)] tracking-tight md:text-3xl"
           >
             Saved Vehicles
           </h1>
@@ -457,8 +457,7 @@ export default function SavedCarsPage() {
             <Button
               type="submit"
               disabled={adding}
-              className="text-white text-sm font-bold px-5 h-11 flex items-center gap-1.5 shrink-0 rounded-xl border-none"
-              style={{ background: "var(--grad)" }}
+              className="min-h-11 bg-[var(--accent)] text-[var(--on-accent)] text-sm font-semibold px-5 h-11 flex items-center gap-1.5 shrink-0 rounded-full border-none"
             >
               {adding ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -472,21 +471,17 @@ export default function SavedCarsPage() {
       </div>
 
       {/* FILTER BUTTONS */}
-      <div
-        className="grid w-full grid-cols-2 min-[360px]:grid-cols-4 sm:inline-flex gap-1 p-1 rounded-lg sm:w-fit"
-        style={{ background: "var(--s0)", boxShadow: "var(--shadow2)" }}
-      >
+      <div className="browse-segmented grid w-full grid-cols-2 min-[360px]:grid-cols-4 sm:inline-flex gap-1 p-1 sm:w-fit">
         {(["all", "active", "price_drops", "gone"] as const).map((tab) => (
           <button
             key={tab}
             aria-pressed={filter === tab}
             onClick={() => setFilter(tab)}
-            className={`min-h-11 px-2 sm:px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap border-none ${
+            className={`min-h-11 px-2 sm:px-3 py-2 rounded-full text-xs font-semibold transition-colors whitespace-nowrap border-none ${
               filter === tab
-                ? "text-white"
-                : "text-[var(--t4)] hover:text-[var(--t1)]"
+                ? "bg-[var(--accent-surface)] text-[var(--accent)]"
+                : "text-[var(--t3)] hover:bg-[var(--s2)] hover:text-[var(--t1)]"
             }`}
-            style={filter === tab ? { background: "var(--grad)" } : {}}
           >
             {
               {

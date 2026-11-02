@@ -10,7 +10,6 @@ import { FindSimilarModal } from "./FindSimilarModal";
 import {
   Trash2,
   ExternalLink,
-  RefreshCw,
   Sparkles,
   Clock,
   TrendingDown,
@@ -235,10 +234,10 @@ export const SavedCarCard = React.memo(function SavedCarCard({
   return (
     <>
       <Card
-        className={`relative isolate border-none bg-[var(--s0)] transition-all overflow-hidden reveal-on-scroll ${
-          status === "unavailable" ? "opacity-60 grayscale" : ""
+        className={`inventory-card relative isolate overflow-hidden ${
+          status === "unavailable" ? "border-dashed" : ""
         }`}
-        style={{ boxShadow: "var(--shadow2)", borderRadius: "var(--r4)" }}
+        style={{ borderStyle: status === "unavailable" ? "dashed" : undefined }}
       >
         {onToggleComparison && (
           <label className="relative z-20 flex min-h-11 items-center gap-2 px-3 text-sm">
@@ -259,8 +258,8 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         )}
         {status === "price_drop" && (
           <div
-            className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
-            style={{ background: "var(--green)" }}
+            className="text-[var(--t1)] text-[11px] font-semibold py-2 px-3 flex items-center gap-1"
+            style={{ background: "var(--glo)" }}
           >
             <TrendingDown className="w-3.5 h-3.5" />
             Price Drop &bull; Saved {formatMoney(originalPrice)} &rarr; Now{" "}
@@ -270,8 +269,8 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         )}
         {status === "price_increase" && (
           <div
-            className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
-            style={{ background: "var(--red)" }}
+            className="text-[var(--t1)] text-[11px] font-semibold py-2 px-3 flex items-center gap-1"
+            style={{ background: "var(--rlo)" }}
           >
             <TrendingUp className="w-3.5 h-3.5" />
             Price Went Up &bull; Was {formatMoney(originalPrice)} &rarr; Now{" "}
@@ -280,27 +279,27 @@ export const SavedCarCard = React.memo(function SavedCarCard({
         )}
         {status === "ending_soon" && (
           <div
-            className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
-            style={{ background: "var(--gold)" }}
+            className="text-[var(--t1)] text-[11px] font-semibold py-2 px-3 flex items-center gap-1"
+            style={{ background: "var(--amber-lo)" }}
           >
             <Clock className="w-3.5 h-3.5" />
-            Auction Ends Soon &bull; Bid Closing Urgent
+            Auction reminder &bull; Verify the current closing time
           </div>
         )}
         {status === "unavailable" && (
           <div
-            className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
-            style={{ background: "var(--red)" }}
+            className="text-[var(--t1)] text-[11px] font-semibold py-2 px-3 flex items-center gap-1"
+            style={{ background: "var(--rlo)" }}
           >
-            ✗ No Longer Available (Listing Removed / Sold)
+            Unavailable · Last saved details retained
           </div>
         )}
         {status === "acquired" && (
           <div
-            className="text-white text-[10px] font-bold uppercase tracking-wider py-1.5 px-3 flex items-center gap-1"
-            style={{ background: "var(--purple)" }}
+            className="text-[var(--t1)] text-[11px] font-semibold py-2 px-3 flex items-center gap-1"
+            style={{ background: "var(--plo)" }}
           >
-            ✓ Acquired &bull; Moved to Fleet Inventory
+            ✓ Acquired &bull; Moved to Pipeline
           </div>
         )}
 
@@ -308,7 +307,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
           className={`relative p-4 sm:p-5 flex flex-col lg:flex-row justify-between gap-4 ${snapshot.images?.[0] ? "lg:pl-[13.25rem]" : ""}`}
         >
           {/* Main Info */}
-          <div className="min-w-0 space-y-2 flex-1">
+          <div className="min-w-0 flex flex-1 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <SourceBadge
                 source={save.source_name}
@@ -336,13 +335,13 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               )}
             </div>
 
-            <h3 className="break-words text-lg font-bold text-[var(--t1)]">
+            <h3 className="break-words text-lg font-semibold tracking-tight text-[var(--t1)]">
               {save.deal_id ? (
                 <Link
                   href={`/deal/${save.deal_id}`}
                   prefetch={false}
                   data-testid="saved-card-open"
-                  className="after:absolute after:inset-0 after:z-10 after:rounded-lg after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
+                  className="after:absolute after:inset-0 after:z-10 after:rounded-[20px] after:content-[''] focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-[var(--blue)]"
                 >
                   {snapshot.year} {snapshot.make} {snapshot.model}{" "}
                   {snapshot.trim}
@@ -355,7 +354,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
               )}
             </h3>
             <div aria-label="Saved vehicle price">
-              <span className="block text-xs text-[var(--t4)]">
+              <span className="block text-xs text-[var(--t3)]">
                 {status === "unavailable"
                   ? "Last reported amount"
                   : priceEvidenceLabel(snapshot.priceEvidence) ||
@@ -363,7 +362,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
                       ? "Asking price"
                       : "Unverified advertised amount")}
               </span>
-              <span className="text-xl font-bold text-[var(--t1)]">
+              <span className="text-2xl font-bold tabular-nums tracking-tight text-[var(--t1)]">
                 {Number.isFinite(
                   status === "unavailable" ? originalPrice : currentPrice,
                 ) &&
@@ -376,7 +375,7 @@ export const SavedCarCard = React.memo(function SavedCarCard({
             </div>
 
             {snapshot.images?.[0] && (
-              <div className="relative block aspect-[16/9] w-full overflow-hidden rounded-lg bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:aspect-auto lg:h-32 lg:w-44">
+              <div className="relative order-first block aspect-[16/10] w-full overflow-hidden rounded-2xl bg-[var(--s1)] lg:absolute lg:left-5 lg:top-5 lg:aspect-auto lg:h-32 lg:w-44">
                 <a
                   href={
                     save.deal_id

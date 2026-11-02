@@ -24,40 +24,42 @@ const fetcher = (url: string) =>
 
 // User-level VIEW preferences (default market). Persists per user via /api/preferences, so it saves for
 // everyone (no dealer profile required). This is the "what do I want to see" control.
-function CarsViewPrefs({ business }: { business: boolean }) {
+function SettingsSectionNav({ business }: { business: boolean }) {
+  return (
+    <nav
+      aria-label="Settings sections"
+      className="browse-segmented sticky top-14 z-20 flex gap-1 overflow-x-auto p-1"
+    >
+      {[
+        ["Buying preferences", "buying-preferences"],
+        ["Locations", "locations"],
+        ["Deal alerts", "deal-alerts"],
+        [business ? "Business profile" : "Contact details", "contact-profile"],
+        ...(business ? [["Deal cost defaults", "cost-defaults"]] : []),
+        ["Notifications", "notifications"],
+      ].map(([label, id]) => (
+        <a
+          key={id}
+          href={`#${id}`}
+          className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-full px-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+        >
+          {label}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+function CarsViewPrefs() {
   const { isLoading } = usePreferences();
   if (isLoading) return <p role="status">Loading preferences...</p>;
   return (
     <div className="space-y-6">
-      <nav
-        aria-label="Settings sections"
-        className="flex flex-wrap gap-2 border-b border-[var(--b1)] pb-4"
-      >
-        {[
-          ["Buying preferences", "buying-preferences"],
-          ["Locations", "locations"],
-          ["Deal alerts", "deal-alerts"],
-          [
-            business ? "Business profile" : "Contact details",
-            "contact-profile",
-          ],
-          ...(business ? [["Deal cost defaults", "cost-defaults"]] : []),
-          ["Notifications", "notifications"],
-        ].map(([label, id]) => (
-          <a
-            key={id}
-            href={`#${id}`}
-            className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
-          >
-            {label}
-          </a>
-        ))}
-      </nav>
       <BuyingProfilePrefs />
       <section
         id="locations"
         aria-labelledby="locations-title"
-        className="scroll-mt-20 border-t border-[var(--b1)] pt-6"
+        className="browse-panel scroll-mt-36 p-4 sm:p-5"
       >
         <h2
           id="locations-title"
@@ -70,7 +72,7 @@ function CarsViewPrefs({ business }: { business: boolean }) {
       <section
         id="deal-alerts"
         aria-labelledby="deal-alerts-title"
-        className="scroll-mt-20 pt-6 border-t border-[var(--b1)] flex flex-wrap items-center justify-between gap-4"
+        className="browse-panel scroll-mt-36 flex flex-wrap items-center justify-between gap-4 p-4 sm:p-5"
       >
         <div className="min-w-0">
           <h2
@@ -276,22 +278,22 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto animate-fadeUp pb-24">
+    <div className="min-w-0 w-full space-y-6 max-w-3xl mx-auto pb-24">
       {/* Header */}
-      <div className="glass-panel p-6 flex items-center gap-4">
-        <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-white"
-          style={{ background: "var(--grad)" }}
-        >
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-full flex items-center justify-center bg-[var(--accent-surface)] text-[var(--accent)]">
           <Ico name="settings" size={24} />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-[var(--t1)]">Settings</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--t1)] md:text-3xl">
+            Settings
+          </h1>
         </div>
       </div>
 
       {/* View preferences — user-level, always available (independent of the dealer profile). */}
-      <CarsViewPrefs business={showProfitTarget} />
+      {!prefsLoading && <SettingsSectionNav business={showProfitTarget} />}
+      <CarsViewPrefs />
 
       {loading && (
         <div className="text-center py-10">
@@ -319,11 +321,8 @@ export default function SettingsPage() {
           className="min-w-0 space-y-6"
         >
           {/* Profile Section */}
-          <div
-            id="contact-profile"
-            className="glass-panel scroll-mt-20 p-6 animate-popIn"
-          >
-            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+          <div id="contact-profile" className="browse-panel scroll-mt-36 p-6">
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--t1)] mb-5">
               {showProfitTarget ? "Business profile" : "Contact details"}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -372,10 +371,10 @@ export default function SettingsPage() {
           {showProfitTarget && (
             <div
               id="cost-defaults"
-              className="glass-panel scroll-mt-20 p-6 animate-popIn"
+              className="browse-panel scroll-mt-36 p-6"
               style={{ animationDelay: "100ms" }}
             >
-              <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+              <h2 className="text-lg font-semibold tracking-tight text-[var(--t1)] mb-5">
                 Deal cost defaults
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -449,7 +448,7 @@ export default function SettingsPage() {
             </span>
             <div className="flex items-center gap-4 w-full sm:w-auto">
               {saved && (
-                <span className="text-sm font-bold text-[var(--green)] flex items-center gap-1 animate-popIn">
+                <span className="text-sm font-bold text-[var(--green)] flex items-center gap-1">
                   <Ico name="check" size={16} /> Saved!
                 </span>
               )}
@@ -472,10 +471,10 @@ export default function SettingsPage() {
           {/* Preferences Section */}
           <div
             id="notifications"
-            className="glass-panel scroll-mt-20 p-6 animate-popIn"
+            className="browse-panel scroll-mt-36 p-6"
             style={{ animationDelay: "200ms" }}
           >
-            <h2 className="text-sm font-black text-[var(--t4)] uppercase tracking-widest mb-6">
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--t1)] mb-5">
               Notifications
             </h2>
             <label className="flex items-center gap-3 cursor-pointer">
