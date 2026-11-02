@@ -58,9 +58,7 @@ describe("applyInventoryViewScope titleType (feed + map)", () => {
   it("keeps explicitly requested repairable inventory eligible", () => {
     const q = query();
     applyInventoryViewScope(q, new URLSearchParams({ includeRepairable: "1" }));
-    expect(q.or).not.toHaveBeenCalledWith(
-      expect.stringContaining("title.not.imatch."),
-    );
+    expect(q.or).not.toHaveBeenCalledWith(expect.stringContaining("mechanic"));
   });
 
   it.each([

@@ -8,7 +8,6 @@ import type { DiscoveryDeal } from "./types";
 import { proxiedImage } from "@/lib/image-url";
 import {
   sourceMeta,
-  buyTerms,
   tint,
   sellerTypeLabel,
   sourceLabel,
@@ -94,7 +93,6 @@ export const DiscoveryCard = memo(function DiscoveryCard({
     .join(", ");
   const multi = deal.listingCount > 1;
   // Channel-correct wording so an auction's CURRENT BID isn't shown as a fixed "purchase price".
-  const terms = buyTerms(deal.source);
   const sourceChannel = sourceMeta(deal.source).channel;
   const laneLabel =
     deal.lane === "private" && sourceChannel === "dealer"
@@ -114,7 +112,11 @@ export const DiscoveryCard = memo(function DiscoveryCard({
   const evidence = discoveryEvidence(deal);
   const reportedPriceLabel =
     priceEvidenceLabel(deal.priceEvidence) ||
-    ("saleTermsUnclear" in evidence ? "Listed amount" : terms.priceLabel);
+    (deal.priceEvidence?.kind === "asking"
+      ? "Asking price"
+      : "saleTermsUnclear" in evidence
+        ? "Listed amount"
+        : "Unverified advertised amount");
   const priceLabel =
     reportedPriceLabel === "Current bid" &&
     (!deal.auctionEndAt || !hasOpenPriceWindow(deal.auctionEndAt))
@@ -227,15 +229,16 @@ export const DiscoveryCard = memo(function DiscoveryCard({
                 data-testid="discovery-card-market"
               >
                 <p className="mb-1 text-[10px] font-bold uppercase text-[var(--t4)]">
-                  {deal.soldAnchored ? "Resale estimate" : "Listing estimate"}
+                  {valuation.supported ? "Market reference" : "Market evidence"}
                 </p>
                 <span className="font-mono text-base font-black text-[var(--t3)] xl:text-[17px]">
-                  {Number.isFinite(deal.sellEstimate) &&
+                  {valuation.supported &&
+                  Number.isFinite(deal.sellEstimate) &&
                   (deal.sellEstimate || 0) > 0
                     ? `$${Math.round(deal.sellEstimate!).toLocaleString()}`
-                    : "Needs comps"}
+                    : "Needs verification"}
                 </span>
-                {(deal.compCount || 0) > 0 && (
+                {valuation.supported && (deal.compCount || 0) > 0 && (
                   <p className="mt-1 text-[10px] text-[var(--t4)]">
                     {deal.compCount} listing comps
                   </p>

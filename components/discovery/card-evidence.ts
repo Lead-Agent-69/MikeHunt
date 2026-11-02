@@ -8,7 +8,7 @@ import { marketValuation } from "@/lib/market/valuation";
 
 /** A legacy soldAnchored flag or a baseline number is not inspectable market evidence. */
 export function discoveryValuation(deal: DiscoveryDeal) {
-  return marketValuation(deal.valuation, deal.sellEstimate);
+  return marketValuation(deal.valuation, deal.sellEstimate, deal);
 }
 
 export function discoveryConditionLabel(

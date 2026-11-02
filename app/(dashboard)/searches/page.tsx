@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Ico } from "@/components/shared/Ico";
 import { createClientComponentClient } from "@/lib/supabase";
-import { parseSearchQuery } from "@/lib/nlp/parse-search";
+import { savedSearchPreview } from "@/lib/nlp/saved-search-preview";
 import { useBuyerIntent } from "@/hooks/useBuyerIntent";
 import { US_STATES } from "@/lib/utils/titleRules";
 import {
@@ -45,16 +45,24 @@ export default function SearchesPage() {
   const [formRequireGo, setFormRequireGo] = useState(false);
   const [formNotifyEmail, setFormNotifyEmail] = useState(false);
   const [nlQuery, setNlQuery] = useState("");
+  const [nlPreview, setNlPreview] = useState<ReturnType<
+    typeof savedSearchPreview
+  > | null>(null);
 
   // Parse a plain-English query into the form fields.
   function applyNl() {
-    const p = parseSearchQuery(nlQuery);
-    if (p.make) setFormMake(p.make);
-    if (p.model) setFormModel(p.model);
-    if ((p as any).state) setFormState((p as any).state);
-    if (p.min_year) setFormMinYear(String(p.min_year));
-    if (p.max_year) setFormMaxYear(String(p.max_year));
-    if (p.max_price) setFormMaxPrice(String(p.max_price));
+    const preview = savedSearchPreview(nlQuery);
+    setNlPreview(preview);
+    const p = preview.parsed;
+    setFormMake(p.make || "");
+    setFormModel(p.model || "");
+    setFormState(p.state || "");
+    setFormTitleType(p.title_type || "all");
+    setFormMinYear(p.min_year ? String(p.min_year) : "");
+    setFormMaxYear(p.max_year ? String(p.max_year) : "");
+    setFormMaxPrice(p.max_price ? String(p.max_price) : "");
+    setFormTargetProfit("");
+    setFormRequireGo(false);
     if (flipDesk && p.target_profit)
       setFormTargetProfit(String(p.target_profit));
     if (flipDesk && p.require_go) setFormRequireGo(true);
@@ -100,6 +108,8 @@ export default function SearchesPage() {
   }
 
   function resetForm() {
+    setNlPreview(null);
+    setNlQuery("");
     setIsCreating(false);
     setFormName("");
     setFormMake("");
@@ -120,6 +130,12 @@ export default function SearchesPage() {
     e.preventDefault();
     if (busy) return;
     setActionError(null);
+    if (nlPreview && (nlPreview.blocked || nlPreview.query !== nlQuery)) {
+      setActionError(
+        "This request has filters that account alerts cannot retain. Review the full search in Market instead.",
+      );
+      return;
+    }
     if (
       formMinYear &&
       formMaxYear &&
@@ -329,6 +345,60 @@ export default function SearchesPage() {
           Parse
         </button>
       </div>
+
+      {nlPreview && (
+        <section
+          aria-label="Saved search interpretation"
+          className="glass-panel mb-6 space-y-3 p-4 text-sm"
+        >
+          <h2 className="font-bold">Review interpreted filters</h2>
+          {nlPreview.query !== nlQuery && (
+            <p role="status">
+              Your description changed. Parse it again before saving.
+            </p>
+          )}
+          <ul className="flex flex-wrap gap-2">
+            {nlPreview.labels.map((label) => (
+              <li
+                key={label}
+                className="rounded-lg border border-[var(--b1)] px-3 py-2"
+              >
+                {label}
+              </li>
+            ))}
+          </ul>
+          {nlPreview.blocked && (
+            <p role="alert" className="text-[var(--amber-d)]">
+              This search cannot be saved as an account alert without losing
+              criteria.
+              {nlPreview.unsupported.length > 0 &&
+                ` Not supported by account alerts: ${nlPreview.unsupported.join(", ")}.`}{" "}
+              Your description is preserved. Review the full filters in Market,
+              where you can save the search on this device.
+            </p>
+          )}
+          {nlPreview.warnings.map((warning) => (
+            <p key={warning} className="text-[var(--t3)]">
+              {warning}
+            </p>
+          ))}
+          {nlPreview.marketHref && (
+            <Link
+              href={nlPreview.marketHref}
+              className="inline-flex min-h-11 items-center rounded-lg bg-[var(--blue)] px-4 font-bold text-white"
+            >
+              Review full search in Market
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={resetForm}
+            className="ml-2 min-h-11 px-3 underline"
+          >
+            Clear interpretation
+          </button>
+        </section>
+      )}
 
       {isCreating && (
         <form onSubmit={handleSaveSearch} className="glass-panel p-6 mb-8">
@@ -549,7 +619,13 @@ export default function SearchesPage() {
             <div className="flex justify-end">
               <button
                 type="submit"
-                disabled={Boolean(busy)}
+                disabled={
+                  Boolean(busy) ||
+                  Boolean(
+                    nlPreview &&
+                    (nlPreview.blocked || nlPreview.query !== nlQuery),
+                  )
+                }
                 className="min-h-11 px-6 py-2 rounded-lg font-bold text-white bg-[var(--green)] hover:brightness-110 disabled:opacity-50"
               >
                 {busy === "save" ? "Saving..." : "Save search"}
