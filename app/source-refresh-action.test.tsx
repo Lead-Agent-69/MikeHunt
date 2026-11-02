@@ -108,6 +108,28 @@ it("queues exactly the selected criteria without using the admin runner or infla
   expect(settled).toHaveBeenCalledOnce();
 });
 
+it("explains a permission gate without creating an impossible refresh, then allows a different source", async () => {
+  await act(async () =>
+    root.render(
+      <SourceRefreshAction
+        scope={scope}
+        onSettled={settled}
+        disabledReason="This source requires permission."
+      />,
+    ),
+  );
+  expect(host.querySelector("button")!.disabled).toBe(true);
+  expect(host.querySelector('[role="status"]')!.textContent).toContain(
+    "requires permission",
+  );
+  await click();
+  expect(fetchMock).not.toHaveBeenCalled();
+  await render({ ...scope, dealerSourceIds: ["dg-auto"] });
+  expect(host.querySelector("button")!.disabled).toBe(false);
+  await click();
+  expect(fetchMock).toHaveBeenCalledOnce();
+});
+
 it("shows real waiting and running updates without blocking coverage", async () => {
   const pending = deferred<any>();
   vi.mocked(pollScopedScrapeJob).mockImplementation(
