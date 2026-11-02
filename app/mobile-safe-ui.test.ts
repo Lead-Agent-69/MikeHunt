@@ -117,7 +117,7 @@ describe("mobile fixed UI surfaces", () => {
   it("loads bookmarked search destinations only on selection", () => {
     const searches = readFileSync("app/(dashboard)/searches/page.tsx", "utf8");
     const links = Array.from(searches.matchAll(/<Link\b[\s\S]*?>/g));
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(3);
     for (const [link] of links) expect(link).toContain("prefetch={false}");
   });
 

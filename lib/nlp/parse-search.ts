@@ -135,6 +135,7 @@ export function parseSearchQuery(query: string): ParsedSearch {
         !/^(under|in|with|and|for)$/.test(after)
       ) {
         out.model = after
+          .replace(/[,;:.!?]+$/g, "")
           .replace(/s$/, "")
           .replace(/\b\w/, (c) => c.toUpperCase());
       }

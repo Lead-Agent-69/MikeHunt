@@ -2,6 +2,10 @@ import { STALE_AFTER_HOURS } from "@/lib/deals/freshness";
 import { photoEvidence } from "@/lib/images/photo-evidence";
 import { inventoryObservedDays } from "@/lib/search/inventory-freshness";
 import { applyLiveAuctionWindow } from "@/lib/search/live-auction-window";
+import {
+  applyIndividualListingScope,
+  isNonVehicleListing,
+} from "./individual-listing";
 
 /** Default to current photo-backed inventory; explicit research may widen to at most 30 days. */
 export function applyCustomerInventory<T>(
@@ -45,7 +49,11 @@ export function applyBuyableInventory<T>(
       "options->sourceAvailability->>state.is.null,options->sourceAvailability->>state.neq.removed",
     );
   return applyLiveAuctionWindow(
-    applyCustomerInventory(active, now, options) as any,
+    applyCustomerInventory(
+      applyIndividualListingScope(active),
+      now,
+      options,
+    ) as any,
     now,
   ) as T;
 }
@@ -78,6 +86,8 @@ export function listingPhotos(
 }
 
 type InventoryObservation = {
+  title?: unknown;
+  source_url?: unknown;
   images?: unknown;
   last_seen_at?: unknown;
   auction_end_at?: unknown;
@@ -96,6 +106,7 @@ export function customerInventoryExclusion(
   if (row.active === false) return "inactive";
   if (row.options?.sourceAvailability?.state === "removed")
     return "source_removed";
+  if (isNonVehicleListing(row)) return "non_vehicle_listing";
   if (row.options?.photoAudit?.state === "unavailable")
     return "photos_unavailable";
   if (row.options?.photoAudit?.state === "placeholder")

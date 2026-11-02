@@ -278,8 +278,10 @@ it("shows seller, missing mileage and valuation basis without opening a disclosu
   const market = container.querySelector(
     '[data-testid="discovery-card-market"]',
   );
-  expect(market?.textContent).toContain("Listing estimate");
-  expect(market?.textContent).toContain("$9,000");
+  expect(market?.textContent).toContain("Market evidence");
+  expect(market?.textContent).toContain("Needs verification");
+  expect(market?.textContent).not.toContain("$9,000");
+  expect(market?.textContent).not.toContain("4 listing comps");
   expect(market?.closest("details")).toBeNull();
   expect(container.textContent).toContain("Mileage not reported");
   expect(container.textContent).toContain("Location not reported");
