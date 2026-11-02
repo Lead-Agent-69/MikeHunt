@@ -126,7 +126,7 @@ export function SwipeVehicleFace({
           </div>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3 [&>*]:shrink-0">
         <p className="text-[11px] text-[var(--t3)]">
           {sourceLabel(deal.source, deal.sourceUrl)}
           {images.length > 1 ? ` · ${photo + 1}/${images.length} photos` : ""}

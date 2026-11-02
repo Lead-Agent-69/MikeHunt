@@ -122,7 +122,7 @@ export function InventoryViewLinks({
     <div className="flex min-w-0 flex-wrap items-center gap-2">
       <nav
         aria-label="Inventory views"
-        className="browse-segmented grid min-w-[12rem] flex-1 grid-cols-4 gap-0.5 p-1 sm:flex sm:w-auto sm:flex-none sm:flex-wrap"
+        className="browse-segmented grid w-full grid-cols-4 gap-0.5 p-1 sm:flex sm:w-auto sm:flex-none sm:flex-wrap"
       >
         {VIEWS.map(({ path, label, Icon }) => (
           <Link
@@ -141,10 +141,10 @@ export function InventoryViewLinks({
                 : label
             }
             aria-current={path === current ? "page" : undefined}
-            className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-transparent px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t3)]"}`}
+            className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-full border border-transparent px-1 py-1.5 text-[11px] font-semibold sm:gap-2 sm:px-3 sm:text-xs ${path === current ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t3)]"}`}
           >
             <Icon
-              className="hidden h-4 w-4 min-[390px]:block"
+              className="hidden h-4 w-4 shrink-0 min-[390px]:block"
               aria-hidden="true"
             />{" "}
             {label}
