@@ -385,6 +385,7 @@ export default function SearchesPage() {
           {nlPreview.marketHref && (
             <Link
               href={nlPreview.marketHref}
+              prefetch={false}
               className="inline-flex min-h-11 items-center rounded-lg bg-[var(--blue)] px-4 font-bold text-white"
             >
               Review full search in Market
