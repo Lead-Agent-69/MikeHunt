@@ -1,5 +1,5 @@
 // app/api/scrape/registry/route.ts
-// Manage scraper registry state: list sources, auto-disabled sources, enable/disable, reset failures.
+// List source state, restore availability and reset cooldowns; permanent disabling is rejected.
 
 import { NextRequest, NextResponse } from "next/server";
 import { ScraperStateManager } from "@/lib/scrapers/tools/state";
@@ -75,6 +75,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (action === "disable") {
+      return NextResponse.json(
+        {
+          error:
+            "Sources remain available. Pause collection globally or reset a source's cooldown instead.",
+        },
+        { status: 409 },
+      );
+    }
+
     const { registry } = await createRegistry();
     await registry.loadState();
     const scraper = registry.get(id);
@@ -85,8 +95,6 @@ export async function POST(request: NextRequest) {
     if (action === "enable") {
       registry.setEnabled(id, true);
       registry.resetConsecutiveFailures(id);
-    } else if (action === "disable") {
-      registry.setEnabled(id, false);
     } else if (action === "reset") {
       registry.resetConsecutiveFailures(id);
     } else {

@@ -18,7 +18,6 @@ import { scrapeAdesa } from "./sources/adesa";
 import { scrapeManheim } from "./sources/manheim";
 // Retail comps sources (coded, no auth) — feed the comps index that powers valuation + Deal IQ.
 import { scrapeCarvana } from "./sources/carvana";
-import { scrapeVroom } from "./sources/vroom";
 import { scrapeTrueCar } from "./sources/truecar";
 import { scrapeCarGurus } from "./sources/cargurus";
 import { scrapeAutoTrader } from "./sources/autotrader";
@@ -116,7 +115,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeIAA(),
-    enabled: false, // gated (no open public feed like Copart); was producing ~0 while wasting a cycle.
+    enabled: true, // Available for connection; authenticated execution remains gated.
     estimatedDealsPerRun: 150,
   });
 
@@ -129,7 +128,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeAcv(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -142,7 +141,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeAdesa(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -155,7 +154,7 @@ export function createScraperRegistry(
     requiresAuth: true,
     stealthRequired: true,
     fn: () => scrapeManheim(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -168,7 +167,7 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeFacebookMarketplace(),
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 200,
   });
 
@@ -229,6 +228,14 @@ export function createScraperRegistry(
       // discovered sites, not crawled standalone, so skip any non-absolute URL. Per-profile try/catch
       // so one bad site can never zero the whole source (an Invalid-URL throw used to do exactly that).
       const { DEALER_PROFILES } = await import("./sources/index");
+      if (
+        !DEALER_PROFILES.some((profile) =>
+          /^https?:\/\//i.test(profile.inventoryUrl),
+        )
+      )
+        throw new Error(
+          "Standalone dealer collection needs an inventory URL. The curated dealer network remains available.",
+        );
       let total = 0;
       for (const profile of DEALER_PROFILES) {
         if (!/^https?:\/\//i.test(profile.inventoryUrl)) continue;
@@ -242,10 +249,10 @@ export function createScraperRegistry(
       }
       return total;
     },
-    // Disabled: no real (absolute-URL) profiles exist — only templates, so it produced nothing but
+    // Needs configuration: no real (absolute-URL) profiles exist — only templates, so it produced nothing but
     // "Invalid URL" errors every run. Real dealer crawling is handled by curated_dealers (95 sites).
-    // Re-enable once DEALER_PROFILES gains absolute-URL entries (the loop above is now crash-safe).
-    enabled: false,
+    // Standalone execution needs DEALER_PROFILES absolute-URL entries (the loop above is now crash-safe).
+    enabled: true,
     estimatedDealsPerRun: 100,
   });
 
@@ -260,11 +267,11 @@ export function createScraperRegistry(
     requiresAuth: false,
     stealthRequired: true,
     fn: () => scrapeCarGurus(),
-    // Disabled: DataDome-walled — the inventory XHR 403s and the page serves a DataDome captcha
+    // Access unavailable: DataDome-walled — the inventory XHR 403s and the page serves a DataDome captcha
     // interstitial (geo.captcha-delivery.com) even to headed real-Chrome Patchright. DataDome is the
     // one anti-bot that needs a paid captcha solver (ruled out by no-paid-services). AutoTempest carries
     // CarGurus listings without touching DataDome, so retail comps stay covered. Verified 2026-06-26.
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 300,
   });
 
@@ -320,8 +327,12 @@ export function createScraperRegistry(
     frequencyMinutes: 720,
     requiresAuth: false,
     stealthRequired: true,
-    fn: () => scrapeVroom(),
-    enabled: false, // Vroom halted all car sales Jan 22, 2024 — no inventory to scrape
+    fn: async () => {
+      throw new Error(
+        "Vroom inventory is unavailable: a current vehicle feed has not been configured.",
+      );
+    },
+    enabled: true, // Availability is separate from whether a current feed is configured.
     estimatedDealsPerRun: 0,
   });
 
@@ -482,10 +493,13 @@ export function createScraperRegistry(
     fn: async () => {
       // Example: auto-discover a dealer site from env
       const url = process.env.AUTO_DISCOVER_DEALER_URL;
-      if (!url) return 0;
+      if (!url)
+        throw new Error(
+          "Dealer discovery needs an inventory URL before it can run.",
+        );
       return autoDiscoverAndCrawl(url);
     },
-    enabled: false,
+    enabled: true,
     estimatedDealsPerRun: 20,
   });
 
