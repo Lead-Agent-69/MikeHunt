@@ -71,9 +71,7 @@ describe("mobile fixed UI surfaces", () => {
     expect(bottomNav).toContain("mobileNavForMode(intent?.buyerMode)");
     expect(bottomNav).toContain("prefetch={false}");
     expect(bottomNav).toContain("useNavigationScrub");
-    expect(bottomNav).toContain(
-      "reducedMotion ? scrub.position : settledPosition",
-    );
+    expect(bottomNav).toContain("reducedMotion || dragging ? direct : settled");
     expect(bottomNav).toContain("draggable={false}");
     expect(bottomNav).toContain('aria-current={isActive ? "page" : undefined}');
     expect(bottomNav).toContain("navigator.vibrate?.(8)");
