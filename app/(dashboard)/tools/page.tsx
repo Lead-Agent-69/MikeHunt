@@ -22,7 +22,9 @@ export default function ToolsPage() {
       ...group,
       items: group.items.filter(
         (item) =>
-          item.href !== "/upgrade" &&
+          !["/upgrade", "/market", "/fleet", "/saved", "/settings"].includes(
+            item.href,
+          ) &&
           `${item.name} ${group.group} ${item.description || ""}`
             .toLowerCase()
             .includes(term),

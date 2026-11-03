@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import Link from "next/link";
+import { inventoryFreshnessValue } from "@/lib/search/inventory-freshness";
 import { DiscoverySaveProvider } from "@/components/discovery/DiscoverySaveProvider";
 import { useInventoryViewScope } from "@/hooks/useInventoryViewScope";
 import { usePreferences } from "@/hooks/usePreferences";
@@ -42,6 +44,11 @@ function FeedContents() {
     params.set("states", states.join(","));
     return params.toString();
   }, [sharedQuery, savedScopeKey]);
+  const widerQuery = new URLSearchParams(query);
+  const currentWindow = inventoryFreshnessValue(widerQuery.get("seenWithin"));
+  const nextWindow = currentWindow === "3" ? "7" : "30";
+  widerQuery.set("seenWithin", nextWindow);
+  widerQuery.set("scope", "explicit");
   const viewIssue = inventoryViewUnavailableReason(
     new URLSearchParams(query),
     true,
@@ -239,10 +246,30 @@ function FeedContents() {
               : "Load more cars"}
         </button>
       )}
-      {done && items.length > 0 && (
-        <p role="status" className="py-6 text-center text-sm text-[var(--t3)]">
-          You have reached the end of this photo-backed selection.
-        </p>
+      {done && !failed && (
+        <section className="browse-panel flex flex-wrap items-center justify-between gap-3 p-4">
+          <p role="status" className="text-sm text-[var(--t3)]">
+            {items.length > 0
+              ? "You’ve reached the end of this feed."
+              : "Try widening your search."}
+          </p>
+          {currentWindow !== "30" && (
+            <Link
+              href={`/feed?${widerQuery}`}
+              prefetch={false}
+              className="inline-flex min-h-11 items-center rounded-full bg-[var(--accent-surface)] px-4 text-sm font-semibold text-[var(--blue)]"
+            >
+              Include last {nextWindow} days
+            </Link>
+          )}
+          <Link
+            href={`/market?${query}`}
+            prefetch={false}
+            className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-[var(--blue)]"
+          >
+            See more in Market
+          </Link>
+        </section>
       )}
     </div>
   );

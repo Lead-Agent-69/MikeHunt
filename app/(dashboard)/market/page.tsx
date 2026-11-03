@@ -1884,6 +1884,30 @@ export default function MarketPage() {
                 : "Open the source listing to confirm availability and the full purchase amount."}
             </p>
           )}
+          {!busy &&
+            !error &&
+            !hasMore &&
+            !loadingMore &&
+            inventoryFreshnessOption(details.seenWithin).value !== "30" && (
+              <button
+                type="button"
+                className="mt-3 min-h-11 rounded-full bg-[var(--accent-surface)] px-4 text-sm font-semibold text-[var(--blue)]"
+                onClick={() =>
+                  setDetail(
+                    "seenWithin",
+                    inventoryFreshnessOption(details.seenWithin).value === "3"
+                      ? "7"
+                      : "30",
+                  )
+                }
+              >
+                Include last{" "}
+                {inventoryFreshnessOption(details.seenWithin).value === "3"
+                  ? "7"
+                  : "30"}{" "}
+                days
+              </button>
+            )}
           {!error && !pendingFilters && total > 0 && (
             <MarketLoadMore
               shown={rows.length}
