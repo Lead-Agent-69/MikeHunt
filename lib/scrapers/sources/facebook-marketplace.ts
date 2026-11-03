@@ -49,7 +49,7 @@ export async function scrapeFacebookMarketplace(
     };
     const gen = paginate<Partial<Deal>>(
       config,
-      (page) =>
+      () =>
         `https://www.facebook.com/marketplace/vehicles/search/?query=${encodeURIComponent(query)}`,
       async (input) => {
         const $ = typeof input === "string" ? cheerio.load(input) : input;
@@ -112,9 +112,9 @@ export async function scrapeFacebookMarketplace(
           },
         );
 
-        // Facebook uses infinite scroll; advance only while a page still yields items.
-        const hasMore = items.length > 0 && config.maxPages > 1;
-        return { items, hasMore };
+        // The current search URL has no pagination cursor. Repeating it would
+        // re-fetch the same inventory and inflate the observation count.
+        return { items, hasMore: false };
       },
     );
 
@@ -123,9 +123,12 @@ export async function scrapeFacebookMarketplace(
     }
   }
 
-  console.log(
-    `[Facebook Marketplace] Found ${allDeals.length} deals (requires active login for live data)`,
-  );
+  if (!allDeals.length) {
+    throw new Error(
+      "Facebook Marketplace returned no verifiable inventory. Check approved access and the source response before retrying.",
+    );
+  }
+  console.log(`[Facebook Marketplace] Found ${allDeals.length} deals`);
   await upsertDeals(allDeals);
   return allDeals.length;
 }

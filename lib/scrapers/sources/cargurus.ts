@@ -188,6 +188,16 @@ export async function scrapeCarGurus(
             ? input
             : ((input as any)?.html?.() ?? String(input));
         const items = parseCargurusListings(raw);
+        if (
+          !items.length &&
+          !/"(?:listings|results|tilesData|inventory)"\s*:\s*\[\s*\]|^\s*\[\s*\]\s*$/.test(
+            raw,
+          )
+        ) {
+          throw new Error(
+            "CarGurus returned no recognizable inventory response. Check approved access and the source response before retrying.",
+          );
+        }
         return { items, hasMore: items.length >= 20 };
       },
     );
