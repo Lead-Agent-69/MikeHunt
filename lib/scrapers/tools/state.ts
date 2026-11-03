@@ -71,7 +71,7 @@ export class ScraperStateManager {
     }
   }
 
-  async saveSourceState(scraper: RegisteredScraper): Promise<void> {
+  async saveSourceState(scraper: RegisteredScraper): Promise<boolean> {
     const { error } = await this.supabase
       .from("scraper_state")
       .upsert(this.toRow(scraper), { onConflict: "source_id" });
@@ -81,7 +81,9 @@ export class ScraperStateManager {
         `[StateManager] Failed to save state for ${scraper.id}:`,
         error.message,
       );
+      return false;
     }
+    return true;
   }
 
   private toRow(s: RegisteredScraper) {

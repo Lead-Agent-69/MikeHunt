@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 const db = vi.hoisted(() => ({
   rows: [] as any[],
   error: null as any,
-  upsert: vi.fn(async () => ({ error: null })),
+  upsert: vi.fn(async (): Promise<{ error: any }> => ({ error: null })),
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
@@ -88,4 +88,13 @@ it("does not let stored flags change explicitly configured registry availability
   await manager.loadState(registry);
   expect(registry.get("source")!.enabled).toBe(false);
   expect(registry.getAll()).toHaveLength(1);
+});
+
+it("reports a failed state write without reporting confirmation", async () => {
+  const { registry, manager } = fixture();
+  db.upsert.mockResolvedValueOnce({
+    error: { message: "Synthetic write failure" },
+  });
+  expect(await manager.saveSourceState(registry.get("source")!)).toBe(false);
+  expect(registry.get("source")!.enabled).toBe(true);
 });

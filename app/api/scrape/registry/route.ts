@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { registry } = await createRegistry();
+    const { registry, stateManager } = await createRegistry();
     await registry.loadState();
     const scraper = registry.get(id);
     if (!scraper) {
@@ -101,7 +101,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    await registry.persistState(id);
+    if (!(await stateManager.saveSourceState(scraper))) {
+      return NextResponse.json(
+        { error: "The scheduling change could not be saved. Please retry." },
+        { status: 503 },
+      );
+    }
 
     return NextResponse.json({
       id,
