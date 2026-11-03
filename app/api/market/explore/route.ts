@@ -287,7 +287,7 @@ export async function GET(req: NextRequest) {
             supabase
               .from("deals")
               .select(
-                `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, deal_analysis, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
+                `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, valuation:deal_analysis->valuation, acquisition_price_missing:deal_analysis->acquisitionPriceMissing, price_implausible:deal_analysis->priceImplausible, analysis_roi:deal_analysis->roi, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
               ),
             Date.now(),
             {
@@ -365,11 +365,7 @@ export async function GET(req: NextRequest) {
                   .filter((url) => /^https?:\/\//i.test(url))
                   .slice(0, 30);
           const mapPoint = roundedMapPoint(d.lat, d.lng);
-          const valuation = marketValuation(
-            d.deal_analysis?.valuation,
-            d.sell_estimate,
-            d,
-          );
+          const valuation = marketValuation(d.valuation, d.sell_estimate, d);
           const price = sourcePriceContext(d);
           // Stored profit math must use the same acquisition amount as the displayed quote.
           // Deposits, payments, references, unverified amounts, and corrected teaser prices
@@ -384,7 +380,7 @@ export async function GET(req: NextRequest) {
                 price.observationCurrent)) &&
             price.amount != null &&
             price.amount === Number(d.ask_price) &&
-            d.deal_analysis?.acquisitionPriceMissing !== true;
+            d.acquisition_price_missing !== true;
           const economicsSupported =
             valuation.supported && acquisitionSupported;
           const economicsNumber = (value: unknown) =>
@@ -454,7 +450,7 @@ export async function GET(req: NextRequest) {
             priceGap:
               economicsSupported &&
               price.kind === "asking" &&
-              d.deal_analysis?.priceImplausible !== true
+              d.price_implausible !== true
                 ? d.sell_estimate - Number(d.ask_price)
                 : undefined,
             profitEstimate: economicsNumber(d.true_net_profit),
@@ -468,7 +464,7 @@ export async function GET(req: NextRequest) {
             titleSource: titleSourceOf(d) || undefined,
             damageType: d.damage_type || undefined,
             sellerType: sellerTypeEvidence(d),
-            roi: economicsNumber(d.deal_analysis?.roi),
+            roi: economicsNumber(d.analysis_roi),
             lane: dealLane(d),
           };
         });
