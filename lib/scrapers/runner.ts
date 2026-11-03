@@ -16,6 +16,7 @@ import { scrapeCarPartsCom } from "./sources/carparts-com";
 import { scrapeFacebookMarketplace } from "./sources/facebook-marketplace";
 import { scrapeAdesa } from "./sources/adesa";
 import { scrapeManheim } from "./sources/manheim";
+import { scrapeVroom } from "./sources/vroom";
 // Retail comps sources (coded, no auth) — feed the comps index that powers valuation + Deal IQ.
 import { scrapeCarvana } from "./sources/carvana";
 import { scrapeTrueCar } from "./sources/truecar";
@@ -327,12 +328,8 @@ export function createScraperRegistry(
     frequencyMinutes: 720,
     requiresAuth: false,
     stealthRequired: true,
-    fn: async () => {
-      throw new Error(
-        "Vroom inventory is unavailable: a current vehicle feed has not been configured.",
-      );
-    },
-    enabled: true, // Availability is separate from whether a current feed is configured.
+    fn: () => scrapeVroom(),
+    enabled: true, // Retain the real adapter so a later request can observe recovery.
     estimatedDealsPerRun: 0,
   });
 
