@@ -20,10 +20,7 @@ import {
   enqueueScopedScrapeJob,
   isRemoteScrapeQueueEnabled,
 } from "@/lib/scrapers/job-queue";
-import {
-  catalogForRunnerId,
-  IMPLEMENTED_SCRAPER_IDS,
-} from "@/lib/scrapers/source-index";
+import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
 import {
   isAutomationAllowedSource,
   TOS_RESTRICTED_SOURCES,
@@ -101,61 +98,13 @@ function sourceStatus(source: any): {
 }
 
 function buildSourcePlan(sourceIds: string[] | undefined) {
-  const implemented = new Set(IMPLEMENTED_SCRAPER_IDS);
-  const disabled = new Set([
-    "iaa",
-    "acv",
-    "adesa",
-    "manheim",
-    "facebook_marketplace",
-    "vroom",
-    "auto_discover",
-  ]);
-  const requiresAuth = new Set([
-    "iaa",
-    "acv",
-    "adesa",
-    "manheim",
-    "facebook_marketplace",
-  ]);
-  const stealth = new Set([
-    "iaa",
-    "acv",
-    "adesa",
-    "manheim",
-    "facebook_marketplace",
-    "cars_com",
-    "independent_dealer",
-    "cargurus",
-    "autotrader",
-    "truecar",
-    "curated_dealers",
-    "offerup",
-    "auto_discover",
-  ]);
-  const metaSources: Record<
-    string,
-    { name: string; type: string; estimate: number }
-  > = {
-    curated_dealers: {
-      name: "Curated salvage/dealer network",
-      type: "dealer",
-      estimate: 200,
-    },
-    independent_dealer: {
-      name: "Independent dealer network",
-      type: "dealer",
-      estimate: 100,
-    },
-    auto_discover: {
-      name: "Auto Discover Dealer",
-      type: "dealer",
-      estimate: 20,
-    },
-  };
+  const metadata = new Map(
+    runtimeSourceMetadata().map((source) => [source.id, source]),
+  );
   const ids = sourceIds?.length ? sourceIds : [];
   const sources = ids.map((id) => {
-    if (!implemented.has(id)) {
+    const source = metadata.get(id);
+    if (!source) {
       return {
         id,
         name: id,
@@ -170,23 +119,6 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
         action: "This source is not registered in the runner catalog.",
       };
     }
-    const catalog = catalogForRunnerId(id);
-    const meta = metaSources[id];
-    const source = {
-      id,
-      name: meta?.name || catalog?.name || id,
-      type: meta?.type || catalog?.type || "marketplace",
-      priority:
-        catalog?.priority === "P0"
-          ? "high"
-          : catalog?.priority === "P1"
-            ? "medium"
-            : "low",
-      enabled: !disabled.has(id),
-      requiresAuth: requiresAuth.has(id),
-      stealthRequired: stealth.has(id),
-      estimatedDealsPerRun: meta?.estimate || 100,
-    };
     const status = sourceStatus(source);
     const termsOff =
       Boolean(TOS_RESTRICTED_SOURCES[source.id]) &&
@@ -200,7 +132,7 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
       requiresAuth: source.requiresAuth,
       stealthRequired: source.stealthRequired,
       estimatedDealsPerRun: source.estimatedDealsPerRun,
-      readiness: termsOff ? ("disabled" as SourceReadiness) : status.readiness,
+      readiness: termsOff ? ("blocked" as SourceReadiness) : status.readiness,
       runnable:
         !termsOff &&
         source.enabled &&
@@ -208,7 +140,7 @@ function buildSourcePlan(sourceIds: string[] | undefined) {
         status.readiness !== "disabled" &&
         status.readiness !== "blocked",
       action: termsOff
-        ? "Off for site terms unless the operator opts in through SCRAPE_SOURCES."
+        ? "Source permission is required before automated collection."
         : status.action,
     };
   });

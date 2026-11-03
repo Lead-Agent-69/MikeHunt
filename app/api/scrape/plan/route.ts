@@ -12,7 +12,11 @@ import {
 import { buildImportContract } from "@/lib/scrapers/import-contract";
 import { systemReadiness } from "@/lib/system-readiness";
 import { scrapeSecret } from "@/lib/auth/scrape-gate";
-import { catalogForRunnerId, hasScraper } from "@/lib/scrapers/source-index";
+import { runtimeSourceMetadata } from "@/lib/scrapers/runtime-source-metadata";
+import {
+  isAutomationAllowedSource,
+  TOS_RESTRICTED_SOURCES,
+} from "@/lib/scrapers/sweep-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -36,57 +40,10 @@ type PlanningSource = {
   estimatedDealsPerRun: number;
 };
 
-const RUNNER_META_SOURCES: Record<string, Omit<PlanningSource, "id">> = {
-  curated_dealers: {
-    name: "Selected dealer inventory",
-    type: "dealer",
-    priority: "medium",
-    enabled: true,
-    requiresAuth: false,
-    stealthRequired: true,
-    estimatedDealsPerRun: 200,
-  },
-  independent_dealer: {
-    name: "Independent dealer inventory",
-    type: "dealer",
-    priority: "medium",
-    enabled: false,
-    requiresAuth: false,
-    stealthRequired: true,
-    estimatedDealsPerRun: 100,
-  },
-  auto_discover: {
-    name: "Dealer discovery",
-    type: "dealer",
-    priority: "low",
-    enabled: false,
-    requiresAuth: false,
-    stealthRequired: true,
-    estimatedDealsPerRun: 0,
-  },
-};
-
-// Planning must stay light enough for Vercel. The executable runner imports browser automation
-// packages and belongs only in the authorized run path; this catalog answers which runners are
-// eligible without loading a scraper or a browser dependency.
+// Share availability and collector authentication with the live registry without
+// importing its browser implementations into the serverless planner.
 function planningSource(id: string): PlanningSource | undefined {
-  const meta = RUNNER_META_SOURCES[id];
-  if (meta) return { id, ...meta };
-
-  const catalog = catalogForRunnerId(id);
-  if (!catalog || !hasScraper(id)) return undefined;
-  return {
-    id,
-    name: catalog.name,
-    type: catalog.type,
-    priority: catalog.priority,
-    enabled: catalog.status === "active",
-    requiresAuth: false,
-    stealthRequired: Boolean(
-      catalog.requiresProxy || catalog.requiresFlareSolverr,
-    ),
-    estimatedDealsPerRun: 100,
-  };
+  return runtimeSourceMetadata().find((source) => source.id === id);
 }
 
 function normalizeSourceId(value: unknown) {
@@ -202,6 +159,9 @@ export async function POST(request: NextRequest) {
           };
         }
         const status = sourceStatus(source);
+        const permissionRequired =
+          Boolean(TOS_RESTRICTED_SOURCES[source.id]) &&
+          !isAutomationAllowedSource(source.id);
         return {
           id: source.id,
           name: source.name,
@@ -211,13 +171,18 @@ export async function POST(request: NextRequest) {
           requiresAuth: source.requiresAuth,
           stealthRequired: source.stealthRequired,
           estimatedDealsPerRun: source.estimatedDealsPerRun,
-          readiness: status.readiness,
+          readiness: permissionRequired
+            ? ("blocked" as SourceReadiness)
+            : status.readiness,
           runnable:
+            !permissionRequired &&
             source.enabled &&
             !source.requiresAuth &&
             status.readiness !== "disabled" &&
             status.readiness !== "blocked",
-          action: status.action,
+          action: permissionRequired
+            ? "Source permission is required before automated collection."
+            : status.action,
         };
       }),
       ...mismatchedSourceIds.map((id) => ({
@@ -225,7 +190,7 @@ export async function POST(request: NextRequest) {
         name: planningSource(id)?.name || id,
         type: planningSource(id)?.type || "unknown",
         priority: planningSource(id)?.priority || "low",
-        enabled: false,
+        enabled: Boolean(planningSource(id)?.enabled),
         requiresAuth: Boolean(planningSource(id)?.requiresAuth),
         stealthRequired: Boolean(planningSource(id)?.stealthRequired),
         estimatedDealsPerRun: 0,
