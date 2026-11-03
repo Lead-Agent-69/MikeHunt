@@ -45,6 +45,15 @@ function runnerIds(): string[] {
 }
 
 describe("source index / registry consistency", () => {
+  it("keeps every implemented source available and collector authentication accurate", () => {
+    const actual = createScraperRegistry().getAll();
+    expect(actual).toHaveLength(IMPLEMENTED_SCRAPER_IDS.length);
+    expect(actual.every((source) => source.enabled)).toBe(true);
+    for (const source of runtimeSourceMetadata())
+      expect(source.requiresAuth, source.id).toBe(
+        actual.find((row) => row.id === source.id)?.requiresAuth,
+      );
+  });
   it("reports the same default enablement as the real runner", () => {
     const actual = new Map(
       createScraperRegistry()

@@ -388,3 +388,59 @@ describe("scrape plan/run source scoping", () => {
     );
   });
 });
+
+describe("source availability parity", () => {
+  it("keeps every implemented source enabled even when a lane or login holds execution", async () => {
+    const { runtimeSourceMetadata } =
+      await import("@/lib/scrapers/runtime-source-metadata");
+    const metadata = runtimeSourceMetadata();
+    const { POST } = await import("./plan/route");
+    const response = await POST(
+      req("/api/scrape/plan", {
+        scope: { lane: "all", state: "MO" },
+        sourceIds: metadata.map((source) => source.id),
+      }),
+    );
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.sources).toHaveLength(metadata.length);
+    for (const source of body.sources) {
+      const expected = metadata.find((item) => item.id === source.id)!;
+      expect(source.enabled).toBe(true);
+      expect(source.requiresAuth).toBe(expected.requiresAuth);
+      expect(source.readiness).not.toBe("disabled");
+      if (expected.requiresAuth) expect(source.runnable).toBe(false);
+    }
+  });
+
+  it("uses the same availability in the run preflight without starting providers", async () => {
+    const { runtimeSourceMetadata } =
+      await import("@/lib/scrapers/runtime-source-metadata");
+    const { systemReadiness } = await import("@/lib/system-readiness");
+    vi.mocked(systemReadiness).mockReturnValueOnce({
+      ready: false,
+      missingEnv: [],
+      items: [{ id: "supabase", status: "missing", nextStep: "Connect data." }],
+    } as never);
+    const { POST } = await import("./run/route");
+    runScrapers.mockClear();
+    const metadata = runtimeSourceMetadata();
+    const response = await POST(
+      req("/api/scrape/run", {
+        sourceIds: metadata.map((source) => source.id),
+      }),
+    );
+    const body = await response.json();
+    expect(body.code).toBe("IMPORTS_LOCKED");
+    expect(body.sources).toHaveLength(metadata.length);
+    for (const source of body.sources) {
+      const expected = metadata.find((item) => item.id === source.id)!;
+      expect(source.enabled).toBe(true);
+      expect(source.requiresAuth).toBe(expected.requiresAuth);
+      expect(source.readiness).not.toBe("disabled");
+      if (expected.requiresAuth || source.readiness === "blocked")
+        expect(source.runnable).toBe(false);
+    }
+    expect(runScrapers).not.toHaveBeenCalled();
+  });
+});

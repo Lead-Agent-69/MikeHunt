@@ -9,7 +9,8 @@ import {
  *
  * CI_CANDIDATE_SOURCES is the ordered list of runner-enabled, $0 sources scrape-ci knows how to
  * run. Explicit ids bypass the registry `enabled` flag (lib/scrapers/runner.ts), so this list must
- * not name disabled sources. Not listed (enabled:false): cargurus, independent_dealer, iaa,
+ * name only unattended-capable sources. Other registrations remain available but are not
+ * automatic CI candidates: cargurus, independent_dealer, iaa,
  * manheim, acv, adesa, facebook_marketplace, vroom, auto_discover. truecar is enabled but
  * headed-only, so it only runs when an operator names it.
  *

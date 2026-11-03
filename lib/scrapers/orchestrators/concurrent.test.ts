@@ -100,7 +100,7 @@ describe("ConcurrentOrchestrator", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("boom");
     expect(registry.get("failing")?.consecutiveFailures).toBe(1);
-    expect(registry.get("failing")?.enabled).toBe(false);
+    expect(registry.get("failing")?.enabled).toBe(true);
   });
 
   it("emits progress events", async () => {

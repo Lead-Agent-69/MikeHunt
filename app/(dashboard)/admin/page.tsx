@@ -203,9 +203,9 @@ export default function AdminDashboard() {
     [refreshHealth, refreshStats],
   );
 
-  const setSourceAvailability = useCallback(
+  const resetSourceCooldown = useCallback(
     async (source: SourceHealth["sources"][number]) => {
-      const action = source.enabled ? "disable" : "enable";
+      const action = "reset";
       setActiveOperation(`source-${source.id}`);
       try {
         const response = await fetch("/api/scrape/registry", {
@@ -214,9 +214,7 @@ export default function AdminDashboard() {
           body: JSON.stringify({ id: source.id, action }),
         });
         if (!response.ok) throw new Error();
-        toast.success(
-          source.enabled ? `${source.name} paused` : `${source.name} restored`,
-        );
+        toast.success(`${source.name} cooldown reset`);
         await refreshHealth();
       } catch {
         toast.error("Source status could not be changed", {
@@ -367,15 +365,13 @@ export default function AdminDashboard() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setSourceAvailability(source)}
+                    onClick={() => resetSourceCooldown(source)}
                     disabled={Boolean(activeOperation)}
                     className="h-8 rounded-md border border-[var(--b2)] px-3 text-xs font-semibold text-[var(--t2)] transition-colors hover:border-[var(--blue)] hover:text-[var(--blue)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {activeOperation === `source-${source.id}`
                       ? "Updating..."
-                      : source.enabled
-                        ? "Pause"
-                        : "Restore"}
+                      : "Reset cooldown"}
                   </button>
                 </div>
               );

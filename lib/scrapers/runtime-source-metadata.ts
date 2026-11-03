@@ -3,24 +3,7 @@ import {
   IMPLEMENTED_SCRAPER_IDS,
 } from "@/lib/scrapers/source-index";
 
-const DISABLED = new Set([
-  "independent_dealer",
-  "cargurus",
-  "iaa",
-  "acv",
-  "adesa",
-  "manheim",
-  "facebook_marketplace",
-  "vroom",
-  "auto_discover",
-]);
-const AUTH_REQUIRED = new Set([
-  "iaa",
-  "acv",
-  "adesa",
-  "manheim",
-  "facebook_marketplace",
-]);
+const AUTH_REQUIRED = new Set(["iaa", "acv", "adesa", "manheim"]);
 const STEALTH = new Set([
   "iaa",
   "acv",
@@ -82,10 +65,9 @@ export function runtimeSourceMetadata() {
       name: meta?.name || catalog?.name || id.replace(/[_-]+/g, " "),
       type,
       priority: priority(catalog?.priority),
-      enabled: !DISABLED.has(id),
-      requiresAuth:
-        AUTH_REQUIRED.has(id) ||
-        Boolean(catalog?.authRequired && catalog.authRequired !== "none"),
+      enabled: true,
+      // Collector authentication is distinct from an account needed to bid/buy.
+      requiresAuth: AUTH_REQUIRED.has(id),
       stealthRequired: STEALTH.has(id),
       frequencyMinutes: type === "dealer" ? 720 : type === "auction" ? 360 : 60,
       estimatedDealsPerRun:

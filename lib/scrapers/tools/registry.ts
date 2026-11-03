@@ -152,15 +152,8 @@ export class ScraperRegistry {
       scraper.consecutiveFailures = 0;
     } else {
       scraper.consecutiveFailures += 1;
-      if (
-        scraper.consecutiveFailures >= scraper.autoDisableThreshold &&
-        scraper.enabled
-      ) {
-        scraper.enabled = false;
-        console.warn(
-          `[ScraperRegistry] Auto-disabled ${scraper.id} after ${scraper.consecutiveFailures} consecutive failures`,
-        );
-      }
+      // Failures influence the existing bounded cooldown, never availability.
+      // A transient block must not permanently remove a source from future runs.
     }
 
     // Rolling average duration
@@ -194,7 +187,7 @@ export class ScraperRegistry {
 
   setEnabled(id: string, enabled: boolean): boolean {
     const scraper = this.scrapers.get(id);
-    if (!scraper) return false;
+    if (!scraper || !enabled) return false;
     scraper.enabled = enabled;
     return true;
   }
