@@ -47,7 +47,7 @@ const reportedMoney = (value?: number | null) =>
         currency: "USD",
         maximumFractionDigits: 0,
       }).format(value)
-    : "Not reported";
+    : "Price unavailable";
 const reportedDate = (value?: string) => {
   if (!value || !Number.isFinite(new Date(value).getTime()))
     return "Not reported";

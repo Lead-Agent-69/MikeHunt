@@ -1,6 +1,9 @@
 import type { ScrapeResult } from "@/types";
 import { parseIntakeCounts } from "./intake-counts";
 
+export const DEALER_ACCESS_BLOCKED =
+  "Collection is restricted for the selected dealer. Visit the dealer directly to check inventory.";
+
 function count(value: number | undefined): number {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
 }
@@ -61,7 +64,10 @@ export function publicScopedScrapeSummary(
         ? {}
         : {
             error:
-              "This source could not be checked. Try again later or choose another source.",
+              row?.source === "curated_dealers" &&
+              row?.error === DEALER_ACCESS_BLOCKED
+                ? DEALER_ACCESS_BLOCKED
+                : "This source could not be checked. Try again later or choose another source.",
           }),
     })),
   };

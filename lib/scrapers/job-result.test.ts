@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEALER_ACCESS_BLOCKED,
   publicScopedScrapeSummary,
   summarizeScopedScrapeResults,
 } from "./job-result";
 
 describe("scoped collection result truth", () => {
+  it("preserves the approved dealer restriction message", () => {
+    const result = publicScopedScrapeSummary({
+      results: [
+        {
+          source: "curated_dealers",
+          success: false,
+          error: DEALER_ACCESS_BLOCKED,
+        },
+      ],
+    });
+    expect(result?.results[0].error).toBe(DEALER_ACCESS_BLOCKED);
+  });
   it("keeps raw diagnostics out of customer status", () => {
     const result = publicScopedScrapeSummary({
       total: 1,
