@@ -427,9 +427,9 @@ export default function DiscoverPage() {
     includeRepairable: includesRepairable(buyerScope),
   });
   const visibleRails = distinctDiscoveryRails(
-    (data?.rails || []).filter(
-      (rail) => flipDesk || !hiddenNonFlipRails.has(rail.key),
-    ),
+    (data?.rails || [])
+      .filter((rail) => flipDesk || !hiddenNonFlipRails.has(rail.key))
+      .sort((a, b) => Number(b.key === "fresh") - Number(a.key === "fresh")),
   );
   const eligibleDeals = visibleRails.flatMap((rail) => rail.deals);
   const hasRankingChoices =

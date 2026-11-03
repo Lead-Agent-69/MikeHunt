@@ -213,7 +213,7 @@ describe("GET /api/feed desk redaction", () => {
     expect(db.calls).toContainEqual(["range", 300, 311]);
     expect(db.calls).toContainEqual([
       "order",
-      "images",
+      "first_seen_at",
       { ascending: false, nullsFirst: false },
     ]);
     expect(

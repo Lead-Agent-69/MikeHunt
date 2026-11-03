@@ -164,9 +164,9 @@ async function getFeed(req: NextRequest) {
       (columns, details) => {
         const q = inventoryLocationQuery(supabase, location, columns)
           .eq("active", true)
-          // Shared buyable-inventory scope enforces the requested photo policy.
-          .order("images", { ascending: false, nullsFirst: false })
-          .order("last_seen_at", { ascending: false, nullsFirst: false })
+          .not("images", "is", null)
+          .neq("images", "{}")
+          .order("first_seen_at", { ascending: false, nullsFirst: false })
           .order("id", { ascending: true });
         return applyInventoryViewScope(q, details);
       },
@@ -270,13 +270,16 @@ async function getFeed(req: NextRequest) {
         .eq("active", true)
         .not("images", "is", null)
         .neq("images", "{}")
-        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .order(sp.get("browse") === "all" ? "first_seen_at" : "last_seen_at", {
+          ascending: false,
+          nullsFirst: false,
+        })
         .order("id", { ascending: true });
       return applyInventoryViewScope(q, details);
     },
     location.details,
     COLS,
-    `feed-guest:${scopeKey}`,
+    `feed-guest:${sp.get("browse") === "all" ? "new" : "checked"}:${scopeKey}`,
   );
 
   const { data, error } = await page(offset, offset + pageLimit - 1);
