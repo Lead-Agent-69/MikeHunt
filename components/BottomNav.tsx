@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   motion,
   useReducedMotion,
+  useMotionValueEvent,
   useSpring,
   useTransform,
 } from "framer-motion";
@@ -39,10 +40,16 @@ export function BottomNav() {
     stiffness: 520,
     damping: 36,
   });
-  const pillX = useTransform(
-    reducedMotion ? scrub.position : settledPosition,
-    (value) => `${value * 100}%`,
-  );
+  useMotionValueEvent(scrub.dragging, "change", (isDragging) => {
+    if (!isDragging) settledPosition.jump(scrub.position.get());
+  });
+  const pillX = useTransform(() => {
+    const direct = scrub.position.get();
+    const settled = settledPosition.get();
+    const dragging = scrub.dragging.get();
+    const value = reducedMotion || dragging ? direct : settled;
+    return `${value * 100}%`;
+  });
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -64,7 +71,7 @@ export function BottomNav() {
         {...scrub.handlers}
         data-navigation-scrub=""
         data-pressed={scrub.pressed || undefined}
-        className="navigation-capsule navigation-mobile-capsule pointer-events-auto relative isolate grid h-16 w-[calc(100%-3.5rem)] max-w-[25rem] p-1 sm:h-14"
+        className="navigation-capsule navigation-mobile-capsule pointer-events-auto relative isolate grid h-16 w-[calc(100%-3.5rem)] max-w-[21rem] p-1 sm:h-14"
         style={{
           gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
         }}
@@ -87,10 +94,9 @@ export function BottomNav() {
             <span className="navigation-paint" />
           </motion.span>
         )}
-        {tabs.map((item) => {
+        {tabs.map((item, index) => {
           const isActive = navItemIsActive(item, pathname);
-          const highlighted =
-            tabs.indexOf(item) === (scrub.preview ?? selected);
+          const highlighted = index === (scrub.preview ?? selected);
           return (
             <Link
               key={item.name}
@@ -104,7 +110,10 @@ export function BottomNav() {
                   ? `${item.name} (sign in required)`
                   : item.name
               }
-              onClick={tapFeedback}
+              onNavigate={() => {
+                scrub.activate(index);
+                tapFeedback();
+              }}
               className={`group relative flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-full transition-colors active:bg-[var(--s2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--accent)] ${highlighted ? "text-[var(--accent)]" : "text-[var(--t3)]"}`}
               style={{
                 WebkitTapHighlightColor: "transparent",
