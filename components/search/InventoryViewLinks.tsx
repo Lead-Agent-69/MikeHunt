@@ -152,7 +152,7 @@ export function InventoryViewLinks({
         ))}
       </nav>
       {current !== "/market" && current !== "/discover" && (
-        <BrowseFilterShortcut query={params.toString()} />
+        <BrowseFilterShortcut query={params.toString()} current={current} />
       )}
       <details
         className="min-w-0 shrink-0 rounded-2xl border border-[var(--b1)] bg-[var(--s1)] px-2 open:w-full"

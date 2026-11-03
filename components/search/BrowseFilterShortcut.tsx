@@ -6,7 +6,13 @@ import { SlidersHorizontal } from "lucide-react";
 import { observeScrollReveal } from "@/lib/ui/observe-scroll-reveal";
 
 /** Secondary views return to the same search with the complete filters already open. */
-export function BrowseFilterShortcut({ query }: { query: string }) {
+export function BrowseFilterShortcut({
+  query,
+  current,
+}: {
+  query: string;
+  current?: string;
+}) {
   const anchor = useRef<HTMLDivElement>(null);
   const floating = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
@@ -41,7 +47,23 @@ export function BrowseFilterShortcut({ query }: { query: string }) {
           aria-label="Refine search while browsing"
           className="fixed inset-x-0 top-14 z-20 flex justify-center border-b border-[var(--b1)] bg-[var(--s0)] px-3 py-2 shadow-lg"
         >
-          {control}
+          {current === "/feed" ? (
+            <div className="flex w-full max-w-3xl items-center gap-2">
+              <span className="mr-auto pl-1 text-sm font-bold text-[var(--t1)]">
+                Feed
+              </span>
+              <Link
+                href={`/market?${query}`}
+                prefetch={false}
+                className="feedback-control inline-flex min-h-11 items-center rounded-xl px-2 text-sm font-semibold text-[var(--t2)]"
+              >
+                Results
+              </Link>
+              {control}
+            </div>
+          ) : (
+            control
+          )}
         </div>
       )}
     </>
