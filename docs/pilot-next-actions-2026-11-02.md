@@ -4,6 +4,15 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ## Released foundation
 
+### November 3 private pilot evidence
+
+- PR #628 deployed a narrower Market analysis projection. The 49 Market route tests, full local gate, and CI passed. A read-only 500-row sample transferred 659,726 bytes before the change and 260,412 bytes with the new projection.
+- The uncached 30-day Missouri and Florida cash-price search, with photos required and repairables excluded, returned HTTP 500 in 26.20 s, HTTP 200 in 25.85 s (13,939 matches), and HTTP 500 in 21.58 s. The 10-second acceptance gate failed. Capture per-page database and transfer timings, then measure eligibility filtering and sorting before selecting the next optimization.
+- Local authenticated Playwright remains pending. The isolated Supabase gateway has no host binding, and Windows refused connections through a temporary published port. The temporary gateway was removed. Run the app and test browsers on the isolated Docker network with local credentials verified before fixture creation.
+- St. James lot 1855 has an explicit junk-title disclosure in the seller description while the structured title says Other. DealerHunt showed Title unknown. Keep the disclosure visible and verify source precedence before updating the title classification. Lot 1401 is a seller-described F-250/Excursion conversion and warrants the existing identity warning.
+- ReCar's restriction was verified in the deployed collector image in the prior pass. D&G has no newer successful receipt and the live worker reported zero remaining inserts and updates. AutoTempest publication, GovDeals detail evidence, and decision readiness still need verification.
+- Physical-device checks, the authenticated owner journey, account isolation, and independent recovery remain acceptance gates. Keep private pilot access controlled and archival disabled.
+
 - [x] PR614: VIN-matched primary dealer price/location observations, gallery extraction and original inventory entrypoints. Advertised final amounts remain unverified cash prices unless supported.
 - [x] PR615: blocked/disabled sources remain visible in the unavailable group; impossible refreshes explain why instead of silently failing.
 - [x] PR616: requested-shop names fit their own card at 320/390/430/768/1440px; selected availability filters expose state. Deployed console check passed.

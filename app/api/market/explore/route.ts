@@ -346,12 +346,39 @@ export async function GET(req: NextRequest) {
           if (mode === "curated" && !verdicts.length)
             q = q.in("deal_verdict", ["go", "hold"]);
 
+          if (photoFilter === "yes") {
+            q = q
+              .not("images", "is", null)
+              .neq("images", "{}")
+              .or(
+                "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
+              );
+          }
           return q.order("id", { ascending: true });
         };
+        const fetchStarted = performance.now();
+        const pageTimings: { offset: number; ms: number; rows: number }[] = [];
         const data = await fetchAllRows<any>(
-          (from, to) => build().range(from, to),
+          async (from, to) => {
+            const started = performance.now();
+            const result = await build().range(from, to);
+            const ms = Math.round(performance.now() - started);
+            pageTimings.push({
+              offset: from,
+              ms,
+              rows: result.data?.length ?? 0,
+            });
+            if (result.error)
+              console.warn("market.explore.page_failed", {
+                offset: from,
+                ms,
+                code: result.error.code,
+              });
+            return result;
+          },
           { pageSize: 1000, concurrency: 3 },
         );
+        const fetchedAt = performance.now();
         const capped = false;
 
         let rows = (data || []).filter(isInVehicleScope).map((d: any) => {
@@ -648,6 +675,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Sort + paginate.
+        const sortStarted = performance.now();
         const dir = sortDir === "asc" ? 1 : -1;
         const sortKey = (
           {
@@ -691,6 +719,17 @@ export async function GET(req: NextRequest) {
           });
 
         const total = rows.length;
+        const sortedAt = performance.now();
+        if (sortedAt - fetchStarted >= 2000) {
+          console.info("market.explore.timing", {
+            fetchMs: Math.round(fetchedAt - fetchStarted),
+            processingMs: Math.round(sortStarted - fetchedAt),
+            sortMs: Math.round(sortedAt - sortStarted),
+            candidates: data.length,
+            matches: total,
+            pages: pageTimings,
+          });
+        }
         return {
           rows,
           total,
