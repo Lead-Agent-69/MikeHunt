@@ -40,7 +40,15 @@ function query() {
     resolve({
       error: state.error,
       data: state.rows
-        ? state.rows.slice(range[0], range[1] + 1)
+        ? state.rows
+            .slice(range[0], range[1] + 1)
+            .map(({ deal_analysis, ...row }) => ({
+              ...row,
+              valuation: deal_analysis?.valuation,
+              acquisition_price_missing: deal_analysis?.acquisitionPriceMissing,
+              price_implausible: deal_analysis?.priceImplausible,
+              analysis_roi: deal_analysis?.roi,
+            }))
         : Array.from(
             {
               length: Math.max(
@@ -63,7 +71,7 @@ function query() {
               profit_score: 80,
               sell_estimate: 15000,
               deal_verdict: "go",
-              deal_analysis: { roi: 50 },
+              analysis_roi: 50,
             }),
           ),
     });
