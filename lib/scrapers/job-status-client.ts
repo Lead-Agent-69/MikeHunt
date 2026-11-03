@@ -1,4 +1,5 @@
 import { publicCapacityWait, type CapacityWait } from "./job-wait";
+import { DEALER_ACCESS_BLOCKED } from "./job-result";
 
 export interface CustomerScrapeJob {
   id: string;
@@ -104,6 +105,7 @@ const statusErrors = {
     "We couldn't verify this search's status. Your existing matches remain available.",
   failed:
     "We couldn't check the selected sources. Try again later or choose another source.",
+  dealerBlocked: DEALER_ACCESS_BLOCKED,
   connection:
     "We lost the connection while checking your search. It may still be running; your existing matches remain available.",
 };
@@ -165,7 +167,17 @@ export async function pollScopedScrapeJob(
     if (Date.now() >= deadline) return null;
     failures = 0;
     options.onStatus?.(job);
-    if (job.status === "failed") throw new SourceSearchError("failed");
+    if (job.status === "failed") {
+      const rows = job.result?.results;
+      const blocked =
+        Array.isArray(rows) &&
+        rows.some(
+          (row) =>
+            row?.source === "curated_dealers" &&
+            row?.error === DEALER_ACCESS_BLOCKED,
+        );
+      throw new SourceSearchError(blocked ? "dealerBlocked" : "failed");
+    }
     if (job.status === "completed") return job;
     onUpdate(sourceSearchStatusMessage(job));
     await wait(

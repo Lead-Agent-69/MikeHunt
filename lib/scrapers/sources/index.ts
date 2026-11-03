@@ -71,6 +71,7 @@ import {
   recordCuratedOutcome,
   type CuratedOutcome,
 } from "../curated-outcomes";
+import { DEALER_ACCESS_BLOCKED } from "../job-result";
 import { hostMatches, hostOf, urlHostMatches } from "@/lib/net/host-match";
 import { dealerListingId } from "../dealer-listing-id";
 import {
@@ -1536,6 +1537,20 @@ export async function scrapeCuratedSites(
     console.log(
       `[CuratedSites] sweep budget reached; ${skippedForBudget} lower-priority sites wait for a later sweep`,
     );
+  if (requestedDealers.size || requestedHosts.length) {
+    const checked = yields.some(
+      ({ outcome }) =>
+        outcome === "accepted_records" || outcome === "no_accepted_records",
+    );
+    if (!checked) {
+      if (
+        candidates.length > 0 &&
+        blocked.length + robotsBlocked.length === candidates.length
+      )
+        throw new Error(DEALER_ACCESS_BLOCKED);
+      throw new Error("The selected dealer inventory could not be checked.");
+    }
+  }
   return total;
 }
 

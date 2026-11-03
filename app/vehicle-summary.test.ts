@@ -176,6 +176,7 @@ describe("first-screen listing facts", () => {
       );
       expect(html).toContain("Not reported");
       expect(html).not.toContain("$0");
+      expect(html).toContain("Price unavailable");
       expect(html).not.toContain("Invalid Date");
       expect(html).not.toContain("Reported yes");
     }
