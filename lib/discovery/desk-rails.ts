@@ -14,9 +14,9 @@ export function discoverDeskForMode(mode: unknown): DiscoverDesk {
   return "personal";
 }
 
-const PERSONAL_HIDDEN = ["roi", "salvage", "auctionLots", "fresh"] as const;
+const PERSONAL_HIDDEN = ["roi", "salvage", "auctionLots"] as const;
 // Parts buyers still want salvage / teardown supply.
-const PARTS_HIDDEN = ["roi", "auctionLots", "fresh"] as const;
+const PARTS_HIDDEN = ["roi", "auctionLots"] as const;
 
 /**
  * Salvage & Rebuildable (title category salvage/rebuildable, any source or lane): flip and parts

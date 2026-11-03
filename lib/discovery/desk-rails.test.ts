@@ -33,7 +33,7 @@ describe("discover desk rails", () => {
 
   it("never ships flip rails to personal / diy / signed-out desks", () => {
     const keys = filterRailsForDesk(rails, "personal").map((r) => r.key);
-    for (const hidden of ["roi", "salvage", "auctionLots", "fresh"])
+    for (const hidden of ["roi", "salvage", "auctionLots"])
       expect(keys).not.toContain(hidden);
     expect(keys).toContain("best");
     expect(keys).toContain("repairable");
@@ -42,7 +42,7 @@ describe("discover desk rails", () => {
   it("keeps salvage for parts but drops the other flip rails", () => {
     const keys = filterRailsForDesk(rails, "parts").map((r) => r.key);
     expect(keys).toContain("salvage");
-    for (const hidden of ["roi", "auctionLots", "fresh"])
+    for (const hidden of ["roi", "auctionLots"])
       expect(keys).not.toContain(hidden);
   });
 

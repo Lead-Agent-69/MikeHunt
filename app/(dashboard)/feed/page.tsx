@@ -160,7 +160,12 @@ function FeedContents() {
     <div className="mx-auto max-w-6xl space-y-4" data-testid="feed-page">
       <header className="space-y-3 border-b border-[var(--b1)] pb-4">
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-[var(--t1)]">Feed</h1>
+          <div>
+            <h1 className="text-xl font-bold text-[var(--t1)]">Feed</h1>
+            <p className="text-xs text-[var(--t3)]">
+              Newest to DealerHunt first
+            </p>
+          </div>
           <button
             type="button"
             disabled={!ready || loading}

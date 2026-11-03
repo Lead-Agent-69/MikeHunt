@@ -349,15 +349,10 @@ describe("GET /api/discover scoped feed contract", () => {
     expect(ids).not.toContain("deal-1");
   }, 15_000);
   it.each([
-    ["signed out", null, null, ["roi", "salvage", "auctionLots", "fresh"]],
-    [
-      "personal",
-      "u-personal",
-      "personal",
-      ["roi", "salvage", "auctionLots", "fresh"],
-    ],
-    ["diy", "u-diy", "diy", ["roi", "salvage", "auctionLots", "fresh"]],
-    ["parts", "u-parts", "parts", ["roi", "auctionLots", "fresh"]],
+    ["signed out", null, null, ["roi", "salvage", "auctionLots"]],
+    ["personal", "u-personal", "personal", ["roi", "salvage", "auctionLots"]],
+    ["diy", "u-diy", "diy", ["roi", "salvage", "auctionLots"]],
+    ["parts", "u-parts", "parts", ["roi", "auctionLots"]],
   ])(
     "never ships flip rails to a %s caller",
     async (_label, userId, buyerMode, hidden) => {
