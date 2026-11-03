@@ -106,10 +106,10 @@
       ]
     },
     {
-      "name": "Next Best Buy",
-      "short_name": "Best Buy",
-      "description": "The top-ranked deal for your saved criteria",
-      "url": "/best-buy",
+      "name": "Vehicle Feed",
+      "short_name": "Feed",
+      "description": "Browse listings with vehicle photos",
+      "url": "/feed",
       "icons": [
         {
           "src": "/icon-192x192.png",

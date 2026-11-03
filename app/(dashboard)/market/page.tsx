@@ -1793,6 +1793,29 @@ export default function MarketPage() {
             {renderBrowsingControls()}
           </div>
 
+          <div className="mb-3 flex flex-wrap items-center gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-2 py-1">
+            <span className="px-2 text-xs font-semibold text-[var(--t3)]">
+              Last seen
+            </span>
+            {INVENTORY_FRESHNESS_OPTIONS.map((option) => {
+              const selected =
+                inventoryFreshnessOption(details.seenWithin).value ===
+                option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  aria-pressed={selected}
+                  title={option.description}
+                  onClick={() => setDetail("seenWithin", option.value)}
+                  className={`min-h-11 rounded-full px-3 text-xs font-semibold ${selected ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t2)]"}`}
+                >
+                  {option.shortLabel}
+                </button>
+              );
+            })}
+          </div>
+
           {!busy && !error && (facets.sources?.length || 0) > 0 && (
             <div className="hidden xl:block">
               <SourceResultStrip
@@ -1843,7 +1866,7 @@ export default function MarketPage() {
               </p>
               {!busy && (
                 <p className="text-xs text-[var(--t4)]">
-                  Loosen a filter
+                  Try a longer “Last seen” window above or loosen a filter
                   {flipDesk && f.mode === "curated"
                     ? " or switch to Whole market"
                     : ""}
