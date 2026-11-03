@@ -92,6 +92,9 @@ describe("mobile navigation scrub", () => {
     expect(navigate).not.toHaveBeenCalled();
     pointer("pointerup", 284);
     expect(navigate).toHaveBeenCalledExactlyOnceWith(3);
+    expect(host.firstElementChild?.getAttribute("data-preview")).toBe("3");
+    act(() => root.render(<Harness route="/fleet" selected={3} />));
+    expect(host.firstElementChild?.getAttribute("data-preview")).toBeNull();
     expect(captured).toBe(false);
     expect(click()).toBe(true);
     pointer("pointerup", 284);
