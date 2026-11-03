@@ -14,11 +14,11 @@ describe("discover tailored rails by buyer mode", () => {
     expect(api).toContain("filterRailsForDesk");
     // DIY and personal share the same non-flip hide set (includes salvage).
     expect(rails).toContain(
-      'PERSONAL_HIDDEN = ["roi", "salvage", "auctionLots", "fresh"]',
+      'PERSONAL_HIDDEN = ["roi", "salvage", "auctionLots"]',
     );
     // Parts keeps salvage / teardown, still drops wholesale flip rails.
     expect(rails).toContain('normalized === "parts"');
-    expect(rails).toContain('PARTS_HIDDEN = ["roi", "auctionLots", "fresh"]');
+    expect(rails).toContain('PARTS_HIDDEN = ["roi", "auctionLots"]');
   });
 
   it("retains legacy parts compatibility without presenting role selection in onboarding", () => {
