@@ -44,6 +44,15 @@ const render = (flipDesk?: boolean) =>
     }),
   );
 
+it("gives Market rows a restore target and a keyboard-accessible detail link", () => {
+  const html = renderToStaticMarkup(
+    createElement(DealTable, { rows, onOpenVehicle: vi.fn() }),
+  );
+  expect(html).toContain('data-market-vehicle="a"');
+  expect(html).toMatch(/<a[^>]*href="\/deal\/a"[^>]*>2018 Honda Civic<\/a>/);
+  expect(render()).not.toContain("data-market-vehicle");
+});
+
 describe("Scan table flip columns by buyer desk", () => {
   it("renders a friendly unverified source without invented missing metrics", () => {
     const host = document.createElement("div");

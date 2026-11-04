@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Mono } from "@/components/shared/Mono";
@@ -183,12 +184,14 @@ export function DealTable({
   sourceHealthById,
   flipDesk = false,
   preserveOrder = false,
+  onOpenVehicle,
 }: {
   rows: TableRow[];
   sourceHealthById?: Map<string, TableSourceHealth>;
   /** Reseller/dealer desk (isFlipBuyerMode). Unknown = personal. */
   flipDesk?: boolean;
   preserveOrder?: boolean;
+  onOpenVehicle?: (row: HTMLElement | null) => void;
 }) {
   const router = useRouter();
   // Non-flip desks keep the Scan order (score-first) instead of net profit.
@@ -331,7 +334,12 @@ export function DealTable({
             return (
               <tr
                 key={r.id}
-                onClick={() => router.push(`/deal/${r.id}`)}
+                id={onOpenVehicle ? `market-table-row-${r.id}` : undefined}
+                data-market-vehicle={onOpenVehicle ? r.id : undefined}
+                onClick={(event) => {
+                  onOpenVehicle?.(event.currentTarget);
+                  router.push(`/deal/${r.id}`);
+                }}
                 className="cursor-pointer border-t border-[var(--b1)] transition-colors hover:bg-[var(--s1)]"
                 style={{
                   contentVisibility: "auto",
@@ -363,9 +371,19 @@ export function DealTable({
                         ⚠
                       </span>
                     )}
-                    <span className="truncate">
+                    <Link
+                      href={`/deal/${r.id}`}
+                      prefetch={false}
+                      className="truncate hover:underline focus-visible:underline"
+                      onClick={(event) => event.stopPropagation()}
+                      onNavigate={() =>
+                        onOpenVehicle?.(
+                          document.getElementById(`market-table-row-${r.id}`),
+                        )
+                      }
+                    >
                       {r.year} {r.make} {r.model}
-                    </span>
+                    </Link>
                   </div>
                   <div className="mt-1 flex items-center gap-1.5">
                     <SourceBadge

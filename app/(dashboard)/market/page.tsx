@@ -16,7 +16,10 @@ import {
 } from "@/components/market/MarketFacetStudio";
 import { MarketResultsMap } from "@/components/market/MarketResultsMap";
 import { MarketListingGrid } from "@/components/market/MarketListingGrid";
-import { MarketReturnPosition } from "@/components/market/MarketReturnPosition";
+import {
+  MarketReturnPosition,
+  rememberMarketPosition,
+} from "@/components/market/MarketReturnPosition";
 import { MarketIntelligence } from "@/components/market/MarketIntelligence";
 import { ResponsiveWorkspacePanel } from "@/components/shared/ResponsiveWorkspacePanel";
 import { MarketSearchActions } from "@/components/market/MarketSearchActions";
@@ -399,6 +402,7 @@ export default function MarketPage() {
         next.sortDir = "desc";
       }
       setF(next);
+      setView(params.get("view") === "table" ? "table" : "grid");
       const inventoryDetails = readInventoryDetails(params);
       delete inventoryDetails.seenWithin;
       setDetails({ hasPhotos: "yes", ...inventoryDetails });
@@ -508,8 +512,11 @@ export default function MarketPage() {
   };
   const pendingFilters = !ready || qs !== debouncedQs;
   React.useEffect(() => {
-    if (ready) replaceInventoryHistory(`/market?${qs}&page=${page}`);
-  }, [qs, ready, page]);
+    if (ready) {
+      const viewParam = view === "table" ? "&view=table" : "";
+      replaceInventoryHistory(`/market?${qs}&page=${page}${viewParam}`);
+    }
+  }, [qs, ready, page, view]);
 
   const {
     data,
@@ -1794,14 +1801,13 @@ export default function MarketPage() {
             />
           ) : rows.length > 0 ? (
             view === "grid" ? (
-              <MarketListingGrid rows={rows} flipDesk={flipDesk}>
-                {!loadingMore && <MarketReturnPosition />}
-              </MarketListingGrid>
+              <MarketListingGrid rows={rows} flipDesk={flipDesk} />
             ) : (
               <DealTable
                 rows={rows as TableRow[]}
                 flipDesk={flipDesk}
                 preserveOrder
+                onOpenVehicle={rememberMarketPosition}
               />
             )
           ) : (
@@ -1832,6 +1838,9 @@ export default function MarketPage() {
                 ? "This search reached the 8,000-row sample limit. Narrow location, source or vehicle filters to inspect more precise results."
                 : "Open the source listing to confirm availability and the full purchase amount."}
             </p>
+          )}
+          {!error && rows.length > 0 && !loadingMore && (
+            <MarketReturnPosition />
           )}
           {!error &&
             !pendingFilters &&
