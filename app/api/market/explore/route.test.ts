@@ -141,6 +141,41 @@ describe("Market inventory filtering and pagination", () => {
     ]);
   });
 
+  it("continues mileage browsing through equal values and unknown mileage", async () => {
+    const ids = [1, 2, 3].map((n) => `00000000-0000-0000-0000-00000000000${n}`);
+    state.rows = ids.map((id, index) => ({
+      id,
+      year: 2020,
+      make: "Ford",
+      model: "F-150",
+      mileage: index === 2 ? null : 32000,
+      images: ["https://dealer.test/vehicle.jpg"],
+    }));
+    const query = "browse=1&sort=mileage&sortDir=asc&pageSize=1";
+    const first = await (await request(query)).json();
+    expect(first.nextCursor).toBe(`32000|${ids[0]}`);
+    expect(state.calls).toContainEqual([
+      "order",
+      "mileage",
+      { ascending: true, nullsFirst: false },
+    ]);
+    state.rows = state.rows.slice(1);
+    const second = await (
+      await request(query + "&after=" + encodeURIComponent(first.nextCursor))
+    ).json();
+    expect(second.rows[0].id).toBe(ids[1]);
+    expect(state.calls).toContainEqual([
+      "or",
+      `mileage.gt.32000,and(mileage.eq.32000,id.gt.${ids[0]}),mileage.is.null`,
+    ]);
+    state.rows = state.rows.slice(1);
+    const third = await (
+      await request(query + "&after=" + encodeURIComponent(second.nextCursor))
+    ).json();
+    expect(third.rows[0].id).toBe(ids[2]);
+    expect(third.nextCursor).toBeNull();
+  });
+
   it("excludes powersports before market counts, facets and pagination", async () => {
     const base = {
       year: 2025,

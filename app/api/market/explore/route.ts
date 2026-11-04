@@ -259,19 +259,20 @@ export async function GET(req: NextRequest) {
       .trim()
       .replace(/[^a-zA-Z0-9 -]/g, " ")
       .slice(0, 60);
+    const byMileage = sort === "mileage";
     const streaming =
       sp.get("browse") === "1" &&
       sp.get("aggregate") !== "1" &&
-      sort === "lastSeenAt" &&
-      sortDir === "desc";
+      (byMileage || (sort === "lastSeenAt" && sortDir === "desc"));
     const cursor = streaming ? sp.get("after") : null;
     const [cursorTime, cursorId, extraCursor] = cursor?.split("|") ?? [];
     if (
       cursor !== null &&
-      (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(
-        cursorTime ?? "",
-      ) ||
-        !Number.isFinite(Date.parse(cursorTime)) ||
+      (!(byMileage
+        ? /^(?:null|-?\d{1,12})$/.test(cursorTime ?? "")
+        : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(
+            cursorTime ?? "",
+          ) && Number.isFinite(Date.parse(cursorTime))) ||
         !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(
           cursorId ?? "",
         ) ||
@@ -542,7 +543,7 @@ export async function GET(req: NextRequest) {
 
         if (streaming) {
           const rows: ReturnType<typeof eligibleRows> = [];
-          let lastSeen = cursorTime;
+          let boundary = cursorTime;
           let lastId = cursorId;
           const batchSize = Math.max(100, pageSize + 1);
           let exhausted = false;
@@ -554,13 +555,26 @@ export async function GET(req: NextRequest) {
             scanned++
           ) {
             let query = build()
-              .order("last_seen_at", { ascending: false })
+              .order(byMileage ? "mileage" : "last_seen_at", {
+                ascending: byMileage && sortDir === "asc",
+                nullsFirst: false,
+              })
               .order("id", { ascending: true })
               .limit(batchSize);
-            if (lastSeen && lastId)
-              query = query.or(
-                `last_seen_at.lt.${lastSeen},and(last_seen_at.eq.${lastSeen},id.gt.${lastId})`,
-              );
+            if (boundary && lastId) {
+              if (byMileage) {
+                query =
+                  boundary === "null"
+                    ? query.is("mileage", null).gt("id", lastId)
+                    : query.or(
+                        `mileage.${sortDir === "asc" ? "gt" : "lt"}.${boundary},and(mileage.eq.${boundary},id.gt.${lastId}),mileage.is.null`,
+                      );
+              } else {
+                query = query.or(
+                  `last_seen_at.lt.${boundary},and(last_seen_at.eq.${boundary},id.gt.${lastId})`,
+                );
+              }
+            }
             const result = await query;
             if (result.error) throw result.error;
             const batch = result.data ?? [];
@@ -570,7 +584,9 @@ export async function GET(req: NextRequest) {
               break;
             }
             const last = batch.at(-1)!;
-            lastSeen = last.last_seen_at;
+            boundary = byMileage
+              ? String(last.mileage ?? "null")
+              : last.last_seen_at;
             lastId = last.id;
           }
           const visible = rows.slice(0, pageSize);
@@ -580,9 +596,9 @@ export async function GET(req: NextRequest) {
             total: null,
             nextCursor:
               rows.length > pageSize && last
-                ? `${last.lastSeenAt}|${last.id}`
-                : !exhausted && lastSeen && lastId
-                  ? `${lastSeen}|${lastId}`
+                ? `${byMileage ? (last.mileage ?? "null") : last.lastSeenAt}|${last.id}`
+                : !exhausted && boundary && lastId
+                  ? `${boundary}|${lastId}`
                   : null,
             capped: false,
             mode,

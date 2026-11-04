@@ -1703,41 +1703,59 @@ export default function MarketPage() {
         </details>
       </ResponsiveWorkspacePanel>
 
-      {!showFilters && showInsights && !busy && !error && (
-        <section
-          aria-label="Market insights workspace"
-          className="space-y-3"
-          data-testid="market-intelligence-dashboard"
-        >
-          <MarketIntelligence
-            summary={data?.summary}
-            query={qs}
-            capped={data?.capped}
+      {!showFilters &&
+        showInsights &&
+        (error || data?.configured === false) && (
+          <ErrorState
+            title="Market insights unavailable"
+            message="Could not load insights for this search. Your filters have been kept."
+            onRetry={() => void Promise.resolve(mutate()).catch(() => {})}
           />
-          <MarketVisualizers
-            facets={facets}
-            selectedLanes={f.lanes}
-            selectedPrice={{ min: f.priceMin, max: f.priceMax }}
-            onLaneToggle={(lane) => set({ lanes: toggle(f.lanes, lane) })}
-            onPriceRangeSelect={(from, to) => {
-              const alreadySelected =
-                f.priceMin === String(from) && f.priceMax === String(to);
-              set({
-                priceMin: alreadySelected ? "" : String(from),
-                priceMax: alreadySelected ? "" : String(to),
-              });
-            }}
-          />
-          {flipDesk && (
-            <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
-              <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
-                National opportunity map · independent of search filters
-              </summary>
-              <USHeatmap />
-            </details>
-          )}
-        </section>
+        )}
+      {!showFilters && showInsights && busy && !error && (
+        <p role="status" className="py-8 text-center text-sm text-[var(--t3)]">
+          Loading market insights…
+        </p>
       )}
+      {!showFilters &&
+        showInsights &&
+        !busy &&
+        !error &&
+        data?.configured !== false && (
+          <section
+            aria-label="Market insights workspace"
+            className="space-y-3"
+            data-testid="market-intelligence-dashboard"
+          >
+            <MarketIntelligence
+              summary={data?.summary}
+              query={qs}
+              capped={data?.capped}
+            />
+            <MarketVisualizers
+              facets={facets}
+              selectedLanes={f.lanes}
+              selectedPrice={{ min: f.priceMin, max: f.priceMax }}
+              onLaneToggle={(lane) => set({ lanes: toggle(f.lanes, lane) })}
+              onPriceRangeSelect={(from, to) => {
+                const alreadySelected =
+                  f.priceMin === String(from) && f.priceMax === String(to);
+                set({
+                  priceMin: alreadySelected ? "" : String(from),
+                  priceMax: alreadySelected ? "" : String(to),
+                });
+              }}
+            />
+            {flipDesk && (
+              <details className="rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-4">
+                <summary className="min-h-11 cursor-pointer py-3 text-xs font-semibold">
+                  National opportunity map · independent of search filters
+                </summary>
+                <USHeatmap />
+              </details>
+            )}
+          </section>
+        )}
 
       {!showFilters && !showInsights && (
         <section
