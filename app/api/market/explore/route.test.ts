@@ -31,6 +31,11 @@ function query() {
       state.calls.push([method, ...args]);
       return q;
     };
+  q.limit = (limit: number) => {
+    range = [0, limit - 1];
+    state.calls.push(["limit", limit]);
+    return q;
+  };
   q.range = (from: number, to: number) => {
     range = [from, to];
     state.calls.push(["range", from, to]);
@@ -102,6 +107,40 @@ const request = (search: string) => {
 };
 
 describe("Market inventory filtering and pagination", () => {
+  it("returns a bounded recent batch and resumes after its last eligible listing", async () => {
+    const time = "2026-11-03T20:00:00.123456+00:00";
+    const ids = [
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+    ];
+    state.rows = ids.map((id) => ({
+      id,
+      year: 2020,
+      make: "Ford",
+      model: "F-150",
+      last_seen_at: time,
+      images: ["https://dealer.test/vehicle.jpg"],
+    }));
+    const query = "browse=1&sort=lastSeenAt&sortDir=desc&pageSize=1";
+    const first = await (await request(query)).json();
+    expect(first.total).toBeNull();
+    expect(first.rows.map((row: { id: string }) => row.id)).toEqual([ids[0]]);
+    expect(first.nextCursor).toBe(`${time}|${ids[0]}`);
+    expect(state.calls).toContainEqual(["limit", 100]);
+    expect(state.calls.some(([method]) => method === "range")).toBe(false);
+
+    state.rows = state.rows.slice(1);
+    const second = await (
+      await request(query + "&after=" + encodeURIComponent(first.nextCursor))
+    ).json();
+    expect(second.rows.map((row: { id: string }) => row.id)).toEqual([ids[1]]);
+    expect(second.nextCursor).toBeNull();
+    expect(state.calls).toContainEqual([
+      "or",
+      `last_seen_at.lt.${time},and(last_seen_at.eq.${time},id.gt.${ids[0]})`,
+    ]);
+  });
+
   it("excludes powersports before market counts, facets and pagination", async () => {
     const base = {
       year: 2025,

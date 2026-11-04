@@ -20,23 +20,18 @@ test.describe("Inventory freshness controls", () => {
     serviceWorkers: "block",
   });
 
-  test("keeps fresh, recent, and archive inventory understandable across views", async ({
+  test("uses continuous Market browsing and preserves Feed research links", async ({
     page,
   }, testInfo) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
 
-    await page.goto("/market?mode=all");
-    const freshnessSelect = page.getByRole("combobox", {
-      name: "Inventory freshness",
-    });
-    await expect(freshnessSelect).toBeVisible();
-    await expect(freshnessSelect).toHaveValue("3");
-    await expect(freshnessSelect.locator("option")).toHaveText([
-      "Fresh - 3 days",
-      "Recent - 7 days",
-      "Archive - 30 days",
-    ]);
+    await page.goto("/market?mode=all&seenWithin=7");
+    await expect(
+      page.getByRole("combobox", { name: "Inventory freshness" }),
+    ).toHaveCount(0);
+    await expect(page).toHaveURL(/(?:\?|&)browse=1(?:&|$)/);
+    await expect(page).not.toHaveURL(/seenWithin=/);
 
     const everydayFilters = page.getByRole("region", {
       name: "Everyday search filters",
@@ -51,7 +46,6 @@ test.describe("Inventory freshness controls", () => {
       everydayFilters.getByRole("combobox", {
         name: "Quick source or dealer",
       }),
-      freshnessSelect,
       everydayFilters.getByRole("button", { name: "All filters" }),
     ];
     for (const control of visibleControls) {
@@ -64,33 +58,7 @@ test.describe("Inventory freshness controls", () => {
       );
     }
 
-    const selectBox = await freshnessSelect.boundingBox();
-    expect(selectBox).toBeTruthy();
-    expect(selectBox!.height).toBeGreaterThanOrEqual(44);
     await expectNoHorizontalOverflow(page);
-
-    await freshnessSelect.selectOption("7");
-    await expect(page).toHaveURL(/(?:\?|&)seenWithin=7(?:&|$)/);
-    await expect(
-      page.getByText(
-        /Recently checked; confirm availability with the seller.*Older observations never count as a current buying recommendation until refreshed/,
-      ),
-    ).toBeVisible();
-
-    await freshnessSelect.selectOption("30");
-    await expect(page).toHaveURL(/(?:\?|&)seenWithin=30(?:&|$)/);
-    await expect(
-      page.getByText(
-        /Research history; recheck before relying on the listing.*Older observations never count as a current buying recommendation until refreshed/,
-      ),
-    ).toBeVisible();
-    await expect(
-      page.getByText(/[\d,]+ (?:curated|market) matches/),
-    ).toBeVisible();
-    await expectNoHorizontalOverflow(page);
-    await page.screenshot({
-      path: testInfo.outputPath("market-archive-inventory.png"),
-    });
 
     await page.goto(
       "/feed?scope=explicit&seenWithin=30&hasPhotos=yes&state=all&makes=&q=&lane=all&sellerType=all&titleType=all&minPrice=&maxPrice=&dealers=&dealerSourceIds=",

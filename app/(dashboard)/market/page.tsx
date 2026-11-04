@@ -58,10 +58,6 @@ import {
 import { saveLocalSavedSearch } from "@/hooks/useLocalSavedSearches";
 import { sourceMatchLabel } from "@/lib/search/source-coverage";
 import { parseTitleTypes } from "@/lib/deals/title-category";
-import {
-  INVENTORY_FRESHNESS_OPTIONS,
-  inventoryFreshnessOption,
-} from "@/lib/search/inventory-freshness";
 
 // /market — the advanced sourcing surface. A dealer dials in exactly what they want (states, channel,
 // price, year, miles, make, condition, verdict) and flips between CURATED (deals worth acting on) and
@@ -403,7 +399,9 @@ export default function MarketPage() {
         next.sortDir = "desc";
       }
       setF(next);
-      setDetails({ hasPhotos: "yes", ...readInventoryDetails(params) });
+      const inventoryDetails = readInventoryDetails(params);
+      delete inventoryDetails.seenWithin;
+      setDetails({ hasPhotos: "yes", ...inventoryDetails });
       setPage(
         Math.min(
           2000,
@@ -445,8 +443,9 @@ export default function MarketPage() {
     if (f.sources.length) p.set("sources", f.sources.join(","));
     if (f.model.trim()) p.set("model", f.model.trim());
     if (f.minMileage) p.set("minMileage", f.minMileage);
+    p.set("browse", "1");
     for (const [key, value] of Object.entries(details))
-      if (value) p.set(key, value);
+      if (value && key !== "seenWithin") p.set(key, value);
     if (f.categories.length) p.set("categories", f.categories.join(","));
     if (f.conditions.length) p.set("conditions", f.conditions.join(","));
     if (flipDesk && f.verdicts.length) p.set("verdicts", f.verdicts.join(","));
@@ -522,8 +521,12 @@ export default function MarketPage() {
     hasMore,
     mutate,
   } = useMarketInventory(
-    !pendingFilters ? debouncedQs : null,
-    page + 1,
+    !pendingFilters
+      ? showInsights
+        ? debouncedQs + "&aggregate=1"
+        : debouncedQs
+      : null,
+    showInsights ? 1 : page + 1,
     fetchMarket,
   );
 
@@ -594,7 +597,8 @@ export default function MarketPage() {
     profitEvidence,
     profitScoreEvidence,
   ]);
-  const total: number = data?.total ?? 0;
+  const total: number = data?.total ?? rows.length;
+  const progressive = data?.nextCursor !== undefined;
   const areaSummary = searchAreaLabel(f);
   const quickSourceOptions = INVENTORY_SOURCE_FILTERS.filter(
     (source) =>
@@ -975,13 +979,6 @@ export default function MarketPage() {
               inputLabel: "Quick source or dealer",
               disabled: busy,
             },
-            {
-              key: "age",
-              label: "Inventory age",
-              value: inventoryFreshnessOption(details.seenWithin).shortLabel,
-              inputLabel: "Inventory freshness",
-              disabled: busy,
-            },
           ]}
         >
           <section
@@ -1070,27 +1067,6 @@ export default function MarketPage() {
                 ) : null}
               </select>
             </label>
-            <label className="min-w-0 text-xs font-semibold text-[var(--t2)]">
-              Inventory age
-              <select
-                aria-label="Inventory freshness"
-                disabled={!ready || busy}
-                value={inventoryFreshnessOption(details.seenWithin).value}
-                onChange={(event) =>
-                  setDetail(
-                    "seenWithin",
-                    event.target.value === "3" ? "" : event.target.value,
-                  )
-                }
-                className="mt-1 min-h-11 w-full min-w-0 rounded-lg border border-[var(--b1)] bg-[var(--s1)] px-3 text-base text-[var(--t1)]"
-              >
-                {INVENTORY_FRESHNESS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label} - {option.shortLabel}
-                  </option>
-                ))}
-              </select>
-            </label>
             <button
               type="button"
               onClick={() => {
@@ -1105,13 +1081,6 @@ export default function MarketPage() {
           </section>
         </MarketQuickFilters>
       </div>
-      {inventoryFreshnessOption(details.seenWithin).value !== "3" && (
-        <p role="status" className="text-xs text-[var(--t3)]">
-          {inventoryFreshnessOption(details.seenWithin).description}. Older
-          observations never count as a current buying recommendation until
-          refreshed.
-        </p>
-      )}
       <nav
         aria-label="Market workspace"
         className="browse-segmented grid grid-cols-3 items-center gap-1 p-1 sm:flex sm:gap-2"
@@ -1272,7 +1241,7 @@ export default function MarketPage() {
               onClick={closeFilters}
               className="min-h-11 flex-1 rounded-full bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] lg:flex-none"
             >
-              Show {busy ? "updated" : total.toLocaleString()} listings
+              Show results
             </button>
           </div>
         }
@@ -1321,7 +1290,7 @@ export default function MarketPage() {
               }}
               className="min-h-11 rounded-full bg-[var(--accent)] px-4 text-xs font-bold text-[var(--on-accent)]"
             >
-              Show {busy ? "updated" : total.toLocaleString()} listings
+              Show results
             </button>
           </div>
         </div>
@@ -1349,7 +1318,6 @@ export default function MarketPage() {
               sellerType: f.sellerTypes,
               assemblyCountry: details.assemblyCountry,
               availability: details.availability,
-              freshness: details.seenWithin,
               priceKind: f.priceKind,
               priceAvailability: details.pricePolicy,
               mileageAvailability: details.mileagePolicy,
@@ -1783,7 +1751,11 @@ export default function MarketPage() {
                     <strong className="text-[var(--t2)]">
                       {total.toLocaleString()}
                     </strong>{" "}
-                    {data?.mode === "curated" ? "curated" : "market"} matches
+                    {progressive
+                      ? "vehicles loaded"
+                      : data?.mode === "curated"
+                        ? "curated matches"
+                        : "market matches"}
                     {` · ${areaSummary}`}
                     {data?.capped ? " · limited inventory sample" : ""}
                   </>
@@ -1791,29 +1763,6 @@ export default function MarketPage() {
               </p>
             </div>
             {renderBrowsingControls()}
-          </div>
-
-          <div className="mb-3 flex flex-wrap items-center gap-1 rounded-xl border border-[var(--b1)] bg-[var(--s1)] px-2 py-1">
-            <span className="px-2 text-xs font-semibold text-[var(--t3)]">
-              Last seen
-            </span>
-            {INVENTORY_FRESHNESS_OPTIONS.map((option) => {
-              const selected =
-                inventoryFreshnessOption(details.seenWithin).value ===
-                option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  aria-pressed={selected}
-                  title={option.description}
-                  onClick={() => setDetail("seenWithin", option.value)}
-                  className={`min-h-11 rounded-full px-3 text-xs font-semibold ${selected ? "bg-[var(--accent-surface)] text-[var(--blue)]" : "text-[var(--t2)]"}`}
-                >
-                  {option.shortLabel}
-                </button>
-              );
-            })}
           </div>
 
           {!busy && !error && (facets.sources?.length || 0) > 0 && (
@@ -1862,11 +1811,11 @@ export default function MarketPage() {
             >
               <Ico name="search" size={28} className="text-[var(--t5)]" />
               <p className="text-sm font-bold text-[var(--t2)]">
-                {busy ? "Searching…" : "No matches"}
+                {busy || hasMore ? "Searching…" : "No matches"}
               </p>
-              {!busy && (
+              {!busy && !hasMore && (
                 <p className="text-xs text-[var(--t4)]">
-                  Try a longer “Last seen” window above or loosen a filter
+                  Try broadening your location or loosening a filter
                   {flipDesk && f.mode === "curated"
                     ? " or switch to Whole market"
                     : ""}
@@ -1884,42 +1833,20 @@ export default function MarketPage() {
                 : "Open the source listing to confirm availability and the full purchase amount."}
             </p>
           )}
-          {!busy &&
-            !error &&
-            !hasMore &&
-            !loadingMore &&
-            inventoryFreshnessOption(details.seenWithin).value !== "30" && (
-              <button
-                type="button"
-                className="mt-3 min-h-11 rounded-full bg-[var(--accent-surface)] px-4 text-sm font-semibold text-[var(--blue)]"
-                onClick={() =>
-                  setDetail(
-                    "seenWithin",
-                    inventoryFreshnessOption(details.seenWithin).value === "3"
-                      ? "7"
-                      : "30",
-                  )
-                }
-              >
-                Include last{" "}
-                {inventoryFreshnessOption(details.seenWithin).value === "3"
-                  ? "7"
-                  : "30"}{" "}
-                days
-              </button>
+          {!error &&
+            !pendingFilters &&
+            (total > 0 || hasMore || loadMoreError) && (
+              <MarketLoadMore
+                shown={rows.length}
+                total={progressive ? null : total}
+                hasMore={hasMore}
+                loading={loadingMore}
+                failed={Boolean(loadMoreError)}
+                refreshing={currentRefresh === "loading"}
+                onLoadMore={loadNextBatch}
+                onRetry={() => void refreshResults()}
+              />
             )}
-          {!error && !pendingFilters && total > 0 && (
-            <MarketLoadMore
-              shown={rows.length}
-              total={total}
-              hasMore={hasMore}
-              loading={loadingMore}
-              failed={Boolean(loadMoreError)}
-              refreshing={currentRefresh === "loading"}
-              onLoadMore={loadNextBatch}
-              onRetry={() => void refreshResults()}
-            />
-          )}
         </section>
       )}
     </div>
