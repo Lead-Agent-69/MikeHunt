@@ -6,7 +6,8 @@ import type { MarketListing } from "@/lib/market/explorer";
 
 export type MarketInventoryPage = {
   rows: MarketListing[];
-  total: number;
+  total: number | null;
+  nextCursor?: string | null;
   page: number;
   pageSize: number;
   [key: string]: any;
@@ -20,8 +21,10 @@ export function marketInventoryKey(
   previous: MarketInventoryPage | null,
 ) {
   if (!query) return null;
+  if (previous?.nextCursor === null) return null;
   if (
     previous &&
+    previous.total != null &&
     (!previous.rows.length ||
       (previous.page + 1) * previous.pageSize >= previous.total)
   )
@@ -29,6 +32,7 @@ export function marketInventoryKey(
   const params = new URLSearchParams(query);
   params.set("pageSize", String(MARKET_BATCH_SIZE));
   params.set("page", String(index));
+  if (previous?.nextCursor) params.set("after", previous.nextCursor);
   return `/api/market/explore?${params}`;
 }
 
@@ -89,8 +93,8 @@ export function useMarketInventory(
   return {
     data: latest,
     rows,
-    error: rows.length ? undefined : result.error,
-    loadMoreError: rows.length ? result.error : undefined,
+    error: latest ? undefined : result.error,
+    loadMoreError: latest ? result.error : undefined,
     isLoading: result.isLoading,
     loadingMore: Boolean(
       result.data?.length &&

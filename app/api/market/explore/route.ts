@@ -203,6 +203,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: rangeError }, { status: 400 });
     // Historical placeholders may not have an audit yet. Classify before counts/pagination.
     detailParams.delete("hasPhotos");
+    if (sp.get("browse") === "1") detailParams.delete("seenWithin");
     const priceBasis = sp.get("priceBasis") || "advertised";
     if (!["cash", "advertised"].includes(priceBasis))
       return NextResponse.json(
@@ -258,9 +259,32 @@ export async function GET(req: NextRequest) {
       .trim()
       .replace(/[^a-zA-Z0-9 -]/g, " ")
       .slice(0, 60);
+    const streaming =
+      sp.get("browse") === "1" &&
+      sp.get("aggregate") !== "1" &&
+      sort === "lastSeenAt" &&
+      sortDir === "desc";
+    const cursor = streaming ? sp.get("after") : null;
+    const [cursorTime, cursorId, extraCursor] = cursor?.split("|") ?? [];
+    if (
+      cursor !== null &&
+      (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|\+00:00)$/.test(
+        cursorTime ?? "",
+      ) ||
+        !Number.isFinite(Date.parse(cursorTime)) ||
+        !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(
+          cursorId ?? "",
+        ) ||
+        extraCursor !== undefined)
+    )
+      return NextResponse.json(
+        { error: "Invalid Market continuation" },
+        { status: 400 },
+      );
     const cacheParams = new URLSearchParams(sp);
     cacheParams.delete("page");
     cacheParams.delete("pageSize");
+    if (streaming) cacheParams.set("pageSize", String(pageSize));
 
     // Same filter combo within 30s → serve the computed result instantly (no re-scan/re-facet).
     const payload = await cached(
@@ -292,7 +316,8 @@ export async function GET(req: NextRequest) {
             Date.now(),
             {
               includeWithoutPhotos: true,
-              observedDays: Number(sp.get("seenWithin")),
+              observedDays:
+                sp.get("browse") === "1" ? 30 : Number(sp.get("seenWithin")),
             },
           );
 
@@ -354,14 +379,231 @@ export async function GET(req: NextRequest) {
                 "options->photoAudit->>state.is.null,options->photoAudit->>state.neq.unavailable",
               );
           }
-          return q.order("id", { ascending: true });
+          return q;
         };
+        const eligibleRows = (data: any[]) => {
+          let rows = data.filter(isInVehicleScope).map((d: any) => {
+            const photos = photoEvidence(d.images, {
+              placeholderUrls: d.placeholder_urls,
+            });
+            const images =
+              d.photo_state === "unavailable"
+                ? []
+                : photos.images
+                    .filter((url) => /^https?:\/\//i.test(url))
+                    .slice(0, 30);
+            const mapPoint = roundedMapPoint(d.lat, d.lng);
+            const valuation = marketValuation(d.valuation, d.sell_estimate, d);
+            const price = sourcePriceContext(d);
+            // Stored profit math must use the same acquisition amount as the displayed quote.
+            // Deposits, payments, references, unverified amounts, and corrected teaser prices
+            // cannot inherit an old GO/profit simply because the resale estimate has comps.
+            const acquisitionSupported =
+              ((["asking", "buy_now"].includes(price.kind) &&
+                price.comparisonEligible) ||
+                (price.kind === "current_bid" &&
+                  d.price_evidence?.kind === "current_bid" &&
+                  d.price_evidence.currentBid === price.amount &&
+                  price.evidenceCurrent &&
+                  price.observationCurrent)) &&
+              price.amount != null &&
+              price.amount === Number(d.ask_price) &&
+              d.acquisition_price_missing !== true;
+            const economicsSupported =
+              valuation.supported && acquisitionSupported;
+            const economicsNumber = (value: unknown) =>
+              economicsSupported &&
+              typeof value === "number" &&
+              Number.isFinite(value)
+                ? value
+                : undefined;
+            return {
+              id: d.id,
+              identityWarning: listingIdentityWarning(d) || undefined,
+              title:
+                d.title ||
+                `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
+              source: d.source,
+              sourceUrl: vendorIdentity(d.source, d.source_url).href,
+              vin: d.vin || undefined,
+              images,
+              imageUrl: images[0],
+              locationCity: d.location_city || undefined,
+              mapLat: mapPoint?.lat,
+              mapLng: mapPoint?.lng,
+              firstSeenAt: d.first_seen_at || undefined,
+              lastSeenAt: d.last_seen_at || undefined,
+              auctionEndAt: d.auction_end_at || undefined,
+              price,
+              distanceMiles: center
+                ? (marketDistance(center, d) ?? undefined)
+                : undefined,
+              year: d.year,
+              make: canonicalMarketMake(d.make),
+              model: d.model,
+              trim: d.trim,
+              askPrice: Number(d.ask_price || 0),
+              buyNowPrice:
+                d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
+              bodyClass: d.body_class || undefined,
+              fuelType:
+                normalizeVehicleSpec(
+                  "fuelType",
+                  d.fuel_type,
+                  d.reported_fuel,
+                ) ||
+                d.fuel_type ||
+                d.reported_fuel ||
+                undefined,
+              transmission:
+                normalizeVehicleSpec(
+                  "transmission",
+                  d.transmission,
+                  d.reported_transmission,
+                ) ||
+                d.transmission ||
+                d.reported_transmission ||
+                undefined,
+              drivetrain:
+                normalizeVehicleSpec(
+                  "drivetrain",
+                  d.drivetrain,
+                  d.reported_drivetrain,
+                ) ||
+                d.drivetrain ||
+                d.reported_drivetrain ||
+                undefined,
+              color: d.color || undefined,
+              assemblyCountry: d.assembly_country || undefined,
+              availabilityStatus: d.availability_status || undefined,
+              mileage: d.mileage ?? undefined,
+              valuationEvidence: valuation,
+              sellEstimate: valuation.supported ? d.sell_estimate : undefined,
+              priceGap:
+                economicsSupported &&
+                price.kind === "asking" &&
+                d.price_implausible !== true
+                  ? d.sell_estimate - Number(d.ask_price)
+                  : undefined,
+              profitEstimate: economicsNumber(d.true_net_profit),
+              profitScore: economicsNumber(d.profit_score),
+              dealVerdict: economicsSupported
+                ? d.deal_verdict || undefined
+                : undefined,
+              recommendedMaxBid: economicsNumber(d.recommended_max_bid),
+              locationState: d.location_state || undefined,
+              condition: d.condition || undefined,
+              titleSource: titleSourceOf(d) || undefined,
+              damageType: d.damage_type || undefined,
+              sellerType: sellerTypeEvidence(d),
+              roi: economicsNumber(d.analysis_roi),
+              lane: dealLane(d),
+            };
+          });
+
+          // Lane filter (computed, so done here).
+          if (photoFilter === "yes")
+            rows = rows.filter((row) => row.images.length > 0);
+          else if (photoFilter === "no")
+            rows = rows.filter((row) => row.images.length === 0);
+          if (priceBasis === "cash")
+            rows = rows.filter((r) => {
+              const cash = r.price.cashPrice;
+              if (cashPolicy === "unknown") return cash == null;
+              if (!cashMin && !cashMax && cashPolicy !== "reported")
+                return true;
+              if (cash == null) return cashPolicy === "include";
+              return (
+                (!cashMin || cash >= Number(cashMin)) &&
+                (!cashMax || cash <= Number(cashMax))
+              );
+            });
+          if (location.radius != null)
+            rows = rows.filter(
+              (r) =>
+                r.distanceMiles != null && r.distanceMiles <= location.radius!,
+            );
+          if (priceKind) rows = rows.filter((r) => r.price.kind === priceKind);
+          if (lanes.length) rows = rows.filter((r) => lanes.includes(r.lane));
+          if (minProfit > 0)
+            rows = rows.filter(
+              (r) => (r.profitEstimate ?? -Infinity) >= minProfit,
+            );
+          if (verdicts.length)
+            rows = rows.filter((r) => verdicts.includes(r.dealVerdict));
+          if (mode === "curated")
+            rows = rows.filter((r) => ["go", "hold"].includes(r.dealVerdict));
+          // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
+          if (minRoi > 0)
+            rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
+
+          return rows;
+        };
+
+        if (streaming) {
+          const rows: ReturnType<typeof eligibleRows> = [];
+          let lastSeen = cursorTime;
+          let lastId = cursorId;
+          const batchSize = Math.max(100, pageSize + 1);
+          let exhausted = false;
+          // Some eligibility checks require source evidence. Bound the scan per request
+          // and keep a continuation even when a sparse batch yields no visible rows.
+          for (
+            let scanned = 0;
+            scanned < 3 && rows.length <= pageSize;
+            scanned++
+          ) {
+            let query = build()
+              .order("last_seen_at", { ascending: false })
+              .order("id", { ascending: true })
+              .limit(batchSize);
+            if (lastSeen && lastId)
+              query = query.or(
+                `last_seen_at.lt.${lastSeen},and(last_seen_at.eq.${lastSeen},id.gt.${lastId})`,
+              );
+            const result = await query;
+            if (result.error) throw result.error;
+            const batch = result.data ?? [];
+            rows.push(...eligibleRows(batch));
+            if (batch.length < batchSize) {
+              exhausted = true;
+              break;
+            }
+            const last = batch.at(-1)!;
+            lastSeen = last.last_seen_at;
+            lastId = last.id;
+          }
+          const visible = rows.slice(0, pageSize);
+          const last = visible.at(-1);
+          return {
+            rows: visible,
+            total: null,
+            nextCursor:
+              rows.length > pageSize && last
+                ? `${last.lastSeenAt}|${last.id}`
+                : !exhausted && lastSeen && lastId
+                  ? `${lastSeen}|${lastId}`
+                  : null,
+            capped: false,
+            mode,
+            location: {
+              label:
+                location.near ||
+                (center ? "Your location" : states.join(", ") || "Nationwide"),
+              radius: location.radius,
+              approximate: !!center,
+            },
+          };
+        }
+
         const fetchStarted = performance.now();
         const pageTimings: { offset: number; ms: number; rows: number }[] = [];
         const data = await fetchAllRows<any>(
           async (from, to) => {
             const started = performance.now();
-            const result = await build().range(from, to);
+            const result = await build()
+              .order("id", { ascending: true })
+              .range(from, to);
             const ms = Math.round(performance.now() - started);
             pageTimings.push({
               offset: from,
@@ -381,155 +623,7 @@ export async function GET(req: NextRequest) {
         const fetchedAt = performance.now();
         const capped = false;
 
-        let rows = (data || []).filter(isInVehicleScope).map((d: any) => {
-          const photos = photoEvidence(d.images, {
-            placeholderUrls: d.placeholder_urls,
-          });
-          const images =
-            d.photo_state === "unavailable"
-              ? []
-              : photos.images
-                  .filter((url) => /^https?:\/\//i.test(url))
-                  .slice(0, 30);
-          const mapPoint = roundedMapPoint(d.lat, d.lng);
-          const valuation = marketValuation(d.valuation, d.sell_estimate, d);
-          const price = sourcePriceContext(d);
-          // Stored profit math must use the same acquisition amount as the displayed quote.
-          // Deposits, payments, references, unverified amounts, and corrected teaser prices
-          // cannot inherit an old GO/profit simply because the resale estimate has comps.
-          const acquisitionSupported =
-            ((["asking", "buy_now"].includes(price.kind) &&
-              price.comparisonEligible) ||
-              (price.kind === "current_bid" &&
-                d.price_evidence?.kind === "current_bid" &&
-                d.price_evidence.currentBid === price.amount &&
-                price.evidenceCurrent &&
-                price.observationCurrent)) &&
-            price.amount != null &&
-            price.amount === Number(d.ask_price) &&
-            d.acquisition_price_missing !== true;
-          const economicsSupported =
-            valuation.supported && acquisitionSupported;
-          const economicsNumber = (value: unknown) =>
-            economicsSupported &&
-            typeof value === "number" &&
-            Number.isFinite(value)
-              ? value
-              : undefined;
-          return {
-            id: d.id,
-            identityWarning: listingIdentityWarning(d) || undefined,
-            title:
-              d.title ||
-              `${d.year || ""} ${d.make || ""} ${d.model || ""}`.trim(),
-            source: d.source,
-            sourceUrl: vendorIdentity(d.source, d.source_url).href,
-            vin: d.vin || undefined,
-            images,
-            imageUrl: images[0],
-            locationCity: d.location_city || undefined,
-            mapLat: mapPoint?.lat,
-            mapLng: mapPoint?.lng,
-            firstSeenAt: d.first_seen_at || undefined,
-            lastSeenAt: d.last_seen_at || undefined,
-            auctionEndAt: d.auction_end_at || undefined,
-            price,
-            distanceMiles: center
-              ? (marketDistance(center, d) ?? undefined)
-              : undefined,
-            year: d.year,
-            make: canonicalMarketMake(d.make),
-            model: d.model,
-            trim: d.trim,
-            askPrice: Number(d.ask_price || 0),
-            buyNowPrice:
-              d.buy_now_price != null ? Number(d.buy_now_price) : undefined,
-            bodyClass: d.body_class || undefined,
-            fuelType:
-              normalizeVehicleSpec("fuelType", d.fuel_type, d.reported_fuel) ||
-              d.fuel_type ||
-              d.reported_fuel ||
-              undefined,
-            transmission:
-              normalizeVehicleSpec(
-                "transmission",
-                d.transmission,
-                d.reported_transmission,
-              ) ||
-              d.transmission ||
-              d.reported_transmission ||
-              undefined,
-            drivetrain:
-              normalizeVehicleSpec(
-                "drivetrain",
-                d.drivetrain,
-                d.reported_drivetrain,
-              ) ||
-              d.drivetrain ||
-              d.reported_drivetrain ||
-              undefined,
-            color: d.color || undefined,
-            assemblyCountry: d.assembly_country || undefined,
-            availabilityStatus: d.availability_status || undefined,
-            mileage: d.mileage ?? undefined,
-            valuationEvidence: valuation,
-            sellEstimate: valuation.supported ? d.sell_estimate : undefined,
-            priceGap:
-              economicsSupported &&
-              price.kind === "asking" &&
-              d.price_implausible !== true
-                ? d.sell_estimate - Number(d.ask_price)
-                : undefined,
-            profitEstimate: economicsNumber(d.true_net_profit),
-            profitScore: economicsNumber(d.profit_score),
-            dealVerdict: economicsSupported
-              ? d.deal_verdict || undefined
-              : undefined,
-            recommendedMaxBid: economicsNumber(d.recommended_max_bid),
-            locationState: d.location_state || undefined,
-            condition: d.condition || undefined,
-            titleSource: titleSourceOf(d) || undefined,
-            damageType: d.damage_type || undefined,
-            sellerType: sellerTypeEvidence(d),
-            roi: economicsNumber(d.analysis_roi),
-            lane: dealLane(d),
-          };
-        });
-
-        // Lane filter (computed, so done here).
-        if (photoFilter === "yes")
-          rows = rows.filter((row) => row.images.length > 0);
-        else if (photoFilter === "no")
-          rows = rows.filter((row) => row.images.length === 0);
-        if (priceBasis === "cash")
-          rows = rows.filter((r) => {
-            const cash = r.price.cashPrice;
-            if (cashPolicy === "unknown") return cash == null;
-            if (!cashMin && !cashMax && cashPolicy !== "reported") return true;
-            if (cash == null) return cashPolicy === "include";
-            return (
-              (!cashMin || cash >= Number(cashMin)) &&
-              (!cashMax || cash <= Number(cashMax))
-            );
-          });
-        if (location.radius != null)
-          rows = rows.filter(
-            (r) =>
-              r.distanceMiles != null && r.distanceMiles <= location.radius!,
-          );
-        if (priceKind) rows = rows.filter((r) => r.price.kind === priceKind);
-        if (lanes.length) rows = rows.filter((r) => lanes.includes(r.lane));
-        if (minProfit > 0)
-          rows = rows.filter(
-            (r) => (r.profitEstimate ?? -Infinity) >= minProfit,
-          );
-        if (verdicts.length)
-          rows = rows.filter((r) => verdicts.includes(r.dealVerdict));
-        if (mode === "curated")
-          rows = rows.filter((r) => ["go", "hold"].includes(r.dealVerdict));
-        // ROI filter — deal_analysis.roi is a JSON number, so compared correctly here (not as PG text).
-        if (minRoi > 0)
-          rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
+        const rows = eligibleRows(data);
 
         // Facets over the post-filter set so the UI shows live counts.
         const count = <T extends string>(
@@ -795,6 +889,15 @@ export async function GET(req: NextRequest) {
       undefined,
       { prefix: "mkt:explore:", maxEntries: 4 },
     );
+    if (payload.total === null) {
+      return NextResponse.json({
+        ...payload,
+        rows: flipDesk ? payload.rows : listingsForDesk(payload.rows, false),
+        deskAccess: flipDesk ? "flip" : "personal",
+        page,
+        pageSize,
+      });
+    }
     const resultPage = Math.min(
       page,
       Math.max(0, Math.ceil(payload.total / pageSize) - 1),
@@ -815,9 +918,7 @@ export async function GET(req: NextRequest) {
         : {
             ...paged,
             rows: listingsForDesk(paged.rows || [], false),
-            facets: payload.facets
-              ? { ...payload.facets, laneProfit: {} }
-              : payload.facets,
+            facets: { ...payload.facets, laneProfit: {} },
             deskAccess: "personal",
           },
     );

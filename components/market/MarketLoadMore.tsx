@@ -13,7 +13,7 @@ export function MarketLoadMore({
   refreshing = false,
 }: {
   shown: number;
-  total: number;
+  total: number | null;
   hasMore: boolean;
   loading: boolean;
   failed: boolean;
@@ -58,11 +58,13 @@ export function MarketLoadMore({
           ? "The vehicle list couldn’t update. Your current results are still here."
           : loading
             ? `${refreshing ? "Refreshing results" : "Loading more vehicles"}… ${shown} shown`
-            : !hasMore && shown !== total
-              ? `${shown.toLocaleString()} unique vehicles loaded · Results may have changed. Refresh to check again.`
-              : `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} matching vehicles${!hasMore ? " · End of current results" : ""}`}
+            : total == null
+              ? `${shown.toLocaleString()} vehicles loaded${!hasMore ? " � End of current results" : ""}`
+              : !hasMore && shown !== total
+                ? `${shown.toLocaleString()} unique vehicles loaded · Results may have changed. Refresh to check again.`
+                : `Showing ${shown.toLocaleString()} of ${total.toLocaleString()} matching vehicles${!hasMore ? " · End of current results" : ""}`}
       </p>
-      {(hasMore || failed || shown !== total) && (
+      {(hasMore || failed || (total != null && shown !== total)) && (
         <button
           type="button"
           disabled={loading}
