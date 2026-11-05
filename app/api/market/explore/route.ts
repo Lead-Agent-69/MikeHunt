@@ -741,7 +741,7 @@ export async function GET(req: NextRequest) {
           async () => {
             const candidates: any[] = [];
             let scanAfter: string | undefined;
-            const scanPageSize = 500;
+            const scanPageSize = 1000;
             for (;;) {
               const started = performance.now();
               let query = build()
@@ -770,7 +770,8 @@ export async function GET(req: NextRequest) {
                 throw new Error("Market scan did not advance");
               candidates.push(...batch);
               scanAfter = nextId;
-              if (batch.length < scanPageSize) break;
+              // PostgREST may cap responses below our limit. Only an empty
+              // keyset batch proves exhaustion, including exact multiples.
             }
             return candidates;
           },

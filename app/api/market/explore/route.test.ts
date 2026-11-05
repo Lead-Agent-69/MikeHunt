@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const state = vi.hoisted(() => ({
   flip: true,
   size: 1105,
+  serverCap: Infinity,
   error: null as null | { message: string },
   calls: [] as unknown[][],
   rows: null as Record<string, any>[] | null,
@@ -50,7 +51,7 @@ function query() {
         : Number(scanAfter.slice(4)) + 1
       : 0;
     const start = afterIndex + range[0];
-    const end = afterIndex + range[1] + 1;
+    const end = Math.min(afterIndex + range[1] + 1, start + state.serverCap);
     return resolve({
       error: state.error,
       data: state.rows
@@ -451,6 +452,7 @@ describe("Market inventory filtering and pagination", () => {
     invalidate();
     state.calls = [];
     state.size = 1105;
+    state.serverCap = Infinity;
     state.flip = true;
     state.error = null;
     state.rows = null;
@@ -534,6 +536,24 @@ describe("Market inventory filtering and pagination", () => {
     expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
   });
 
+  it.each([500, 1000])(
+    "scans to an empty response at server cap %i",
+    async (cap) => {
+      state.serverCap = cap;
+      state.size = 2000;
+      const body = await (
+        await request("mode=all&sort=askPrice&sortDir=asc&page=39")
+      ).json();
+      expect(body.total).toBe(2000);
+      expect(body.rows).toHaveLength(50);
+      expect(body.rows.at(-1).id).toBe("car-1999");
+      expect(state.calls.filter(([method]) => method === "limit")).toEqual(
+        Array.from({ length: 2000 / cap + 1 }, () => ["limit", 1000]),
+      );
+      expect(state.calls).toContainEqual(["gt", "id", "car-1999"]);
+    },
+  );
+
   it("shares candidate reads across price directions and independent Insights", async () => {
     const first = await (
       await request("mode=all&sort=askPrice&sortDir=asc")
@@ -612,11 +632,11 @@ describe("Market inventory filtering and pagination", () => {
         candidateSource: "database-client",
         candidates: 1105,
         matches: 1105,
-        sampledRows: 24,
+        sampledRows: 16,
       });
       expect(cold[1].pages).toHaveLength(3);
       expect(cold[1].pages.map((page: { rows: number }) => page.rows)).toEqual([
-        500, 500, 105,
+        1000, 105, 0,
       ]);
       for (const field of [
         "authMs",
