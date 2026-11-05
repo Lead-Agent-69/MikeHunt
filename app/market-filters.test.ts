@@ -234,6 +234,13 @@ describe("Market filter journey", () => {
     expect(params.has("makes")).toBe(false);
   });
 
+  const clickFilterAction = (label: string) => {
+    const button = Array.from(
+      host.querySelectorAll<HTMLButtonElement>("#market-filter-panel button"),
+    ).find((candidate) => candidate.textContent?.trim() === label)!;
+    act(() => button.click());
+  };
+
   it("replaces a legacy unknown-title constraint when the user chooses clean title", async () => {
     window.history.replaceState(null, "", "/market?titleType=unknown");
     await render();
@@ -247,6 +254,10 @@ describe("Market filter journey", () => {
       ),
     ).find((button) => button.textContent === "Clean title")!;
     act(() => clean.click());
+    expect(new URLSearchParams(window.location.search).get("titleType")).toBe(
+      "unknown",
+    );
+    clickFilterAction("Apply filters");
     const params = new URLSearchParams(window.location.search);
     expect(params.has("titleType")).toBe(false);
     expect(params.get("conditions")).toBe("clean_title");
@@ -475,12 +486,20 @@ describe("Market filter journey", () => {
 
   it("preserves a typed comma so users can enter multiple makes", async () => {
     await render();
+    act(() =>
+      host
+        .querySelector<HTMLButtonElement>(
+          '[aria-controls="market-filter-panel"]',
+        )!
+        .click(),
+    );
     const input = host.querySelector<HTMLInputElement>('[aria-label="Makes"]')!;
     act(() => Simulate.change(input, { target: { value: "Ford," } } as any));
     expect(input.value).toBe("Ford,");
     act(() =>
       Simulate.change(input, { target: { value: "Ford,Toyota" } } as any),
     );
+    clickFilterAction("Apply filters");
     const keys = state.keys.filter(Boolean);
     const params = new URL(keys[keys.length - 1]!, "https://example.test")
       .searchParams;
@@ -598,13 +617,17 @@ describe("Market filter journey", () => {
       ),
     ).find((button) => button.textContent === "Run & drive")!;
     act(() => runDrive.click());
-    expect(new URLSearchParams(window.location.search).get("runDrive")).toBe(
-      "yes",
-    );
     expect(runDrive.getAttribute("aria-pressed")).toBe("true");
-    act(() => runDrive.click());
     expect(new URLSearchParams(window.location.search).has("runDrive")).toBe(
       false,
+    );
+    clickFilterAction("Cancel");
+    act(() => filterToggle.click());
+    expect(runDrive.getAttribute("aria-pressed")).toBe("false");
+    act(() => runDrive.click());
+    clickFilterAction("Apply filters");
+    expect(new URLSearchParams(window.location.search).get("runDrive")).toBe(
+      "yes",
     );
   });
   it("shows source inventory counts and filters directly from results", async () => {

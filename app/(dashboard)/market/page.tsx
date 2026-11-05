@@ -350,15 +350,6 @@ export default function MarketPage() {
     presentationChanged.current ||= Object.keys(viewDraft).length > 0;
     closeFilters();
   };
-  const setDetail = (key: string, value: string) => {
-    setPage(0);
-    if (key === "titleType")
-      setF((current) => ({ ...current, conditions: [] }));
-    setDetails((current) => ({
-      ...current,
-      [key]: key === "hasPhotos" && !value ? "yes" : value,
-    }));
-  };
   const reset = () => {
     setPage(0);
     setF(EMPTY);
