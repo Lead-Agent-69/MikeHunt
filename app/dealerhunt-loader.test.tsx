@@ -31,7 +31,9 @@ it("announces task transitions without repeating the decorative brand", () => {
         <MikeHuntLoader state={state} size={48} label="Checking vehicle" />,
       ),
     );
-    const status = host.querySelector('[role="status"]')!;
+    const status = host.querySelector<HTMLElement>('[role="status"]')!;
+    expect(status.style.width).toBe("48px");
+    expect(status.style.height).toBe("48px");
     expect(status.textContent).toBe(message);
     expect(status.getAttribute("data-state")).toBe(state);
     // A busy live region can defer announcements until the request finishes.

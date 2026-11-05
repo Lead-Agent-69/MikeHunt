@@ -1,5 +1,8 @@
 .loader {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 .visual {
   display: block;
@@ -16,6 +19,13 @@
   width: 60%;
   height: 60%;
   object-fit: contain;
+}
+.revealAccent {
+  position: absolute;
+  inset: 12%;
+  background: radial-gradient(circle, rgb(0 188 232 / 45%), transparent 70%);
+  opacity: 0;
+  pointer-events: none;
 }
 .ring {
   position: absolute;
@@ -58,7 +68,7 @@
 .loader[data-state="loading"] .visual:not([hidden]) .brackets {
   animation: evaluate 4.8s linear infinite;
 }
-.loader[data-state="loading"] .visual:not([hidden]) .final {
+.loader[data-state="loading"] .visual:not([hidden]) .revealAccent {
   animation: reveal 4.8s linear infinite;
 }
 /* Decorative looping beats, never request stages or progress. Settlement
@@ -123,11 +133,11 @@
   0%,
   74%,
   100% {
-    filter: none;
+    opacity: 0;
   }
   84%,
   90% {
-    filter: drop-shadow(0 0 2px rgb(0 188 232 / 65%));
+    opacity: 0.8;
   }
 }
 .loader[data-state="loading"][data-motion="static"]
@@ -142,13 +152,12 @@
   .visual:not([hidden])
   [data-motion] {
   animation: none;
-  filter: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .loader[data-state="loading"] .visual:not([hidden]) .arc,
   .loader[data-state="loading"] .visual:not([hidden]) .scanLine,
   .loader[data-state="loading"] .visual:not([hidden]) .brackets,
-  .loader[data-state="loading"] .visual:not([hidden]) .final {
+  .loader[data-state="loading"] .visual:not([hidden]) .revealAccent {
     animation: none;
   }
   .ring {
