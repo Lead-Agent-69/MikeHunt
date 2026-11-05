@@ -89,7 +89,12 @@ function query() {
 }
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
-  createServerComponentClient: () => ({ from: () => query() }),
+  createServerComponentClient: () => ({
+    from: (relation: string) => {
+      state.calls.push(["from", relation]);
+      return query();
+    },
+  }),
 }));
 vi.mock("@/lib/rate-limit", () => ({
   rateLimit: () => ({ allowed: true }),
@@ -103,6 +108,10 @@ vi.mock("@/lib/deals/deal-desk-access", async (original) => ({
 import { GET } from "./route";
 import { invalidate } from "@/lib/cache";
 import { SOURCE_PRICE_FIELDS } from "@/lib/deals/source-price-context";
+import {
+  MARKET_CANDIDATE_FIELDS,
+  MARKET_CANDIDATE_RELATION,
+} from "@/lib/market/candidate-projection";
 import { marketValuation } from "@/lib/market/valuation";
 const request = (search: string) => {
   // General filter fixtures intentionally include incomplete records for explicit research.
@@ -114,6 +123,13 @@ const request = (search: string) => {
 };
 
 describe("Market inventory filtering and pagination", () => {
+  it("reads the server-only projection without fetching raw JSON roots", async () => {
+    await request("mode=all");
+    expect(state.calls).toContainEqual(["from", MARKET_CANDIDATE_RELATION]);
+    expect(MARKET_CANDIDATE_FIELDS).not.toMatch(
+      /->|\*|\boptions\b|\bdeal_analysis\b/,
+    );
+  });
   it("returns a bounded recent batch and resumes after its last eligible listing", async () => {
     const time = "2026-11-03T20:00:00.123456+00:00";
     const ids = [
@@ -327,7 +343,7 @@ describe("Market inventory filtering and pagination", () => {
       state.calls.some(
         (call) =>
           call[0] === "select" &&
-          String(call[1]).includes("title_source:options->>titleSource"),
+          String(call[1]).split(",").includes("title_source"),
       ),
     ).toBe(true);
   });
@@ -727,8 +743,11 @@ describe("Market inventory filtering and pagination", () => {
         const selections = state.calls.filter(
           ([method]) => method === "select",
         );
-        for (const [, fields] of selections)
-          expect(String(fields)).toContain(SOURCE_PRICE_FIELDS);
+        for (const [, fields] of selections) {
+          expect(fields).toBe(MARKET_CANDIDATE_FIELDS);
+          for (const field of SOURCE_PRICE_FIELDS.split(","))
+            expect(String(fields).split(",")).toContain(field.split(":")[0]);
+        }
       } finally {
         log.mockRestore();
         vi.unstubAllEnvs();
