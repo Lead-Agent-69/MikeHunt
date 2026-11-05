@@ -103,23 +103,17 @@ test.describe("consolidated search area", () => {
       .toBe("MO,IL");
     await expect(trigger).toHaveText("MO, IL");
     await page.getByRole("button", { name: /^Filters/ }).click();
-    await page
-      .getByTestId("exact-market-filters")
-      .locator("summary")
-      .first()
-      .click();
-    await page
-      .getByRole("button", { name: "Edit search area", exact: true })
-      .click();
+    const filterAreaTrigger = page.locator(
+      "#market-browsing-search-area-trigger",
+    );
+    await filterAreaTrigger.click();
     await expect(area).toBeVisible();
     await expect(
       area.getByRole("radio", { name: "States", exact: true }),
     ).toBeChecked();
-    await expect(
-      page.getByRole("dialog", { name: "Market filters", exact: true }),
-    ).toHaveCount(0);
     await page.keyboard.press("Escape");
-    await expect(trigger).toBeFocused();
+    await expect(filterAreaTrigger).toBeFocused();
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await context.grantPermissions(["geolocation"]);
     await context.setGeolocation({ latitude: 38.6, longitude: -90.2 });
     await openMarketArea(page);

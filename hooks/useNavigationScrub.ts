@@ -98,7 +98,11 @@ export function useNavigationScrub(
       event.clientX <= bounds.right &&
       event.clientY >= bounds.top - 16 &&
       event.clientY <= bounds.bottom + 16;
-    const raw = (event.clientX - bounds.left - 4) / width - 0.5;
+    const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+    const offset = rtl
+      ? bounds.right - event.clientX
+      : event.clientX - bounds.left;
+    const raw = (offset - 4) / width - 0.5;
     return { inside, value: Math.max(0, Math.min(count - 1, raw)) };
   }
 

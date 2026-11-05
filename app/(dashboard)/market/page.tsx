@@ -274,7 +274,17 @@ export default function MarketPage() {
   const searchControls = React.useRef<HTMLDivElement>(null);
   const [floatingFilters, setFloatingFilters] = React.useState(false);
   const presentationChanged = React.useRef(false);
+  const [filterDraft, setFilterDraft] = React.useState<{
+    filters: Filters;
+    details: Record<string, string>;
+  } | null>(null);
+  const [viewDraft, setViewDraft] = React.useState<{
+    view?: "grid" | "table";
+    map?: boolean;
+  }>({});
   const closeFilters = () => {
+    setFilterDraft(null);
+    setViewDraft({});
     browsingScroll.restore(presentationChanged.current);
     presentationChanged.current = false;
     setShowFilters(false);
@@ -290,30 +300,55 @@ export default function MarketPage() {
   const [showInsights, setShowInsights] = React.useState(false);
   const [view, setView] = React.useState<"grid" | "table">("grid");
   const [showMap, setShowMap] = React.useState(false);
+  const mergeFilters = (current: Filters, patch: Partial<Filters>): Filters => {
+    const next = { ...current, ...patch };
+    const area = normalizeMarketArea(next);
+    return {
+      ...next,
+      ...area,
+      ...(searchAreaMode(area) !== "nearby" && next.sort === "distanceMiles"
+        ? { sort: "lastSeenAt", sortDir: "desc" as const }
+        : {}),
+    };
+  };
   const set = (patch: Partial<Filters>) => {
     setPage(0);
     if (patch.conditions)
       setDetails((current) => ({ ...current, titleType: "" }));
-    setF((p) => {
-      const next = { ...p, ...patch };
-      const area = normalizeMarketArea(next);
-      return {
-        ...next,
-        ...area,
-        ...(searchAreaMode(area) !== "nearby" && next.sort === "distanceMiles"
-          ? { sort: "lastSeenAt", sortDir: "desc" as const }
-          : {}),
-      };
-    });
+    setF((current) => mergeFilters(current, patch));
   };
-  const setDetail = (key: string, value: string) => {
-    setPage(0);
-    if (key === "titleType")
-      setF((current) => ({ ...current, conditions: [] }));
-    setDetails((current) => ({
-      ...current,
-      [key]: key === "hasPhotos" && !value ? "yes" : value,
+  const draftFilters = filterDraft?.filters ?? f;
+  const draftDetails = filterDraft?.details ?? details;
+  const editDraft = (patch: Partial<Filters>) =>
+    setFilterDraft((current) => ({
+      filters: mergeFilters(current?.filters ?? f, patch),
+      details: patch.conditions
+        ? { ...(current?.details ?? details), titleType: "" }
+        : (current?.details ?? details),
     }));
+  const editDraftDetails = (patch: Record<string, string>) =>
+    setFilterDraft((current) => ({
+      filters:
+        "titleType" in patch
+          ? { ...(current?.filters ?? f), conditions: [] }
+          : (current?.filters ?? f),
+      details: { ...(current?.details ?? details), ...patch },
+    }));
+  const editDraftDetail = (key: string, value: string) =>
+    editDraftDetails({ [key]: key === "hasPhotos" && !value ? "yes" : value });
+  const clearDraft = () =>
+    setFilterDraft({ filters: EMPTY, details: { hasPhotos: "yes" } });
+  const applyDraft = () => {
+    if (filterDraft) {
+      setPage(0);
+      setF(filterDraft.filters);
+      setDetails(filterDraft.details);
+      presentationChanged.current = true;
+    }
+    if (viewDraft.view !== undefined) setView(viewDraft.view);
+    if (viewDraft.map !== undefined) setShowMap(viewDraft.map);
+    presentationChanged.current ||= Object.keys(viewDraft).length > 0;
+    closeFilters();
   };
   const reset = () => {
     setPage(0);
@@ -680,35 +715,39 @@ export default function MarketPage() {
 
   const selectFacet = (key: MarketFacetKey, value: string) => {
     const selectDetail = (detailKey: string) => {
-      setDetail(detailKey, details[detailKey] === value ? "" : value);
+      editDraftDetail(
+        detailKey,
+        draftDetails[detailKey] === value ? "" : value,
+      );
     };
     if (key === "make") {
-      set({ makes: toggle(f.makes, value), model: "" });
+      editDraft({ makes: toggle(draftFilters.makes, value), model: "" });
       return;
     }
     if (key === "model") {
-      set({ model: f.model === value ? "" : value });
+      editDraft({ model: draftFilters.model === value ? "" : value });
       return;
     }
     if (key === "year") {
-      const active = f.yearMin === value && f.yearMax === value;
-      set({ yearMin: active ? "" : value, yearMax: active ? "" : value });
+      const active =
+        draftFilters.yearMin === value && draftFilters.yearMax === value;
+      editDraft({ yearMin: active ? "" : value, yearMax: active ? "" : value });
       return;
     }
     if (key === "condition") {
-      set({ conditions: toggle(f.conditions, value) });
+      editDraft({ conditions: toggle(draftFilters.conditions, value) });
       return;
     }
     if (key === "source") {
-      set({ sources: toggle(f.sources, value) });
+      editDraft({ sources: toggle(draftFilters.sources, value) });
       return;
     }
     if (key === "sellerType") {
-      set({ sellerTypes: toggle(f.sellerTypes, value) });
+      editDraft({ sellerTypes: toggle(draftFilters.sellerTypes, value) });
       return;
     }
     if (key === "priceKind") {
-      set({ priceKind: f.priceKind === value ? "" : value });
+      editDraft({ priceKind: draftFilters.priceKind === value ? "" : value });
       return;
     }
     const detailKeys: Partial<Record<MarketFacetKey, string>> = {
@@ -731,139 +770,162 @@ export default function MarketPage() {
     {
       key: "auction",
       label: "Auction lots",
-      active: f.lanes.includes("auction"),
-      onToggle: () => set({ lanes: toggle(f.lanes, "auction") }),
+      active: draftFilters.lanes.includes("auction"),
+      onToggle: () =>
+        editDraft({ lanes: toggle(draftFilters.lanes, "auction") }),
     },
     {
       key: "clean-title",
       label: "Clean title",
-      active: f.conditions.includes("clean_title"),
-      onToggle: () => set({ conditions: toggle(f.conditions, "clean_title") }),
+      active: draftFilters.conditions.includes("clean_title"),
+      onToggle: () =>
+        editDraft({
+          conditions: toggle(draftFilters.conditions, "clean_title"),
+        }),
     },
     {
       key: "run-drive",
       label: "Run & drive",
-      active: details.runDrive === "yes",
+      active: draftDetails.runDrive === "yes",
       onToggle: () =>
-        setDetail("runDrive", details.runDrive === "yes" ? "" : "yes"),
+        editDraftDetail(
+          "runDrive",
+          draftDetails.runDrive === "yes" ? "" : "yes",
+        ),
     },
     {
       key: "buy-now",
       label: "Buy now",
-      active: details.buyNow === "1",
-      onToggle: () => setDetail("buyNow", details.buyNow === "1" ? "" : "1"),
+      active: draftDetails.buyNow === "1",
+      onToggle: () =>
+        editDraftDetail("buyNow", draftDetails.buyNow === "1" ? "" : "1"),
     },
     {
       key: "photos",
       label: "Has photos",
-      active: details.hasPhotos === "yes",
+      active: draftDetails.hasPhotos === "yes",
       onToggle: () =>
-        setDetail("hasPhotos", details.hasPhotos === "yes" ? "any" : "yes"),
+        editDraftDetail(
+          "hasPhotos",
+          draftDetails.hasPhotos === "yes" ? "any" : "yes",
+        ),
     },
     {
       key: "complete-data",
       label: "Price + miles reported",
       active:
-        details.pricePolicy === "reported" &&
-        details.mileagePolicy === "reported",
+        draftDetails.pricePolicy === "reported" &&
+        draftDetails.mileagePolicy === "reported",
       onToggle: () => {
         const value =
-          details.pricePolicy === "reported" &&
-          details.mileagePolicy === "reported"
+          draftDetails.pricePolicy === "reported" &&
+          draftDetails.mileagePolicy === "reported"
             ? ""
             : "reported";
-        setPage(0);
-        setDetails((current) => ({
-          ...current,
+        editDraftDetails({
           pricePolicy: value,
           mileagePolicy: value,
-        }));
+        });
       },
     },
   ];
 
-  const renderBrowsingControls = () => (
-    <>
-      <div
-        aria-label="Result view"
-        className="col-start-2 row-start-2 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
-      >
-        <button
-          type="button"
-          aria-label="Photo cards"
-          aria-pressed={view === "grid"}
-          onClick={() => {
-            presentationChanged.current ||= floatingFilters && view !== "grid";
-            setView("grid");
-          }}
-          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "grid" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+  const renderBrowsingControls = (
+    sortFilters = f,
+    changeSort = set,
+    staged = false,
+  ) => {
+    const selectedView = staged ? (viewDraft.view ?? view) : view;
+    const mapVisible = staged ? (viewDraft.map ?? showMap) : showMap;
+    const chooseView = (next: "grid" | "table") => {
+      if (staged) setViewDraft((current) => ({ ...current, view: next }));
+      else setView(next);
+    };
+    const toggleMap = () => {
+      if (staged)
+        setViewDraft((current) => ({
+          ...current,
+          map: !(current.map ?? showMap),
+        }));
+      else setShowMap((current) => !current);
+    };
+    return (
+      <>
+        <div
+          aria-label="Result view"
+          className="col-start-2 row-start-2 flex justify-self-end gap-1 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:justify-self-auto"
         >
-          <LayoutGrid className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          aria-label="Table view"
-          aria-pressed={view === "table"}
-          onClick={() => {
-            presentationChanged.current ||= floatingFilters && view !== "table";
-            setView("table");
+          <button
+            type="button"
+            aria-label="Photo cards"
+            aria-pressed={selectedView === "grid"}
+            onClick={() => chooseView("grid")}
+            className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${selectedView === "grid" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+          >
+            <LayoutGrid className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Table view"
+            aria-pressed={selectedView === "table"}
+            onClick={() => chooseView("table")}
+            className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${selectedView === "table" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+          >
+            <List className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Toggle results map"
+            aria-pressed={mapVisible}
+            onClick={toggleMap}
+            className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${mapVisible ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+          >
+            <MapIcon className="h-4 w-4" />
+          </button>
+        </div>
+        <select
+          aria-label="Sort market results"
+          value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(sortFilters.sort) ? "askPrice" : sortFilters.sort}:${sortFilters.sortDir}`}
+          onChange={(e) => {
+            const [sort, sortDir] = e.target.value.split(":");
+            changeSort({ sort, sortDir: sortDir as "asc" | "desc" });
           }}
-          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${view === "table" ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
+          className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
         >
-          <List className="h-4 w-4" />
-        </button>
-        <button
-          type="button"
-          aria-label="Toggle results map"
-          aria-pressed={showMap}
-          onClick={() => {
-            presentationChanged.current ||= floatingFilters;
-            setShowMap((current) => !current);
-          }}
-          className={`grid h-11 w-11 place-items-center rounded-lg border border-[var(--b1)] ${showMap ? "bg-[var(--s2)] text-[var(--blue)]" : ""}`}
-        >
-          <MapIcon className="h-4 w-4" />
-        </button>
-      </div>
-      <select
-        aria-label="Sort market results"
-        value={`${!flipDesk && ["profitEstimate", "profitScore", "sellEstimate"].includes(f.sort) ? "askPrice" : f.sort}:${f.sortDir}`}
-        onChange={(e) => {
-          const [sort, sortDir] = e.target.value.split(":");
-          set({ sort, sortDir: sortDir as "asc" | "desc" });
-        }}
-        className="field col-start-1 row-start-2 min-w-0 !w-full !pr-8 text-xs sm:col-span-1 sm:col-start-3 sm:row-start-1 sm:!w-52"
-      >
-        <option value="lastSeenAt:desc">Recently seen</option>
-        <option value="priceGap:desc" disabled={priceGapEvidence === 0}>
-          {priceGapEvidence > 0
-            ? "Below estimate ↓"
-            : "Below estimate · needs verified price"}
-        </option>
-        {(f.near || f.lat) && (
-          <option value="distanceMiles:asc">Nearest first</option>
-        )}
-        {flipDesk && (
-          <option value="profitEstimate:desc" disabled={profitEvidence === 0}>
-            {profitEvidence > 0
-              ? "Modeled net ↓"
-              : "Modeled net · needs verified inputs"}
+          <option value="lastSeenAt:desc">Recently seen</option>
+          <option value="priceGap:desc" disabled={priceGapEvidence === 0}>
+            {priceGapEvidence > 0
+              ? "Below estimate ↓"
+              : "Below estimate · needs verified price"}
           </option>
-        )}
-        {flipDesk && (
-          <option value="profitScore:desc" disabled={profitScoreEvidence === 0}>
-            {profitScoreEvidence > 0
-              ? "Model score ↓"
-              : "Model score · needs verified inputs"}
-          </option>
-        )}
-        <option value="askPrice:asc">Advertised amount ↑</option>
-        <option value="askPrice:desc">Advertised amount ↓</option>
-        <option value="mileage:asc">Miles ↑</option>
-        <option value="year:desc">Year ↓</option>
-      </select>
-    </>
-  );
+          {(sortFilters.near || sortFilters.lat) && (
+            <option value="distanceMiles:asc">Nearest first</option>
+          )}
+          {flipDesk && (
+            <option value="profitEstimate:desc" disabled={profitEvidence === 0}>
+              {profitEvidence > 0
+                ? "Modeled net ↓"
+                : "Modeled net · needs verified inputs"}
+            </option>
+          )}
+          {flipDesk && (
+            <option
+              value="profitScore:desc"
+              disabled={profitScoreEvidence === 0}
+            >
+              {profitScoreEvidence > 0
+                ? "Model score ↓"
+                : "Model score · needs verified inputs"}
+            </option>
+          )}
+          <option value="askPrice:asc">Advertised amount ↑</option>
+          <option value="askPrice:desc">Advertised amount ↓</option>
+          <option value="mileage:asc">Miles ↑</option>
+          <option value="year:desc">Year ↓</option>
+        </select>
+      </>
+    );
+  };
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:gap-4 lg:gap-5">
       <header className="flex flex-wrap items-center justify-between gap-3 pb-1">
@@ -1096,6 +1158,8 @@ export default function MarketPage() {
           type="button"
           aria-pressed={!showFilters && !showInsights}
           onClick={() => {
+            setFilterDraft(null);
+            setViewDraft({});
             setShowFilters(false);
             setShowInsights(false);
           }}
@@ -1134,6 +1198,8 @@ export default function MarketPage() {
           aria-pressed={showInsights}
           aria-label="Market insights"
           onClick={() => {
+            setFilterDraft(null);
+            setViewDraft({});
             setShowFilters(false);
             setShowInsights(true);
           }}
@@ -1233,40 +1299,45 @@ export default function MarketPage() {
         forceDialog={floatingFilters}
         returnFocusRef={floatingFilters ? floatingFilterTrigger : filterTrigger}
         footer={
-          <div className="flex items-center justify-end gap-2">
-            {activeCount > 0 && (
-              <button
-                type="button"
-                onClick={reset}
-                className="min-h-11 shrink-0 rounded-lg border border-[var(--b1)] px-3 text-sm font-bold"
-              >
-                Clear {activeCount}
-              </button>
-            )}
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={clearDraft}
+              className="mr-auto min-h-11 shrink-0 px-2 text-sm font-semibold text-[var(--blue)]"
+            >
+              Clear all
+            </button>
             <button
               type="button"
               onClick={closeFilters}
+              className="min-h-11 px-3 text-sm font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={applyDraft}
               className="min-h-11 flex-1 rounded-full bg-[var(--accent)] px-4 text-sm font-bold text-[var(--on-accent)] lg:flex-none"
             >
-              Show results
+              Apply filters
             </button>
           </div>
         }
       >
+        <MarketLocation
+          idPrefix="market-browsing"
+          value={draftFilters}
+          onChange={editDraft}
+        />
         {floatingFilters && (
           <>
-            <MarketLocation
-              idPrefix="market-browsing"
-              value={f}
-              onChange={set}
-            />
             <section
               aria-label="Sort and view"
               className="my-4 rounded-xl border border-[var(--b1)] p-3"
             >
               <h2 className="mb-2 text-sm font-bold">Sort and view</h2>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-                {renderBrowsingControls()}
+                {renderBrowsingControls(draftFilters, editDraft, true)}
               </div>
             </section>
           </>
@@ -1279,27 +1350,6 @@ export default function MarketPage() {
               needed.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {activeCount > 0 && (
-              <button
-                type="button"
-                onClick={reset}
-                className="min-h-11 rounded-lg border border-[var(--b1)] px-3 text-xs font-bold"
-              >
-                Clear {activeCount}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setShowFilters(false);
-                setShowInsights(false);
-              }}
-              className="min-h-11 rounded-full bg-[var(--accent)] px-4 text-xs font-bold text-[var(--on-accent)]"
-            >
-              Show results
-            </button>
-          </div>
         </div>
 
         <QuickFilterStrip options={quickFilters} />
@@ -1311,36 +1361,41 @@ export default function MarketPage() {
             total={total}
             busy={busy}
             selected={{
-              make: f.makes,
-              model: f.model,
+              make: draftFilters.makes,
+              model: draftFilters.model,
               year:
-                f.yearMin && f.yearMin === f.yearMax ? f.yearMin : undefined,
-              body: details.body,
-              fuelType: details.fuelType,
-              transmission: details.transmission,
-              drivetrain: details.drivetrain,
-              condition: f.conditions,
-              source: f.sources,
-              color: details.color,
-              sellerType: f.sellerTypes,
-              assemblyCountry: details.assemblyCountry,
-              availability: details.availability,
-              priceKind: f.priceKind,
-              priceAvailability: details.pricePolicy,
-              mileageAvailability: details.mileagePolicy,
-              priceMin: f.priceMin,
-              priceMax: f.priceMax,
-              mileageMin: f.minMileage,
-              mileageMax: f.mileageMax,
+                draftFilters.yearMin &&
+                draftFilters.yearMin === draftFilters.yearMax
+                  ? draftFilters.yearMin
+                  : undefined,
+              body: draftDetails.body,
+              fuelType: draftDetails.fuelType,
+              transmission: draftDetails.transmission,
+              drivetrain: draftDetails.drivetrain,
+              condition: draftFilters.conditions,
+              source: draftFilters.sources,
+              color: draftDetails.color,
+              sellerType: draftFilters.sellerTypes,
+              assemblyCountry: draftDetails.assemblyCountry,
+              availability: draftDetails.availability,
+              priceKind: draftFilters.priceKind,
+              priceAvailability: draftDetails.pricePolicy,
+              mileageAvailability: draftDetails.mileagePolicy,
+              priceMin: draftFilters.priceMin,
+              priceMax: draftFilters.priceMax,
+              mileageMin: draftFilters.minMileage,
+              mileageMax: draftFilters.mileageMax,
             }}
             onFacetSelect={selectFacet}
             onMatrixSelect={(priceFrom, priceTo, mileageFrom, mileageTo) => {
               const active =
-                f.priceMin === String(priceFrom) &&
-                f.priceMax === (priceTo == null ? "" : String(priceTo)) &&
-                f.minMileage === String(mileageFrom) &&
-                f.mileageMax === (mileageTo == null ? "" : String(mileageTo));
-              set({
+                draftFilters.priceMin === String(priceFrom) &&
+                draftFilters.priceMax ===
+                  (priceTo == null ? "" : String(priceTo)) &&
+                draftFilters.minMileage === String(mileageFrom) &&
+                draftFilters.mileageMax ===
+                  (mileageTo == null ? "" : String(mileageTo));
+              editDraft({
                 priceBasis: "advertised",
                 priceMin: active ? "" : String(priceFrom),
                 priceMax: active || priceTo == null ? "" : String(priceTo),
@@ -1382,8 +1437,8 @@ export default function MarketPage() {
                       <button
                         key={mode}
                         type="button"
-                        aria-pressed={f.mode === mode}
-                        onClick={() => set({ mode })}
+                        aria-pressed={draftFilters.mode === mode}
+                        onClick={() => editDraft({ mode })}
                         className="flex-1 rounded-md px-3 py-2 text-xs font-bold aria-pressed:bg-[var(--s2)] aria-pressed:text-[var(--blue)]"
                       >
                         {mode === "curated" ? "Curated buys" : "Whole market"}
@@ -1399,34 +1454,15 @@ export default function MarketPage() {
                     count: facets.lanes?.[lane.key],
                     color: facets.laneColors?.[lane.key],
                   }))}
-                  selected={f.lanes}
-                  onToggle={(key) => set({ lanes: toggle(f.lanes, key) })}
+                  selected={draftFilters.lanes}
+                  onToggle={(key) =>
+                    editDraft({ lanes: toggle(draftFilters.lanes, key) })
+                  }
                 />
-                {!floatingFilters && (
-                  <button
-                    type="button"
-                    aria-label="Edit search area"
-                    onClick={() => {
-                      closeFilters();
-                      requestAnimationFrame(() => {
-                        const trigger = document.getElementById(
-                          "market-search-area-trigger",
-                        );
-                        trigger?.focus();
-                        trigger?.click();
-                      });
-                    }}
-                    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-[var(--b1)] px-3 py-2 text-left text-sm font-semibold"
-                  >
-                    <span>Search area</span>
-                    <span className="truncate text-[var(--t3)]">
-                      {searchAreaLabel(f)}
-                    </span>
-                  </button>
-                )}
+
                 <details className="rounded-xl border border-[var(--b1)] px-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
-                    Sources & dealers ({f.sources.length || "Any"})
+                    Sources & dealers ({draftFilters.sources.length || "Any"})
                   </summary>
                   <p className="mb-3 text-xs leading-relaxed text-[var(--t3)]">
                     Counts are indexed matches in this search, not total stock
@@ -1459,9 +1495,11 @@ export default function MarketPage() {
                       >
                         <input
                           type="checkbox"
-                          checked={f.sources.includes(source.id)}
+                          checked={draftFilters.sources.includes(source.id)}
                           onChange={() =>
-                            set({ sources: toggle(f.sources, source.id) })
+                            editDraft({
+                              sources: toggle(draftFilters.sources, source.id),
+                            })
                           }
                         />
                         <span className="min-w-0 flex-1 break-words">
@@ -1499,16 +1537,19 @@ export default function MarketPage() {
                     list="market-makes"
                     placeholder="Ford, Toyota"
                     maxLength={250}
-                    value={f.makes.join(",")}
+                    value={draftFilters.makes.join(",")}
                     onChange={(event) =>
-                      set({ makes: event.target.value.split(","), model: "" })
+                      editDraft({
+                        makes: event.target.value.split(","),
+                        model: "",
+                      })
                     }
                     className="field min-h-11 !w-full"
                   />
                   <datalist id="market-makes">
                     {Array.from(
                       new Set<string>([
-                        ...f.makes,
+                        ...draftFilters.makes,
                         ...(facets.topMakes || []).map(
                           (entry: { make: string }) => entry.make,
                         ),
@@ -1522,8 +1563,10 @@ export default function MarketPage() {
                   Model
                   <input
                     aria-label="Model"
-                    value={f.model}
-                    onChange={(event) => set({ model: event.target.value })}
+                    value={draftFilters.model}
+                    onChange={(event) =>
+                      editDraft({ model: event.target.value })
+                    }
                     maxLength={60}
                     placeholder="Any model"
                     className="field min-h-11 !w-full"
@@ -1531,7 +1574,7 @@ export default function MarketPage() {
                 </label>
                 <details className="rounded-xl border border-[var(--b1)] px-3">
                   <summary className="flex min-h-11 cursor-pointer items-center text-xs font-bold">
-                    Vehicle types ({f.categories.length || "Any"})
+                    Vehicle types ({draftFilters.categories.length || "Any"})
                   </summary>
                   <div className="grid grid-cols-2 gap-1 pb-3">
                     {Object.entries(VEHICLE_CATEGORY_FILTERS).map(
@@ -1542,9 +1585,14 @@ export default function MarketPage() {
                         >
                           <input
                             type="checkbox"
-                            checked={f.categories.includes(key)}
+                            checked={draftFilters.categories.includes(key)}
                             onChange={() =>
-                              set({ categories: toggle(f.categories, key) })
+                              editDraft({
+                                categories: toggle(
+                                  draftFilters.categories,
+                                  key,
+                                ),
+                              })
                             }
                           />
                           {category.label}
@@ -1559,9 +1607,11 @@ export default function MarketPage() {
                     key: condition,
                     label: condition.replace(/_/g, " "),
                   }))}
-                  selected={f.conditions}
+                  selected={draftFilters.conditions}
                   onToggle={(key) =>
-                    set({ conditions: toggle(f.conditions, key) })
+                    editDraft({
+                      conditions: toggle(draftFilters.conditions, key),
+                    })
                   }
                 />
               </FilterPanel>
@@ -1575,9 +1625,9 @@ export default function MarketPage() {
                     Price type
                     <select
                       aria-label="Price type"
-                      value={f.priceKind}
+                      value={draftFilters.priceKind}
                       onChange={(event) =>
-                        set({ priceKind: event.target.value })
+                        editDraft({ priceKind: event.target.value })
                       }
                       className="field min-h-11 !w-full"
                     >
@@ -1596,9 +1646,9 @@ export default function MarketPage() {
                     Budget compares
                     <select
                       aria-label="Price comparison basis"
-                      value={f.priceBasis}
+                      value={draftFilters.priceBasis}
                       onChange={(event) =>
-                        set({ priceBasis: event.target.value })
+                        editDraft({ priceBasis: event.target.value })
                       }
                       className="field min-h-11 !w-full"
                     >
@@ -1608,35 +1658,35 @@ export default function MarketPage() {
                   </label>
                 </div>
                 <PriceRangeSelector
-                  minPrice={f.priceMin}
-                  maxPrice={f.priceMax}
-                  onMinChange={(value) => set({ priceMin: value })}
-                  onMaxChange={(value) => set({ priceMax: value })}
-                  onClear={() => set({ priceMin: "", priceMax: "" })}
+                  minPrice={draftFilters.priceMin}
+                  maxPrice={draftFilters.priceMax}
+                  onMinChange={(value) => editDraft({ priceMin: value })}
+                  onMaxChange={(value) => editDraft({ priceMax: value })}
+                  onClear={() => editDraft({ priceMin: "", priceMax: "" })}
                 />
                 <YearRangeSelector
-                  minYear={f.yearMin}
-                  maxYear={f.yearMax}
-                  onMinChange={(value) => set({ yearMin: value })}
-                  onMaxChange={(value) => set({ yearMax: value })}
-                  onClear={() => set({ yearMin: "", yearMax: "" })}
+                  minYear={draftFilters.yearMin}
+                  maxYear={draftFilters.yearMax}
+                  onMinChange={(value) => editDraft({ yearMin: value })}
+                  onMaxChange={(value) => editDraft({ yearMax: value })}
+                  onClear={() => editDraft({ yearMin: "", yearMax: "" })}
                 />
                 <div className="grid grid-cols-2 gap-2">
                   <NumIn
                     label="Mileage from"
-                    v={f.minMileage}
-                    on={(value) => set({ minMileage: value })}
+                    v={draftFilters.minMileage}
+                    on={(value) => editDraft({ minMileage: value })}
                   />
                   <NumIn
                     label="Mileage up to"
-                    v={f.mileageMax}
-                    on={(value) => set({ mileageMax: value })}
+                    v={draftFilters.mileageMax}
+                    on={(value) => editDraft({ mileageMax: value })}
                   />
                   {flipDesk && (
                     <NumIn
                       label="Profit from ($)"
-                      v={f.minProfit}
-                      on={(value) => set({ minProfit: value })}
+                      v={draftFilters.minProfit}
+                      on={(value) => editDraft({ minProfit: value })}
                       full
                     />
                   )}
@@ -1649,9 +1699,11 @@ export default function MarketPage() {
                         key: verdict.key,
                         label: verdict.label,
                       }))}
-                      selected={f.verdicts}
+                      selected={draftFilters.verdicts}
                       onToggle={(key) =>
-                        set({ verdicts: toggle(f.verdicts, key) })
+                        editDraft({
+                          verdicts: toggle(draftFilters.verdicts, key),
+                        })
                       }
                     />
                     <div>
@@ -1663,8 +1715,8 @@ export default function MarketPage() {
                           <button
                             key={value || "any"}
                             type="button"
-                            aria-pressed={f.minRoi === value}
-                            onClick={() => set({ minRoi: value })}
+                            aria-pressed={draftFilters.minRoi === value}
+                            onClick={() => editDraft({ minRoi: value })}
                             className="min-h-9 rounded-full border border-[var(--b1)] px-3 text-[11px] font-bold aria-pressed:border-[var(--blue)] aria-pressed:text-[var(--blue)]"
                           >
                             {value ? `${value}%+` : "Any"}
@@ -1679,7 +1731,7 @@ export default function MarketPage() {
 
             <div className="rounded-xl border border-[var(--b1)] bg-[var(--s0)] px-4">
               <InventoryDetailFilters
-                values={details}
+                values={draftDetails}
                 keys={[
                   "trim",
                   "engine",
@@ -1696,7 +1748,7 @@ export default function MarketPage() {
                   "hasVin",
                   "hasPhotos",
                 ]}
-                onChange={setDetail}
+                onChange={editDraftDetail}
               />
             </div>
           </div>

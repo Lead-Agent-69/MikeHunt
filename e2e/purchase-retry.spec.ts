@@ -82,10 +82,13 @@ test.describe("purchase recording accuracy", () => {
         .locator(`a[href="/deal/${deal.id}"]`)
         .filter({ hasText: "Review source listing" });
       await expect(source).toBeVisible();
-      await expect(
-        page.getByText("$8,750.25", { exact: true }).first(),
-      ).toBeVisible();
       const unit = source.locator("..");
+      await expect(
+        unit
+          .getByText("Purchase", { exact: true })
+          .locator("..")
+          .getByText("$8,750.25", { exact: true }),
+      ).toBeVisible();
       // A retained URL can expire: the shared gallery and its honest fallback must remain usable.
       await expect(
         unit.getByRole("button", { name: /Open photo 1 of/ }).first(),

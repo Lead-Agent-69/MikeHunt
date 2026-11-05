@@ -9,6 +9,7 @@ import {
   useMotionValueEvent,
   useSpring,
   useTransform,
+  useVelocity,
 } from "framer-motion";
 import { Lock } from "lucide-react";
 import { useDealerId } from "@/hooks/useDealerId";
@@ -48,8 +49,17 @@ export function BottomNav() {
     const settled = settledPosition.get();
     const dragging = scrub.dragging.get();
     const value = reducedMotion || dragging ? direct : settled;
-    return `${value * 100}%`;
+    return `calc(${value * 100}% * var(--nav-direction, 1))`;
   });
+  const dragVelocity = useVelocity(scrub.position);
+  const pillStretch = useSpring(
+    useTransform(() =>
+      reducedMotion || !scrub.dragging.get()
+        ? 1
+        : 1 + Math.min(Math.abs(dragVelocity.get()) * 0.012, 0.14),
+    ),
+    { stiffness: 360, damping: 28 },
+  );
 
   const tapFeedback = () => {
     if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -78,13 +88,16 @@ export function BottomNav() {
       >
         {(selected >= 0 || scrub.preview !== null) && (
           <motion.span
-            className="navigation-selection pointer-events-none absolute bottom-1 left-1 top-1 rounded-full"
-            style={{ width: `calc((100% - 8px) / ${tabs.length})`, x: pillX }}
+            className="navigation-selection pointer-events-none absolute bottom-1 start-1 top-1 rounded-full rtl:[--nav-direction:-1]"
+            style={{
+              width: `calc((100% - 8px) / ${tabs.length})`,
+              x: pillX,
+              scaleX: reducedMotion ? 1 : pillStretch,
+            }}
             animate={
               reducedMotion
                 ? undefined
                 : {
-                    scaleX: scrub.pressed ? 1.06 : 1,
                     scaleY: scrub.pressed ? 0.96 : 1,
                   }
             }
