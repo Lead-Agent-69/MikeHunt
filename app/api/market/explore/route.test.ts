@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
 function query() {
   const q: any = {};
   let range = [0, 499];
+  let scanAfter: string | undefined;
   for (const method of [
     "select",
     "eq",
@@ -28,6 +29,7 @@ function query() {
     "order",
   ])
     q[method] = (...args: unknown[]) => {
+      if (method === "gt" && args[0] === "id") scanAfter = String(args[1]);
       state.calls.push([method, ...args]);
       return q;
     };
@@ -41,28 +43,30 @@ function query() {
     state.calls.push(["range", from, to]);
     return q;
   };
-  q.then = (resolve: (value: unknown) => unknown) =>
-    resolve({
+  q.then = (resolve: (value: unknown) => unknown) => {
+    const afterIndex = scanAfter
+      ? state.rows
+        ? state.rows.findIndex((row) => row.id === scanAfter) + 1
+        : Number(scanAfter.slice(4)) + 1
+      : 0;
+    const start = afterIndex + range[0];
+    const end = afterIndex + range[1] + 1;
+    return resolve({
       error: state.error,
       data: state.rows
-        ? state.rows
-            .slice(range[0], range[1] + 1)
-            .map(({ deal_analysis, ...row }) => ({
-              ...row,
-              valuation: deal_analysis?.valuation,
-              acquisition_price_missing: deal_analysis?.acquisitionPriceMissing,
-              price_implausible: deal_analysis?.priceImplausible,
-              analysis_roi: deal_analysis?.roi,
-            }))
+        ? state.rows.slice(start, end).map(({ deal_analysis, ...row }) => ({
+            ...row,
+            valuation: deal_analysis?.valuation,
+            acquisition_price_missing: deal_analysis?.acquisitionPriceMissing,
+            price_implausible: deal_analysis?.priceImplausible,
+            analysis_roi: deal_analysis?.roi,
+          }))
         : Array.from(
             {
-              length: Math.max(
-                0,
-                Math.min(range[1] + 1, state.size) - range[0],
-              ),
+              length: Math.max(0, Math.min(end, state.size) - start),
             },
             (_, offset) => ({
-              id: `car-${range[0] + offset}`,
+              id: `car-${start + offset}`,
               source: "copart",
               make: "Ford",
               model: "F-150",
@@ -71,7 +75,7 @@ function query() {
               condition: "clean_title",
               location_state: "TX",
               seller_type: "auction",
-              ask_price: 1000 + range[0] + offset,
+              ask_price: 1000 + start + offset,
               true_net_profit: 2500,
               profit_score: 80,
               sell_estimate: 15000,
@@ -80,6 +84,7 @@ function query() {
             }),
           ),
     });
+  };
   return q;
 }
 vi.mock("@/lib/supabase", () => ({
@@ -507,7 +512,7 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.sourceCoverage.counts.copart).toBe(1105);
     expect(body.sourceCoverage.complete).toBe(true);
     expect(body.sourceCoverage.accessReviewIds).toContain("ae-of-miami");
-    expect(state.calls).toContainEqual(["range", 1000, 1999]);
+    expect(state.calls).toContainEqual(["gt", "id", "car-999"]);
     expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
   });
 
@@ -534,7 +539,7 @@ describe("Market inventory filtering and pagination", () => {
     const body = await (await request("mode=all")).json();
     expect(body.capped).toBe(false);
     expect(body.total).toBe(8005);
-    expect(state.calls).toContainEqual(["range", 8000, 8999]);
+    expect(state.calls).toContainEqual(["gt", "id", "car-7999"]);
   });
 
   it("keeps freshness and live-auction eligibility without excluding photo-less research", async () => {
