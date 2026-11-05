@@ -1,34 +1,6 @@
 {
-  "base": "42e72e120fe262404f68b7ce5b9c6a6de24ee057",
-  "database": "17.11 (Debian 17.11-1.pgdg12+2)",
-  "method": "Unchanged original view raw alias versus appended candidate; persistent psql connection; service_role; balanced AB/BA; synthetic warm-cache only, no production latency claim.",
-  "storage": {
-    "rows": 2080,
-    "analysis_avg_bytes": 16367.162790697674,
-    "options_avg_bytes": 16391.32945736434,
-    "table_bytes": 71811072
-  },
-  "summary": {
-    "rows": {
-      "rawMs": 24.067,
-      "viewMs": 23.744999999999997,
-      "improvementPct": 1.337931607595474,
-      "viewWinsOf8": 5
-    },
-    "serialized": {
-      "rawMs": 36.180499999999995,
-      "viewMs": 33.6335,
-      "improvementPct": 7.039703707798393,
-      "viewWinsOf8": 8
-    },
-    "fullSerializedScan": {
-      "rawMs": 104.40549999999999,
-      "viewMs": 97.474,
-      "improvementPct": 6.639018059393409,
-      "viewWinsOf12": 9
-    }
-  },
-  "fullRecordMismatches": 0,
+  "base": "bc5e34f8",
+  "decision": "Bounded redundant-work removal for parent review after full gate and CI; no production/cold latency guarantee; parent DB first",
   "security": {
     "columnsPreserved": true,
     "appendedColumn": ["evidence_gates", "3802"],
@@ -38,1906 +10,363 @@
     "rlsUnchanged": true,
     "policiesUnchanged": true
   },
-  "batches": [
-    {
-      "round": 0,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 95.80499999999999,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 34.208
-        },
-        {
-          "rows": 500,
-          "ms": 41.702
-        },
-        {
-          "rows": 204,
-          "ms": 18.446
-        },
-        {
-          "rows": 0,
-          "ms": 1.449
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
+  "apiNullness": "JSON-null field becomes SQL NULL; identical wire null, explicitly verified",
+  "native14": {
+    "image": "ghcr.io/supabase/postgrest:v14.5",
+    "stats": {
+      "rows": 2080,
+      "optionsDecodedBytes": 482.112,
+      "analysisDecodedBytes": 1246.372,
+      "stateType": "character(2)"
     },
-    {
-      "round": 0,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 97.977,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 37.428
-        },
-        {
-          "rows": 500,
-          "ms": 40.851
-        },
-        {
-          "rows": 204,
-          "ms": 18.423
-        },
-        {
-          "rows": 0,
-          "ms": 1.275
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
+    "summary": {
+      "rawMs": 85.09896150000009,
+      "viewMs": 85.51823299999973,
+      "changePct": 0.492686975974011,
+      "slowerPairs": 4,
+      "robustRegression": false,
+      "concurrencyCaveat": "Sibling local work overlapped; no latency speedup claim"
     },
-    {
-      "round": 1,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 94.103,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.15
-        },
-        {
-          "rows": 500,
-          "ms": 39.229
-        },
-        {
-          "rows": 204,
-          "ms": 17.61
-        },
-        {
-          "rows": 0,
-          "ms": 1.114
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 1,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 91.89,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.68
-        },
-        {
-          "rows": 500,
-          "ms": 36.769
-        },
-        {
-          "rows": 204,
-          "ms": 17.053
-        },
-        {
-          "rows": 0,
-          "ms": 1.388
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 2,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 94.79699999999998,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.435
-        },
-        {
-          "rows": 500,
-          "ms": 39.123
-        },
-        {
-          "rows": 204,
-          "ms": 17.653
-        },
-        {
-          "rows": 0,
-          "ms": 1.586
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 2,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 87.607,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 34.511
-        },
-        {
-          "rows": 500,
-          "ms": 34.617
-        },
-        {
-          "rows": 204,
-          "ms": 17.211
-        },
-        {
-          "rows": 0,
-          "ms": 1.268
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 3,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 91.33400000000002,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.612
-        },
-        {
-          "rows": 500,
-          "ms": 35.568
-        },
-        {
-          "rows": 204,
-          "ms": 17.882
-        },
-        {
-          "rows": 0,
-          "ms": 1.272
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 3,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 97.90800000000002,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.686
-        },
-        {
-          "rows": 500,
-          "ms": 38.381
-        },
-        {
-          "rows": 204,
-          "ms": 20.923
-        },
-        {
-          "rows": 0,
-          "ms": 1.918
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 4,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 102.7,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 38.544
-        },
-        {
-          "rows": 500,
-          "ms": 43.499
-        },
-        {
-          "rows": 204,
-          "ms": 19.035
-        },
-        {
-          "rows": 0,
-          "ms": 1.622
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 4,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 96.792,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 38.237
-        },
-        {
-          "rows": 500,
-          "ms": 38.764
-        },
-        {
-          "rows": 204,
-          "ms": 17.999
-        },
-        {
-          "rows": 0,
-          "ms": 1.792
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 5,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 99.46700000000001,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 39.175
-        },
-        {
-          "rows": 500,
-          "ms": 39.981
-        },
-        {
-          "rows": 204,
-          "ms": 19.018
-        },
-        {
-          "rows": 0,
-          "ms": 1.293
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 5,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 107.64999999999998,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 38.882
-        },
-        {
-          "rows": 500,
-          "ms": 45.919
-        },
-        {
-          "rows": 204,
-          "ms": 21.659
-        },
-        {
-          "rows": 0,
-          "ms": 1.19
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 6,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 109.991,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 41.223
-        },
-        {
-          "rows": 500,
-          "ms": 41.939
-        },
-        {
-          "rows": 204,
-          "ms": 24.869
-        },
-        {
-          "rows": 0,
-          "ms": 1.96
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 6,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 99.88199999999999,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 40.28
-        },
-        {
-          "rows": 500,
-          "ms": 40.498
-        },
-        {
-          "rows": 204,
-          "ms": 17.827
-        },
-        {
-          "rows": 0,
-          "ms": 1.277
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 7,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 96.971,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 37.987
-        },
-        {
-          "rows": 500,
-          "ms": 39.699
-        },
-        {
-          "rows": 204,
-          "ms": 17.949
-        },
-        {
-          "rows": 0,
-          "ms": 1.336
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 7,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 107.087,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 44.867
-        },
-        {
-          "rows": 500,
-          "ms": 42.106
-        },
-        {
-          "rows": 204,
-          "ms": 18.439
-        },
-        {
-          "rows": 0,
-          "ms": 1.675
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 8,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 106.11099999999999,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 38.904
-        },
-        {
-          "rows": 500,
-          "ms": 45.971
-        },
-        {
-          "rows": 204,
-          "ms": 18.895
-        },
-        {
-          "rows": 0,
-          "ms": 2.341
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 8,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 99.939,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.616
-        },
-        {
-          "rows": 500,
-          "ms": 44.259
-        },
-        {
-          "rows": 204,
-          "ms": 17.665
-        },
-        {
-          "rows": 0,
-          "ms": 1.399
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 9,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 118.71,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 49.83
-        },
-        {
-          "rows": 500,
-          "ms": 45.416
-        },
-        {
-          "rows": 204,
-          "ms": 21.455
-        },
-        {
-          "rows": 0,
-          "ms": 2.009
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 9,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 115.79899999999999,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 45.974
-        },
-        {
-          "rows": 500,
-          "ms": 49.754
-        },
-        {
-          "rows": 204,
-          "ms": 18.636
-        },
-        {
-          "rows": 0,
-          "ms": 1.435
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 10,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 121.494,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 41.664
-        },
-        {
-          "rows": 500,
-          "ms": 51.891
-        },
-        {
-          "rows": 204,
-          "ms": 26.449
-        },
-        {
-          "rows": 0,
-          "ms": 1.49
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 10,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 105.513,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 44.653
-        },
-        {
-          "rows": 500,
-          "ms": 43.328
-        },
-        {
-          "rows": 204,
-          "ms": 16.275
-        },
-        {
-          "rows": 0,
-          "ms": 1.257
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 11,
-      "kind": "view",
-      "rows": 1204,
-      "ms": 92.515,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.823
-        },
-        {
-          "rows": 500,
-          "ms": 36.901
-        },
-        {
-          "rows": 204,
-          "ms": 17.511
-        },
-        {
-          "rows": 0,
-          "ms": 1.28
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    },
-    {
-      "round": 11,
-      "kind": "raw",
-      "rows": 1204,
-      "ms": 94.841,
-      "bytes": 2023637,
-      "parts": [
-        {
-          "rows": 500,
-          "ms": 36.806
-        },
-        {
-          "rows": 500,
-          "ms": 38.565
-        },
-        {
-          "rows": 204,
-          "ms": 18.432
-        },
-        {
-          "rows": 0,
-          "ms": 1.038
-        }
-      ],
-      "sha256": "e3322809f67e1391a8ca35ecad657c90f12117d29a2d40aa107af8e79dd41f24"
-    }
-  ],
-  "representativePlans": [
-    {
-      "round": 0,
-      "kind": "raw",
-      "mode": "serialized",
-      "executionMs": 39.454,
-      "plan": {
-        "Plan": {
-          "Node Type": "Aggregate",
-          "Strategy": "Plain",
-          "Partial Mode": "Simple",
-          "Parallel Aware": false,
-          "Async Capable": false,
-          "Startup Cost": 168.96,
-          "Total Cost": 168.97,
-          "Plan Rows": 1,
-          "Plan Width": 32,
-          "Actual Startup Time": 39.284,
-          "Actual Total Time": 39.286,
-          "Actual Rows": 1,
-          "Actual Loops": 1,
-          "Output": ["json_agg(t.*)"],
-          "Shared Hit Blocks": 23250,
-          "Shared Read Blocks": 0,
-          "Shared Dirtied Blocks": 0,
-          "Shared Written Blocks": 0,
-          "Local Hit Blocks": 0,
-          "Local Read Blocks": 0,
-          "Local Dirtied Blocks": 0,
-          "Local Written Blocks": 0,
-          "Temp Read Blocks": 0,
-          "Temp Written Blocks": 0,
-          "Plans": [
-            {
-              "Node Type": "Subquery Scan",
-              "Parent Relationship": "Outer",
-              "Parallel Aware": false,
-              "Async Capable": false,
-              "Alias": "t",
-              "Startup Cost": 0.3,
-              "Total Cost": 167.7,
-              "Plan Rows": 500,
-              "Plan Width": 848,
-              "Actual Startup Time": 0.217,
-              "Actual Total Time": 29.029,
-              "Actual Rows": 500,
-              "Actual Loops": 1,
-              "Output": ["t.*"],
-              "Shared Hit Blocks": 23250,
-              "Shared Read Blocks": 0,
-              "Shared Dirtied Blocks": 0,
-              "Shared Written Blocks": 0,
-              "Local Hit Blocks": 0,
-              "Local Read Blocks": 0,
-              "Local Dirtied Blocks": 0,
-              "Local Written Blocks": 0,
-              "Temp Read Blocks": 0,
-              "Temp Written Blocks": 0,
-              "Plans": [
-                {
-                  "Node Type": "Limit",
-                  "Parent Relationship": "Subquery",
-                  "Parallel Aware": false,
-                  "Async Capable": false,
-                  "Startup Cost": 0.3,
-                  "Total Cost": 162.7,
-                  "Plan Rows": 500,
-                  "Plan Width": 920,
-                  "Actual Startup Time": 0.205,
-                  "Actual Total Time": 28.364,
-                  "Actual Rows": 500,
-                  "Actual Loops": 1,
-                  "Output": [
-                    "d.id",
-                    "d.year",
-                    "d.make",
-                    "d.model",
-                    "d.\"trim\"",
-                    "d.body_class",
-                    "d.fuel_type",
-                    "d.transmission",
-                    "d.drivetrain",
-                    "o.\"fuelType\"",
-                    "o.transmission",
-                    "o.drivetrain",
-                    "d.color",
-                    "d.assembly_country",
-                    "d.availability_status",
-                    "d.vin",
-                    "d.sell_estimate",
-                    "d.profit_score",
-                    "d.true_net_profit",
-                    "d.recommended_max_bid",
-                    "d.deal_verdict",
-                    "a.valuation",
-                    "((d.deal_analysis -> 'evidenceGates'::text))",
-                    "a.\"acquisitionPriceMissing\"",
-                    "a.\"priceImplausible\"",
-                    "a.roi",
-                    "d.is_arbitrage_opportunity",
-                    "d.images",
-                    "((o.\"photoAudit\" ->> 'state'::text))",
-                    "((o.\"photoAudit\" -> 'placeholderUrls'::text))",
-                    "o.\"titleSource\"",
-                    "d.location_city",
-                    "d.location_state",
-                    "d.location_zip",
-                    "d.lat",
-                    "d.lng",
-                    "d.first_seen_at",
-                    "d.source",
-                    "d.ask_price",
-                    "d.buy_now_price",
-                    "d.title",
-                    "d.last_seen_at",
-                    "d.condition",
-                    "d.damage_type",
-                    "d.mileage",
-                    "d.auction_end_at",
-                    "d.source_url",
-                    "o.\"priceEvidence\"",
-                    "o.\"sellerType\"",
-                    "o.\"listingTitle\"",
-                    "o.description",
-                    "o.price_is_acv_estimate"
-                  ],
-                  "Shared Hit Blocks": 23250,
-                  "Shared Read Blocks": 0,
-                  "Shared Dirtied Blocks": 0,
-                  "Shared Written Blocks": 0,
-                  "Local Hit Blocks": 0,
-                  "Local Read Blocks": 0,
-                  "Local Dirtied Blocks": 0,
-                  "Local Written Blocks": 0,
-                  "Temp Read Blocks": 0,
-                  "Temp Written Blocks": 0,
-                  "Plans": [
-                    {
-                      "Node Type": "Nested Loop",
-                      "Parent Relationship": "Outer",
-                      "Parallel Aware": false,
-                      "Async Capable": false,
-                      "Join Type": "Left",
-                      "Startup Cost": 0.3,
-                      "Total Cost": 419.96,
-                      "Plan Rows": 1292,
-                      "Plan Width": 920,
-                      "Actual Startup Time": 0.204,
-                      "Actual Total Time": 28.276,
-                      "Actual Rows": 500,
-                      "Actual Loops": 1,
-                      "Output": [
-                        "d.id",
-                        "d.year",
-                        "d.make",
-                        "d.model",
-                        "d.\"trim\"",
-                        "d.body_class",
-                        "d.fuel_type",
-                        "d.transmission",
-                        "d.drivetrain",
-                        "o.\"fuelType\"",
-                        "o.transmission",
-                        "o.drivetrain",
-                        "d.color",
-                        "d.assembly_country",
-                        "d.availability_status",
-                        "d.vin",
-                        "d.sell_estimate",
-                        "d.profit_score",
-                        "d.true_net_profit",
-                        "d.recommended_max_bid",
-                        "d.deal_verdict",
-                        "a.valuation",
-                        "(d.deal_analysis -> 'evidenceGates'::text)",
-                        "a.\"acquisitionPriceMissing\"",
-                        "a.\"priceImplausible\"",
-                        "a.roi",
-                        "d.is_arbitrage_opportunity",
-                        "d.images",
-                        "(o.\"photoAudit\" ->> 'state'::text)",
-                        "(o.\"photoAudit\" -> 'placeholderUrls'::text)",
-                        "o.\"titleSource\"",
-                        "d.location_city",
-                        "d.location_state",
-                        "d.location_zip",
-                        "d.lat",
-                        "d.lng",
-                        "d.first_seen_at",
-                        "d.source",
-                        "d.ask_price",
-                        "d.buy_now_price",
-                        "d.title",
-                        "d.last_seen_at",
-                        "d.condition",
-                        "d.damage_type",
-                        "d.mileage",
-                        "d.auction_end_at",
-                        "d.source_url",
-                        "o.\"priceEvidence\"",
-                        "o.\"sellerType\"",
-                        "o.\"listingTitle\"",
-                        "o.description",
-                        "o.price_is_acv_estimate"
-                      ],
-                      "Inner Unique": false,
-                      "Shared Hit Blocks": 23250,
-                      "Shared Read Blocks": 0,
-                      "Shared Dirtied Blocks": 0,
-                      "Shared Written Blocks": 0,
-                      "Local Hit Blocks": 0,
-                      "Local Read Blocks": 0,
-                      "Local Dirtied Blocks": 0,
-                      "Local Written Blocks": 0,
-                      "Temp Read Blocks": 0,
-                      "Temp Written Blocks": 0,
-                      "Plans": [
-                        {
-                          "Node Type": "Nested Loop",
-                          "Parent Relationship": "Outer",
-                          "Parallel Aware": false,
-                          "Async Capable": false,
-                          "Join Type": "Left",
-                          "Startup Cost": 0.29,
-                          "Total Cost": 384.42,
-                          "Plan Rows": 1292,
-                          "Plan Width": 745,
-                          "Actual Startup Time": 0.142,
-                          "Actual Total Time": 20.149,
-                          "Actual Rows": 500,
-                          "Actual Loops": 1,
-                          "Output": [
-                            "d.id",
-                            "d.year",
-                            "d.make",
-                            "d.model",
-                            "d.\"trim\"",
-                            "d.body_class",
-                            "d.fuel_type",
-                            "d.transmission",
-                            "d.drivetrain",
-                            "d.color",
-                            "d.assembly_country",
-                            "d.availability_status",
-                            "d.vin",
-                            "d.sell_estimate",
-                            "d.profit_score",
-                            "d.true_net_profit",
-                            "d.recommended_max_bid",
-                            "d.deal_verdict",
-                            "d.deal_analysis",
-                            "d.is_arbitrage_opportunity",
-                            "d.images",
-                            "d.location_city",
-                            "d.location_state",
-                            "d.location_zip",
-                            "d.lat",
-                            "d.lng",
-                            "d.first_seen_at",
-                            "d.source",
-                            "d.ask_price",
-                            "d.buy_now_price",
-                            "d.title",
-                            "d.last_seen_at",
-                            "d.condition",
-                            "d.damage_type",
-                            "d.mileage",
-                            "d.auction_end_at",
-                            "d.source_url",
-                            "o.\"fuelType\"",
-                            "o.transmission",
-                            "o.drivetrain",
-                            "o.\"photoAudit\"",
-                            "o.\"titleSource\"",
-                            "o.\"priceEvidence\"",
-                            "o.\"sellerType\"",
-                            "o.\"listingTitle\"",
-                            "o.description",
-                            "o.price_is_acv_estimate"
-                          ],
-                          "Inner Unique": false,
-                          "Shared Hit Blocks": 15930,
-                          "Shared Read Blocks": 0,
-                          "Shared Dirtied Blocks": 0,
-                          "Shared Written Blocks": 0,
-                          "Local Hit Blocks": 0,
-                          "Local Read Blocks": 0,
-                          "Local Dirtied Blocks": 0,
-                          "Local Written Blocks": 0,
-                          "Temp Read Blocks": 0,
-                          "Temp Written Blocks": 0,
-                          "Plans": [
-                            {
-                              "Node Type": "Index Scan",
-                              "Parent Relationship": "Outer",
-                              "Parallel Aware": false,
-                              "Async Capable": false,
-                              "Scan Direction": "Forward",
-                              "Index Name": "deals_pkey",
-                              "Relation Name": "deals",
-                              "Schema": "public",
-                              "Alias": "d",
-                              "Startup Cost": 0.28,
-                              "Total Cost": 358.57,
-                              "Plan Rows": 1292,
-                              "Plan Width": 442,
-                              "Actual Startup Time": 0.11,
-                              "Actual Total Time": 14.655,
-                              "Actual Rows": 500,
-                              "Actual Loops": 1,
-                              "Output": [
-                                "d.active",
-                                "d.ai_rationale",
-                                "d.ai_retail_estimate",
-                                "d.ai_wholesale_estimate",
-                                "d.ask_price",
-                                "d.assembly_country",
-                                "d.assembly_plant",
-                                "d.auction_end_at",
-                                "d.availability_status",
-                                "d.body_class",
-                                "d.body_style",
-                                "d.buy_now_price",
-                                "d.cargurus_price",
-                                "d.color",
-                                "d.condition",
-                                "d.created_at",
-                                "d.damage_type",
-                                "d.deal_analysis",
-                                "d.deal_verdict",
-                                "d.dealer_id",
-                                "d.drivetrain",
-                                "d.duplicate_confidence",
-                                "d.duplicate_of_id",
-                                "d.embedded_at",
-                                "d.embedding",
-                                "d.embedding_source_hash",
-                                "d.engine",
-                                "d.estimated_repair_cost",
-                                "d.estimated_transport_cost",
-                                "d.first_seen_at",
-                                "d.flash_alert_sent",
-                                "d.fuel_type",
-                                "d.id",
-                                "d.images",
-                                "d.images_cached",
-                                "d.is_arbitrage_opportunity",
-                                "d.kbb_retail",
-                                "d.kbb_trade_in",
-                                "d.keys_present",
-                                "d.last_price_change_at",
-                                "d.last_seen_at",
-                                "d.lat",
-                                "d.lng",
-                                "d.location",
-                                "d.location_city",
-                                "d.location_state",
-                                "d.location_zip",
-                                "d.make",
-                                "d.mileage",
-                                "d.mmr_value",
-                                "d.model",
-                                "d.options",
-                                "d.price_drop_amount",
-                                "d.price_drop_days",
-                                "d.price_gap_detected",
-                                "d.pricing_breakdown",
-                                "d.profit_estimate",
-                                "d.profit_score",
-                                "d.recalls_count",
-                                "d.recommended_max_bid",
-                                "d.run_drive",
-                                "d.sell_estimate",
-                                "d.source",
-                                "d.source_deal_id",
-                                "d.source_url",
-                                "d.title",
-                                "d.transmission",
-                                "d.\"trim\"",
-                                "d.true_net_profit",
-                                "d.updated_at",
-                                "d.vin",
-                                "d.year"
-                              ],
-                              "Filter": "(d.active AND (d.images IS NOT NULL) AND (d.location_state = ANY ('{MO,FL}'::text[])) AND (d.last_seen_at >= '2026-10-06 16:08:09.113+00'::timestamp with time zone) AND (d.last_seen_at <= '2026-11-05 16:08:09.113+00'::timestamp with time zone) AND ((d.title IS NULL) OR (d.title !~* '^[[:space:]]*(check out (these|our) (great )?deals|browse (our )?(inventory|vehicles)|shop (our )?(inventory|vehicles)|view (all |our )?inventory)[[:space:]!.]*$'::text)) AND ((d.source_url IS NULL) OR (d.source_url !~* '[/]searchnew[.]aspx([?]|$)'::text)) AND ((d.auction_end_at IS NULL) OR (d.auction_end_at > '2026-11-05 16:08:09.113+00'::timestamp with time zone)) AND ((d.condition IS NULL) OR (d.condition = ANY ('{clean_title,run_drive}'::text[]))) AND ((d.title IS NULL) OR (d.title !~* '\\y(?:mechanic(?:[''’]s|s)?[\\s-]+special|(?:restoration|repair)[\\s-]+project|parts[\\s-]+only|non[\\s-]+runner|not[\\s-]+running|does(?:n''t|[\\s]+not)[\\s]+run|needs[\\s]+(?:repairs?|(?:an?[\\s]+)?(?:engine|transmission)))\\y'::text)) AND (d.images <> '{}'::text[]) AND ((((d.options -> 'sourceAvailability'::text) ->> 'state'::text) IS NULL) OR (((d.options -> 'sourceAvailability'::text) ->> 'state'::text) <> 'removed'::text)) AND ((((d.options -> 'photoAudit'::text) ->> 'state'::text) IS NULL) OR (((d.options -> 'photoAudit'::text) ->> 'state'::text) <> 'unavailable'::text)) AND ((d.damage_type IS NULL) OR (d.damage_type ~~* ''::text) OR (d.damage_type ~~* 'none'::text) OR (d.damage_type ~~* 'unknown'::text) OR (d.damage_type ~~* 'n/a'::text) OR (d.damage_type ~~* 'na'::text) OR (d.damage_type ~~* 'not reported'::text) OR (d.damage_type ~~* 'no damage'::text)))",
-                              "Rows Removed by Filter": 364,
-                              "Shared Hit Blocks": 11050,
-                              "Shared Read Blocks": 0,
-                              "Shared Dirtied Blocks": 0,
-                              "Shared Written Blocks": 0,
-                              "Local Hit Blocks": 0,
-                              "Local Read Blocks": 0,
-                              "Local Dirtied Blocks": 0,
-                              "Local Written Blocks": 0,
-                              "Temp Read Blocks": 0,
-                              "Temp Written Blocks": 0
-                            },
-                            {
-                              "Node Type": "Function Scan",
-                              "Parent Relationship": "Inner",
-                              "Parallel Aware": false,
-                              "Async Capable": false,
-                              "Function Name": "jsonb_to_record",
-                              "Schema": "pg_catalog",
-                              "Alias": "o",
-                              "Startup Cost": 0.01,
-                              "Total Cost": 0.02,
-                              "Plan Rows": 1,
-                              "Plan Width": 320,
-                              "Actual Startup Time": 0.01,
-                              "Actual Total Time": 0.01,
-                              "Actual Rows": 1,
-                              "Actual Loops": 500,
-                              "Output": [
-                                "o.\"fuelType\"",
-                                "o.transmission",
-                                "o.drivetrain",
-                                "o.\"priceEvidence\"",
-                                "o.\"sellerType\"",
-                                "o.\"listingTitle\"",
-                                "o.description",
-                                "o.price_is_acv_estimate",
-                                "o.\"titleSource\"",
-                                "o.\"photoAudit\""
-                              ],
-                              "Function Call": "jsonb_to_record(CASE WHEN (jsonb_typeof(d.options) = 'object'::text) THEN d.options ELSE '{}'::jsonb END)",
-                              "Shared Hit Blocks": 4880,
-                              "Shared Read Blocks": 0,
-                              "Shared Dirtied Blocks": 0,
-                              "Shared Written Blocks": 0,
-                              "Local Hit Blocks": 0,
-                              "Local Read Blocks": 0,
-                              "Local Dirtied Blocks": 0,
-                              "Local Written Blocks": 0,
-                              "Temp Read Blocks": 0,
-                              "Temp Written Blocks": 0
-                            }
-                          ]
-                        },
-                        {
-                          "Node Type": "Function Scan",
-                          "Parent Relationship": "Inner",
-                          "Parallel Aware": false,
-                          "Async Capable": false,
-                          "Function Name": "jsonb_to_record",
-                          "Schema": "pg_catalog",
-                          "Alias": "a",
-                          "Startup Cost": 0.01,
-                          "Total Cost": 0.02,
-                          "Plan Rows": 1,
-                          "Plan Width": 128,
-                          "Actual Startup Time": 0.011,
-                          "Actual Total Time": 0.011,
-                          "Actual Rows": 1,
-                          "Actual Loops": 500,
-                          "Output": [
-                            "a.valuation",
-                            "a.\"acquisitionPriceMissing\"",
-                            "a.\"priceImplausible\"",
-                            "a.roi"
-                          ],
-                          "Function Call": "jsonb_to_record(CASE WHEN (jsonb_typeof(d.deal_analysis) = 'object'::text) THEN d.deal_analysis ELSE '{}'::jsonb END)",
-                          "Shared Hit Blocks": 4880,
-                          "Shared Read Blocks": 0,
-                          "Shared Dirtied Blocks": 0,
-                          "Shared Written Blocks": 0,
-                          "Local Hit Blocks": 0,
-                          "Local Read Blocks": 0,
-                          "Local Dirtied Blocks": 0,
-                          "Local Written Blocks": 0,
-                          "Temp Read Blocks": 0,
-                          "Temp Written Blocks": 0
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        "Planning": {
-          "Shared Hit Blocks": 9,
-          "Shared Read Blocks": 0,
-          "Shared Dirtied Blocks": 0,
-          "Shared Written Blocks": 0,
-          "Local Hit Blocks": 0,
-          "Local Read Blocks": 0,
-          "Local Dirtied Blocks": 0,
-          "Local Written Blocks": 0,
-          "Temp Read Blocks": 0,
-          "Temp Written Blocks": 0
-        },
-        "Planning Time": 0.884,
-        "Triggers": [],
-        "Execution Time": 39.454
-      }
-    },
-    {
-      "round": 0,
-      "kind": "view",
-      "mode": "serialized",
-      "executionMs": 34.451,
-      "plan": {
-        "Plan": {
-          "Node Type": "Aggregate",
-          "Strategy": "Plain",
-          "Partial Mode": "Simple",
-          "Parallel Aware": false,
-          "Async Capable": false,
-          "Startup Cost": 167.71,
-          "Total Cost": 167.72,
-          "Plan Rows": 1,
-          "Plan Width": 32,
-          "Actual Startup Time": 34.399,
-          "Actual Total Time": 34.401,
-          "Actual Rows": 1,
-          "Actual Loops": 1,
-          "Output": ["json_agg(t.*)"],
-          "Shared Hit Blocks": 20810,
-          "Shared Read Blocks": 0,
-          "Shared Dirtied Blocks": 0,
-          "Shared Written Blocks": 0,
-          "Local Hit Blocks": 0,
-          "Local Read Blocks": 0,
-          "Local Dirtied Blocks": 0,
-          "Local Written Blocks": 0,
-          "Temp Read Blocks": 0,
-          "Temp Written Blocks": 0,
-          "Plans": [
-            {
-              "Node Type": "Subquery Scan",
-              "Parent Relationship": "Outer",
-              "Parallel Aware": false,
-              "Async Capable": false,
-              "Alias": "t",
-              "Startup Cost": 0.3,
-              "Total Cost": 166.45,
-              "Plan Rows": 500,
-              "Plan Width": 880,
-              "Actual Startup Time": 0.094,
-              "Actual Total Time": 25.339,
-              "Actual Rows": 500,
-              "Actual Loops": 1,
-              "Output": ["t.*"],
-              "Shared Hit Blocks": 20810,
-              "Shared Read Blocks": 0,
-              "Shared Dirtied Blocks": 0,
-              "Shared Written Blocks": 0,
-              "Local Hit Blocks": 0,
-              "Local Read Blocks": 0,
-              "Local Dirtied Blocks": 0,
-              "Local Written Blocks": 0,
-              "Temp Read Blocks": 0,
-              "Temp Written Blocks": 0,
-              "Plans": [
-                {
-                  "Node Type": "Limit",
-                  "Parent Relationship": "Subquery",
-                  "Parallel Aware": false,
-                  "Async Capable": false,
-                  "Startup Cost": 0.3,
-                  "Total Cost": 161.45,
-                  "Plan Rows": 500,
-                  "Plan Width": 920,
-                  "Actual Startup Time": 0.088,
-                  "Actual Total Time": 24.724,
-                  "Actual Rows": 500,
-                  "Actual Loops": 1,
-                  "Output": [
-                    "d.id",
-                    "d.year",
-                    "d.make",
-                    "d.model",
-                    "d.\"trim\"",
-                    "d.body_class",
-                    "d.fuel_type",
-                    "d.transmission",
-                    "d.drivetrain",
-                    "o.\"fuelType\"",
-                    "o.transmission",
-                    "o.drivetrain",
-                    "d.color",
-                    "d.assembly_country",
-                    "d.availability_status",
-                    "d.vin",
-                    "d.sell_estimate",
-                    "d.profit_score",
-                    "d.true_net_profit",
-                    "d.recommended_max_bid",
-                    "d.deal_verdict",
-                    "a.valuation",
-                    "a.\"evidenceGates\"",
-                    "a.\"acquisitionPriceMissing\"",
-                    "a.\"priceImplausible\"",
-                    "a.roi",
-                    "d.is_arbitrage_opportunity",
-                    "d.images",
-                    "((o.\"photoAudit\" ->> 'state'::text))",
-                    "((o.\"photoAudit\" -> 'placeholderUrls'::text))",
-                    "o.\"titleSource\"",
-                    "d.location_city",
-                    "d.location_state",
-                    "d.location_zip",
-                    "d.lat",
-                    "d.lng",
-                    "d.first_seen_at",
-                    "d.source",
-                    "d.ask_price",
-                    "d.buy_now_price",
-                    "d.title",
-                    "d.last_seen_at",
-                    "d.condition",
-                    "d.damage_type",
-                    "d.mileage",
-                    "d.auction_end_at",
-                    "d.source_url",
-                    "o.\"priceEvidence\"",
-                    "o.\"sellerType\"",
-                    "o.\"listingTitle\"",
-                    "o.description",
-                    "o.price_is_acv_estimate"
-                  ],
-                  "Shared Hit Blocks": 20810,
-                  "Shared Read Blocks": 0,
-                  "Shared Dirtied Blocks": 0,
-                  "Shared Written Blocks": 0,
-                  "Local Hit Blocks": 0,
-                  "Local Read Blocks": 0,
-                  "Local Dirtied Blocks": 0,
-                  "Local Written Blocks": 0,
-                  "Temp Read Blocks": 0,
-                  "Temp Written Blocks": 0,
-                  "Plans": [
-                    {
-                      "Node Type": "Nested Loop",
-                      "Parent Relationship": "Outer",
-                      "Parallel Aware": false,
-                      "Async Capable": false,
-                      "Join Type": "Left",
-                      "Startup Cost": 0.3,
-                      "Total Cost": 416.73,
-                      "Plan Rows": 1292,
-                      "Plan Width": 920,
-                      "Actual Startup Time": 0.087,
-                      "Actual Total Time": 24.651,
-                      "Actual Rows": 500,
-                      "Actual Loops": 1,
-                      "Output": [
-                        "d.id",
-                        "d.year",
-                        "d.make",
-                        "d.model",
-                        "d.\"trim\"",
-                        "d.body_class",
-                        "d.fuel_type",
-                        "d.transmission",
-                        "d.drivetrain",
-                        "o.\"fuelType\"",
-                        "o.transmission",
-                        "o.drivetrain",
-                        "d.color",
-                        "d.assembly_country",
-                        "d.availability_status",
-                        "d.vin",
-                        "d.sell_estimate",
-                        "d.profit_score",
-                        "d.true_net_profit",
-                        "d.recommended_max_bid",
-                        "d.deal_verdict",
-                        "a.valuation",
-                        "a.\"evidenceGates\"",
-                        "a.\"acquisitionPriceMissing\"",
-                        "a.\"priceImplausible\"",
-                        "a.roi",
-                        "d.is_arbitrage_opportunity",
-                        "d.images",
-                        "(o.\"photoAudit\" ->> 'state'::text)",
-                        "(o.\"photoAudit\" -> 'placeholderUrls'::text)",
-                        "o.\"titleSource\"",
-                        "d.location_city",
-                        "d.location_state",
-                        "d.location_zip",
-                        "d.lat",
-                        "d.lng",
-                        "d.first_seen_at",
-                        "d.source",
-                        "d.ask_price",
-                        "d.buy_now_price",
-                        "d.title",
-                        "d.last_seen_at",
-                        "d.condition",
-                        "d.damage_type",
-                        "d.mileage",
-                        "d.auction_end_at",
-                        "d.source_url",
-                        "o.\"priceEvidence\"",
-                        "o.\"sellerType\"",
-                        "o.\"listingTitle\"",
-                        "o.description",
-                        "o.price_is_acv_estimate"
-                      ],
-                      "Inner Unique": false,
-                      "Shared Hit Blocks": 20810,
-                      "Shared Read Blocks": 0,
-                      "Shared Dirtied Blocks": 0,
-                      "Shared Written Blocks": 0,
-                      "Local Hit Blocks": 0,
-                      "Local Read Blocks": 0,
-                      "Local Dirtied Blocks": 0,
-                      "Local Written Blocks": 0,
-                      "Temp Read Blocks": 0,
-                      "Temp Written Blocks": 0,
-                      "Plans": [
-                        {
-                          "Node Type": "Nested Loop",
-                          "Parent Relationship": "Outer",
-                          "Parallel Aware": false,
-                          "Async Capable": false,
-                          "Join Type": "Left",
-                          "Startup Cost": 0.29,
-                          "Total Cost": 384.42,
-                          "Plan Rows": 1292,
-                          "Plan Width": 745,
-                          "Actual Startup Time": 0.071,
-                          "Actual Total Time": 18.703,
-                          "Actual Rows": 500,
-                          "Actual Loops": 1,
-                          "Output": [
-                            "d.id",
-                            "d.year",
-                            "d.make",
-                            "d.model",
-                            "d.\"trim\"",
-                            "d.body_class",
-                            "d.fuel_type",
-                            "d.transmission",
-                            "d.drivetrain",
-                            "d.color",
-                            "d.assembly_country",
-                            "d.availability_status",
-                            "d.vin",
-                            "d.sell_estimate",
-                            "d.profit_score",
-                            "d.true_net_profit",
-                            "d.recommended_max_bid",
-                            "d.deal_verdict",
-                            "d.is_arbitrage_opportunity",
-                            "d.images",
-                            "d.location_city",
-                            "d.location_state",
-                            "d.location_zip",
-                            "d.lat",
-                            "d.lng",
-                            "d.first_seen_at",
-                            "d.source",
-                            "d.ask_price",
-                            "d.buy_now_price",
-                            "d.title",
-                            "d.last_seen_at",
-                            "d.condition",
-                            "d.damage_type",
-                            "d.mileage",
-                            "d.auction_end_at",
-                            "d.source_url",
-                            "d.deal_analysis",
-                            "o.\"fuelType\"",
-                            "o.transmission",
-                            "o.drivetrain",
-                            "o.\"photoAudit\"",
-                            "o.\"titleSource\"",
-                            "o.\"priceEvidence\"",
-                            "o.\"sellerType\"",
-                            "o.\"listingTitle\"",
-                            "o.description",
-                            "o.price_is_acv_estimate"
-                          ],
-                          "Inner Unique": false,
-                          "Shared Hit Blocks": 15930,
-                          "Shared Read Blocks": 0,
-                          "Shared Dirtied Blocks": 0,
-                          "Shared Written Blocks": 0,
-                          "Local Hit Blocks": 0,
-                          "Local Read Blocks": 0,
-                          "Local Dirtied Blocks": 0,
-                          "Local Written Blocks": 0,
-                          "Temp Read Blocks": 0,
-                          "Temp Written Blocks": 0,
-                          "Plans": [
-                            {
-                              "Node Type": "Index Scan",
-                              "Parent Relationship": "Outer",
-                              "Parallel Aware": false,
-                              "Async Capable": false,
-                              "Scan Direction": "Forward",
-                              "Index Name": "deals_pkey",
-                              "Relation Name": "deals",
-                              "Schema": "public",
-                              "Alias": "d",
-                              "Startup Cost": 0.28,
-                              "Total Cost": 358.57,
-                              "Plan Rows": 1292,
-                              "Plan Width": 442,
-                              "Actual Startup Time": 0.051,
-                              "Actual Total Time": 13.471,
-                              "Actual Rows": 500,
-                              "Actual Loops": 1,
-                              "Output": [
-                                "d.active",
-                                "d.ai_rationale",
-                                "d.ai_retail_estimate",
-                                "d.ai_wholesale_estimate",
-                                "d.ask_price",
-                                "d.assembly_country",
-                                "d.assembly_plant",
-                                "d.auction_end_at",
-                                "d.availability_status",
-                                "d.body_class",
-                                "d.body_style",
-                                "d.buy_now_price",
-                                "d.cargurus_price",
-                                "d.color",
-                                "d.condition",
-                                "d.created_at",
-                                "d.damage_type",
-                                "d.deal_analysis",
-                                "d.deal_verdict",
-                                "d.dealer_id",
-                                "d.drivetrain",
-                                "d.duplicate_confidence",
-                                "d.duplicate_of_id",
-                                "d.embedded_at",
-                                "d.embedding",
-                                "d.embedding_source_hash",
-                                "d.engine",
-                                "d.estimated_repair_cost",
-                                "d.estimated_transport_cost",
-                                "d.first_seen_at",
-                                "d.flash_alert_sent",
-                                "d.fuel_type",
-                                "d.id",
-                                "d.images",
-                                "d.images_cached",
-                                "d.is_arbitrage_opportunity",
-                                "d.kbb_retail",
-                                "d.kbb_trade_in",
-                                "d.keys_present",
-                                "d.last_price_change_at",
-                                "d.last_seen_at",
-                                "d.lat",
-                                "d.lng",
-                                "d.location",
-                                "d.location_city",
-                                "d.location_state",
-                                "d.location_zip",
-                                "d.make",
-                                "d.mileage",
-                                "d.mmr_value",
-                                "d.model",
-                                "d.options",
-                                "d.price_drop_amount",
-                                "d.price_drop_days",
-                                "d.price_gap_detected",
-                                "d.pricing_breakdown",
-                                "d.profit_estimate",
-                                "d.profit_score",
-                                "d.recalls_count",
-                                "d.recommended_max_bid",
-                                "d.run_drive",
-                                "d.sell_estimate",
-                                "d.source",
-                                "d.source_deal_id",
-                                "d.source_url",
-                                "d.title",
-                                "d.transmission",
-                                "d.\"trim\"",
-                                "d.true_net_profit",
-                                "d.updated_at",
-                                "d.vin",
-                                "d.year"
-                              ],
-                              "Filter": "(d.active AND (d.images IS NOT NULL) AND (d.location_state = ANY ('{MO,FL}'::text[])) AND (d.last_seen_at >= '2026-10-06 16:08:09.113+00'::timestamp with time zone) AND (d.last_seen_at <= '2026-11-05 16:08:09.113+00'::timestamp with time zone) AND ((d.title IS NULL) OR (d.title !~* '^[[:space:]]*(check out (these|our) (great )?deals|browse (our )?(inventory|vehicles)|shop (our )?(inventory|vehicles)|view (all |our )?inventory)[[:space:]!.]*$'::text)) AND ((d.source_url IS NULL) OR (d.source_url !~* '[/]searchnew[.]aspx([?]|$)'::text)) AND ((d.auction_end_at IS NULL) OR (d.auction_end_at > '2026-11-05 16:08:09.113+00'::timestamp with time zone)) AND ((d.condition IS NULL) OR (d.condition = ANY ('{clean_title,run_drive}'::text[]))) AND ((d.title IS NULL) OR (d.title !~* '\\y(?:mechanic(?:[''’]s|s)?[\\s-]+special|(?:restoration|repair)[\\s-]+project|parts[\\s-]+only|non[\\s-]+runner|not[\\s-]+running|does(?:n''t|[\\s]+not)[\\s]+run|needs[\\s]+(?:repairs?|(?:an?[\\s]+)?(?:engine|transmission)))\\y'::text)) AND (d.images <> '{}'::text[]) AND ((((d.options -> 'sourceAvailability'::text) ->> 'state'::text) IS NULL) OR (((d.options -> 'sourceAvailability'::text) ->> 'state'::text) <> 'removed'::text)) AND ((((d.options -> 'photoAudit'::text) ->> 'state'::text) IS NULL) OR (((d.options -> 'photoAudit'::text) ->> 'state'::text) <> 'unavailable'::text)) AND ((d.damage_type IS NULL) OR (d.damage_type ~~* ''::text) OR (d.damage_type ~~* 'none'::text) OR (d.damage_type ~~* 'unknown'::text) OR (d.damage_type ~~* 'n/a'::text) OR (d.damage_type ~~* 'na'::text) OR (d.damage_type ~~* 'not reported'::text) OR (d.damage_type ~~* 'no damage'::text)))",
-                              "Rows Removed by Filter": 364,
-                              "Shared Hit Blocks": 11050,
-                              "Shared Read Blocks": 0,
-                              "Shared Dirtied Blocks": 0,
-                              "Shared Written Blocks": 0,
-                              "Local Hit Blocks": 0,
-                              "Local Read Blocks": 0,
-                              "Local Dirtied Blocks": 0,
-                              "Local Written Blocks": 0,
-                              "Temp Read Blocks": 0,
-                              "Temp Written Blocks": 0
-                            },
-                            {
-                              "Node Type": "Function Scan",
-                              "Parent Relationship": "Inner",
-                              "Parallel Aware": false,
-                              "Async Capable": false,
-                              "Function Name": "jsonb_to_record",
-                              "Schema": "pg_catalog",
-                              "Alias": "o",
-                              "Startup Cost": 0.01,
-                              "Total Cost": 0.02,
-                              "Plan Rows": 1,
-                              "Plan Width": 320,
-                              "Actual Startup Time": 0.009,
-                              "Actual Total Time": 0.01,
-                              "Actual Rows": 1,
-                              "Actual Loops": 500,
-                              "Output": [
-                                "o.\"fuelType\"",
-                                "o.transmission",
-                                "o.drivetrain",
-                                "o.\"priceEvidence\"",
-                                "o.\"sellerType\"",
-                                "o.\"listingTitle\"",
-                                "o.description",
-                                "o.price_is_acv_estimate",
-                                "o.\"titleSource\"",
-                                "o.\"photoAudit\""
-                              ],
-                              "Function Call": "jsonb_to_record(CASE WHEN (jsonb_typeof(d.options) = 'object'::text) THEN d.options ELSE '{}'::jsonb END)",
-                              "Shared Hit Blocks": 4880,
-                              "Shared Read Blocks": 0,
-                              "Shared Dirtied Blocks": 0,
-                              "Shared Written Blocks": 0,
-                              "Local Hit Blocks": 0,
-                              "Local Read Blocks": 0,
-                              "Local Dirtied Blocks": 0,
-                              "Local Written Blocks": 0,
-                              "Temp Read Blocks": 0,
-                              "Temp Written Blocks": 0
-                            }
-                          ]
-                        },
-                        {
-                          "Node Type": "Function Scan",
-                          "Parent Relationship": "Inner",
-                          "Parallel Aware": false,
-                          "Async Capable": false,
-                          "Function Name": "jsonb_to_record",
-                          "Schema": "pg_catalog",
-                          "Alias": "a",
-                          "Startup Cost": 0.01,
-                          "Total Cost": 0.02,
-                          "Plan Rows": 1,
-                          "Plan Width": 160,
-                          "Actual Startup Time": 0.011,
-                          "Actual Total Time": 0.011,
-                          "Actual Rows": 1,
-                          "Actual Loops": 500,
-                          "Output": [
-                            "a.valuation",
-                            "a.\"acquisitionPriceMissing\"",
-                            "a.\"priceImplausible\"",
-                            "a.roi",
-                            "a.\"evidenceGates\""
-                          ],
-                          "Function Call": "jsonb_to_record(CASE WHEN (jsonb_typeof(d.deal_analysis) = 'object'::text) THEN d.deal_analysis ELSE '{}'::jsonb END)",
-                          "Shared Hit Blocks": 4880,
-                          "Shared Read Blocks": 0,
-                          "Shared Dirtied Blocks": 0,
-                          "Shared Written Blocks": 0,
-                          "Local Hit Blocks": 0,
-                          "Local Read Blocks": 0,
-                          "Local Dirtied Blocks": 0,
-                          "Local Written Blocks": 0,
-                          "Temp Read Blocks": 0,
-                          "Temp Written Blocks": 0
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        "Planning": {
-          "Shared Hit Blocks": 0,
-          "Shared Read Blocks": 0,
-          "Shared Dirtied Blocks": 0,
-          "Shared Written Blocks": 0,
-          "Local Hit Blocks": 0,
-          "Local Read Blocks": 0,
-          "Local Dirtied Blocks": 0,
-          "Local Written Blocks": 0,
-          "Temp Read Blocks": 0,
-          "Temp Written Blocks": 0
-        },
-        "Planning Time": 0.522,
-        "Triggers": [],
-        "Execution Time": 34.451
-      }
-    }
-  ],
-  "limitations": [
-    "Synthetic warm-cache local PostgreSQL 17.11; production 17.6 not measured by worker",
-    "JSON-null field becomes SQL NULL, identical serialized API null",
-    "No under-10-second or production latency claim"
-  ],
-  "decision": "HOLD: local candidate unpublished; no full gate or PR; one production A/B pair does not establish useful total-query latency improvement",
-  "production": {
-    "scope": {
-      "fixedTime": "2026-11-05T16:07:27.921Z",
-      "states": ["MO", "FL"],
-      "observedDays": 30,
-      "fields": 52,
-      "limit": 500,
-      "order": "id asc",
-      "serialized": true,
-      "filters": "released active/individual-listing/auction/repair/photo/source-availability SQL; pre-JS candidate scope",
-      "productionVersionNumParentReported": 170006
-    },
-    "runs": {
-      "raw": {
-        "executionMs": 43.657,
-        "planningMs": 11.026,
-        "sharedHits": 4424,
-        "sharedReads": 0,
-        "planRows": 1,
-        "selectedRows": 500,
-        "planningPlusExecutionMs": 54.68299999999999
+    "candidateRows": 1196,
+    "bytes": 2046948,
+    "bodySha256": "bc716613119eec3e3e26b335a7ede7accdf7effba5ab1cff3b852e11bd85bed3",
+    "allBodiesEqual": true,
+    "fieldCount": 52,
+    "anonStatus": 401,
+    "role": "service_role",
+    "mode": "auto",
+    "prepared": [
+      {
+        "relation": "view",
+        "keyset": false,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 5,
+        "custom": 5,
+        "actualCountRowWrapper": true
       },
-      "expanded": {
-        "executionMs": 41.149,
-        "planningMs": 14.157,
-        "sharedHits": 3449,
-        "sharedReads": 0,
-        "planRows": 1,
-        "selectedRows": 500,
-        "planningPlusExecutionMs": 55.306
+      {
+        "relation": "raw",
+        "keyset": true,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "uuid",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 0,
+        "custom": 30,
+        "actualCountRowWrapper": true
+      },
+      {
+        "relation": "raw",
+        "keyset": false,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 5,
+        "custom": 5,
+        "actualCountRowWrapper": true
+      },
+      {
+        "relation": "view",
+        "keyset": true,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "uuid",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 0,
+        "custom": 30,
+        "actualCountRowWrapper": true
       }
-    },
-    "apiRecordMismatches": 0,
-    "executionDeltaMs": 2.5079999999999956,
-    "cliWall": {
-      "rawExit": 0,
-      "rawCliWallMs": 9227.3906,
-      "expandedExit": 0,
-      "expandedCliWallMs": 9262.039
-    },
-    "limitations": [
-      "One bounded A/B pair, warm/order not controlled, not a statistically repeatable production improvement",
-      "No full production keyset scan or API latency claim",
-      "Local 16KB-root benchmark is stress-only; actual parent sample much smaller",
-      "No production DDL or records changed"
+    ],
+    "pairs": [
+      {
+        "round": 0,
+        "rawMs": 91.43150700000001,
+        "viewMs": 93.70923199999993
+      },
+      {
+        "round": 1,
+        "rawMs": 92.02744000000007,
+        "viewMs": 84.457225
+      },
+      {
+        "round": 2,
+        "rawMs": 84.67933800000014,
+        "viewMs": 89.53050300000018
+      },
+      {
+        "round": 3,
+        "rawMs": 82.55192199999988,
+        "viewMs": 82.63272600000005
+      },
+      {
+        "round": 4,
+        "rawMs": 85.51858500000003,
+        "viewMs": 82.98394500000018
+      },
+      {
+        "round": 5,
+        "rawMs": 83.55807599999957,
+        "viewMs": 79.37844799999971
+      },
+      {
+        "round": 6,
+        "rawMs": 93.94874600000003,
+        "viewMs": 86.57924099999946
+      },
+      {
+        "round": 7,
+        "rawMs": 83.93479599999955,
+        "viewMs": 86.6674480000006
+      }
     ]
   },
-  "localFixtureClassification": "Stress-only 16KB roots, not representative production payload evidence",
-  "parentSizeSample": {
-    "scope": "1000 basic active MO/FL 30-day rows, not full photo/repair eligibility",
-    "decodedMeanBytes": {
-      "options": 473,
-      "analysis": 1380
-    },
-    "storedMeanBytes": {
-      "options": 443,
-      "analysis": 1185
-    },
-    "imagesMean": 1.5
+  "productionWork": {
+    "rawHits": 4424,
+    "viewHits": 3449,
+    "reads": 0,
+    "fewerHitsPct": 22.03887884267631,
+    "latencyCaveat": "Extreme variance; no causal latency claim"
   },
-  "nativeStatementComparison": {
-    "timestamp": "2026-11-05T16:26:40.287Z",
-    "queries": [
-      {
-        "queryid": "-729088365457974005",
-        "calls": 36,
-        "meanExecMs": 1952.34539663889,
-        "maxExecMs": 5716.862511,
-        "meanPlanMs": 0,
-        "fields": [
-          "id",
-          "year",
-          "make",
-          "model",
-          "trim",
-          "body_class",
-          "fuel_type",
-          "transmission",
-          "drivetrain",
-          "reported_fuel",
-          "reported_transmission",
-          "reported_drivetrain",
-          "color",
-          "assembly_country",
-          "availability_status",
-          "vin",
-          "sell_estimate",
-          "profit_score",
-          "true_net_profit",
-          "recommended_max_bid",
-          "deal_verdict",
-          "valuation",
-          "evidence_gates",
-          "acquisition_price_missing",
-          "price_implausible",
-          "analysis_roi",
-          "is_arbitrage_opportunity",
-          "images",
-          "photo_state",
-          "placeholder_urls",
-          "title_source",
-          "location_city",
-          "location_state",
-          "location_zip",
-          "lat",
-          "lng",
-          "first_seen_at",
-          "source",
-          "ask_price",
-          "buy_now_price",
-          "title",
-          "last_seen_at",
-          "condition",
-          "damage_type",
-          "mileage",
-          "auction_end_at",
-          "source_url",
-          "price_evidence",
-          "seller_type",
-          "listing_title",
-          "listing_description",
-          "reference_only"
-        ],
-        "fieldCount": 52,
-        "rawGateAlias": true,
-        "keyset": false,
-        "sharedHitsPerCall": 8955.555555555555,
-        "sharedReadsPerCall": 0
-      },
-      {
-        "queryid": "5199154948224442562",
-        "calls": 382,
-        "meanExecMs": 1698.04707036911,
-        "maxExecMs": 7419.936199,
-        "meanPlanMs": 0,
-        "fields": [
-          "id",
-          "year",
-          "make",
-          "model",
-          "trim",
-          "body_class",
-          "fuel_type",
-          "transmission",
-          "drivetrain",
-          "reported_fuel",
-          "reported_transmission",
-          "reported_drivetrain",
-          "color",
-          "assembly_country",
-          "availability_status",
-          "vin",
-          "sell_estimate",
-          "profit_score",
-          "true_net_profit",
-          "recommended_max_bid",
-          "deal_verdict",
-          "valuation",
-          "evidence_gates",
-          "acquisition_price_missing",
-          "price_implausible",
-          "analysis_roi",
-          "is_arbitrage_opportunity",
-          "images",
-          "photo_state",
-          "placeholder_urls",
-          "title_source",
-          "location_city",
-          "location_state",
-          "location_zip",
-          "lat",
-          "lng",
-          "first_seen_at",
-          "source",
-          "ask_price",
-          "buy_now_price",
-          "title",
-          "last_seen_at",
-          "condition",
-          "damage_type",
-          "mileage",
-          "auction_end_at",
-          "source_url",
-          "price_evidence",
-          "seller_type",
-          "listing_title",
-          "listing_description",
-          "reference_only"
-        ],
-        "fieldCount": 52,
-        "rawGateAlias": true,
-        "keyset": true,
-        "sharedHitsPerCall": 7289.335078534032,
-        "sharedReadsPerCall": 0.09947643979057591
-      },
-      {
-        "queryid": "-5447126961052805391",
-        "calls": 482,
-        "meanExecMs": 256.777528923237,
-        "maxExecMs": 2477.24475,
-        "meanPlanMs": 0,
-        "fields": [
-          "id",
-          "year",
-          "make",
-          "model",
-          "trim",
-          "body_class",
-          "fuel_type",
-          "transmission",
-          "drivetrain",
-          "reported_fuel",
-          "reported_transmission",
-          "reported_drivetrain",
-          "color",
-          "assembly_country",
-          "availability_status",
-          "vin",
-          "sell_estimate",
-          "profit_score",
-          "true_net_profit",
-          "recommended_max_bid",
-          "deal_verdict",
-          "valuation",
-          "acquisition_price_missing",
-          "price_implausible",
-          "analysis_roi",
-          "is_arbitrage_opportunity",
-          "images",
-          "photo_state",
-          "placeholder_urls",
-          "title_source",
-          "location_city",
-          "location_state",
-          "location_zip",
-          "lat",
-          "lng",
-          "first_seen_at",
-          "source",
-          "ask_price",
-          "buy_now_price",
-          "title",
-          "last_seen_at",
-          "condition",
-          "damage_type",
-          "mileage",
-          "auction_end_at",
-          "source_url",
-          "price_evidence",
-          "seller_type",
-          "listing_title",
-          "listing_description",
-          "reference_only"
-        ],
-        "fieldCount": 51,
-        "rawGateAlias": false,
-        "keyset": true,
-        "sharedHitsPerCall": 3343.973029045643,
-        "sharedReadsPerCall": 0
-      }
-    ],
-    "currentVersusOlder": {
-      "sameOtherFields": true,
-      "sameParameterizedPredicateTemplate": true
+  "workerProductionABBA": [
+    {
+      "timing": "on",
+      "ordinal": 1,
+      "kind": "wrapper",
+      "executionMs": 75.305,
+      "planningMs": 17.462,
+      "cliWallMs": 7506.5193,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-1-wrapper.json"
     },
-    "helperGaps": [
-      "Current first-500 helper has all 52 selected field names and literal full-filter scope; live keyset shape also has id > parameter",
-      "Live PostgREST wrapper has CTE, count(composite row), coalesce(json_agg(row)), response-setting lookups, parameterized LIMIT/OFFSET; helper uses simple json_agg",
-      "Normalized stats do not reveal actual bind values, per-call role/settings, concurrent load, or custom/generic plan selection",
-      "Historical 51-field statement omits required gates and is not an eligible behavior-preserving replacement"
-    ],
-    "decision": "Hold unpublished; actual hot-statement latency remains unexplained by simplified first-500 helper; do not infer causal gate cost from historical aggregate means"
-  }
+    {
+      "timing": "on",
+      "ordinal": 2,
+      "kind": "simple",
+      "executionMs": 41.375,
+      "planningMs": 7.985,
+      "cliWallMs": 7572.2917,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-2-simple.json"
+    },
+    {
+      "timing": "on",
+      "ordinal": 3,
+      "kind": "simple",
+      "executionMs": 41.849,
+      "planningMs": 7.978,
+      "cliWallMs": 7658.9685,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-3-simple.json"
+    },
+    {
+      "timing": "on",
+      "ordinal": 4,
+      "kind": "wrapper",
+      "executionMs": 42.522,
+      "planningMs": 8.471,
+      "cliWallMs": 7036.1355,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-4-wrapper.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 1,
+      "kind": "wrapper",
+      "executionMs": 42.293,
+      "planningMs": 9.35,
+      "cliWallMs": 8353.8017,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-1-wrapper.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 2,
+      "kind": "simple",
+      "executionMs": 41.389,
+      "planningMs": 7.925,
+      "cliWallMs": 7650.0289,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-2-simple.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 3,
+      "kind": "simple",
+      "executionMs": 40.91,
+      "planningMs": 7.989,
+      "cliWallMs": 7640.4602,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-3-simple.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 4,
+      "kind": "wrapper",
+      "executionMs": 42.33,
+      "planningMs": 9.006,
+      "cliWallMs": 7605.7613,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-4-wrapper.json"
+    }
+  ],
+  "repairRegex": {
+    "exactByteEqual": true,
+    "prefixCodes": [92, 121],
+    "fixtures": 18,
+    "allMatch": true
+  },
+  "historicalStressControl": {
+    "classification": "16KB synthetic roots, not representative production",
+    "summary": {
+      "rows": {
+        "rawMs": 24.067,
+        "viewMs": 23.744999999999997,
+        "improvementPct": 1.337931607595474,
+        "viewWinsOf8": 5
+      },
+      "serialized": {
+        "rawMs": 36.180499999999995,
+        "viewMs": 33.6335,
+        "improvementPct": 7.039703707798393,
+        "viewWinsOf8": 8
+      },
+      "fullSerializedScan": {
+        "rawMs": 104.40549999999999,
+        "viewMs": 97.474,
+        "improvementPct": 6.639018059393409,
+        "viewWinsOf12": 9
+      }
+    }
+  },
+  "failedStrongHypotheses": [
+    "COUNT ROW alone does not explain latency; raw wrapper ABBA also runs ~42ms",
+    "No JIT section; no JIT cause established",
+    "Normalized generic/text[] cast was not faithful production bpchar[]/bind proof",
+    "Local/native body parity does not establish under-10-second SLA"
+  ],
+  "rollout": "Parent production migration and schema-cache visibility before app merge; parent cold acceptance; no worker production DDL/deploy/role/index changes"
 }
