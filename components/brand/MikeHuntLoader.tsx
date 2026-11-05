@@ -41,10 +41,10 @@ function LoaderArtwork({
           d="M16 24v-8h8M40 16h8v8M48 40v8h-8M24 48h-8v-8"
         />
       </svg>
+      <span className={styles.revealAccent} data-motion="reveal" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         className={styles.final}
-        data-motion="reveal"
         src="/brand/DEALERHUNT-D.svg"
         alt=""
         aria-hidden="true"
@@ -97,6 +97,7 @@ export function MikeHuntLoader({
   return (
     <div
       className={cn(styles.loader, className)}
+      style={{ width: size, height: size }}
       data-state={state}
       data-motion={motion}
       role="status"
