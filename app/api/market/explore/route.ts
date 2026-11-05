@@ -19,7 +19,6 @@ import {
   type DealLane,
 } from "@/lib/discovery/categorize";
 import { cached } from "@/lib/cache";
-import { fetchAllRows } from "@/lib/db/paginate";
 import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
 import {
@@ -617,28 +616,41 @@ export async function GET(req: NextRequest) {
 
         const fetchStarted = performance.now();
         const pageTimings: { offset: number; ms: number; rows: number }[] = [];
-        const data = await fetchAllRows<any>(
-          async (from, to) => {
-            const started = performance.now();
-            const result = await build()
-              .order("id", { ascending: true })
-              .range(from, to);
-            const ms = Math.round(performance.now() - started);
-            pageTimings.push({
-              offset: from,
+        // A keyset avoids rescanning and decoding every earlier row for each offset.
+        // Keep the complete eligible sample before cash-price sorting and aggregates.
+        const data: any[] = [];
+        let scanAfter: string | undefined;
+        const scanPageSize = 500;
+        for (;;) {
+          const started = performance.now();
+          let query = build()
+            .order("id", { ascending: true })
+            .limit(scanPageSize);
+          if (scanAfter) query = query.gt("id", scanAfter);
+          const result = await query;
+          const ms = Math.round(performance.now() - started);
+          pageTimings.push({
+            offset: data.length,
+            ms,
+            rows: result.data?.length ?? 0,
+          });
+          if (result.error) {
+            console.warn("market.explore.page_failed", {
+              offset: data.length,
               ms,
-              rows: result.data?.length ?? 0,
+              code: result.error.code,
             });
-            if (result.error)
-              console.warn("market.explore.page_failed", {
-                offset: from,
-                ms,
-                code: result.error.code,
-              });
-            return result;
-          },
-          { pageSize: 1000, concurrency: 3 },
-        );
+            throw result.error;
+          }
+          const batch = result.data ?? [];
+          if (!batch.length) break;
+          const nextId = batch.at(-1)?.id;
+          if (typeof nextId !== "string" || nextId === scanAfter)
+            throw new Error("Market scan did not advance");
+          data.push(...batch);
+          scanAfter = nextId;
+          if (batch.length < scanPageSize) break;
+        }
         const fetchedAt = performance.now();
         const capped = false;
 
