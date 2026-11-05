@@ -72,6 +72,7 @@ export function BrowseFilterShortcut({
           ref={floating}
           role="region"
           aria-label="Refine search while browsing"
+          style={{ top: "var(--top-nav-height, 3.5rem)" }}
           className="fixed inset-x-0 top-14 z-20 flex justify-center border-b border-[var(--b1)] bg-[var(--s0)] px-3 py-2 shadow-lg"
         >
           {current === "/feed" ? (

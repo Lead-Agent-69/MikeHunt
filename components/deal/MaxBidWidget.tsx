@@ -253,6 +253,7 @@ export function MaxBidWidget(props: MaxBidWidgetProps) {
             tabIndex={-1}
             className="scroll-mt-24 space-y-4 rounded-lg border border-[var(--b1)] bg-[var(--s1)] p-4 lg:sticky lg:top-24"
             data-testid="flip-scenario-result"
+            style={{ top: "calc(var(--top-nav-height, 3.5rem) + 2.5rem)" }}
           >
             {!m ? (
               <>

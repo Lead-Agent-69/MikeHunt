@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState, useEffect } from "react";
+import React, { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
@@ -23,6 +23,7 @@ import {
   primaryJobForPath,
   navItemIsActive,
 } from "./nav-items";
+import styles from "./TopNav.module.css";
 
 function IconBtn({
   href,
@@ -103,6 +104,7 @@ export function TopNav() {
 }
 
 function TopNavContent() {
+  const headerRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -120,6 +122,27 @@ function TopNavContent() {
   const [alertCount, setAlertCount] = useState(0);
   const [scrolled, setScrolled] = useState(false);
   const [scopedStates, setScopedStates] = useState<string[] | undefined>();
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const root = document.documentElement;
+    const update = () => {
+      // Layout pixels, not the CSS-zoom-scaled bounding rect: consumers inherit
+      // the same zoom and must not apply that scale a second time.
+      root.style.setProperty("--top-nav-height", `${header.offsetHeight}px`);
+    };
+    update();
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? undefined
+        : new ResizeObserver(update);
+    observer?.observe(header);
+    return () => {
+      observer?.disconnect();
+      root.style.removeProperty("--top-nav-height");
+    };
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -212,7 +235,8 @@ function TopNavContent() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-14 items-center justify-between gap-2 px-4 md:px-6 lg:gap-3"
+      ref={headerRef}
+      className={`${styles.header} sticky top-0 z-30 flex min-h-14 items-center justify-between gap-2 px-4 md:px-6 lg:gap-3`}
       style={{
         background: "var(--glass)",
         backdropFilter: "blur(18px) saturate(180%)",
@@ -264,7 +288,7 @@ function TopNavContent() {
       {/* Desktop sides retain their content width; auto margins give navigation the remaining space. */}
       <nav
         aria-label="Primary desktop navigation"
-        className="navigation-capsule hidden lg:flex min-h-14 items-center gap-0.5 p-1 shrink-0 lg:mx-auto"
+        className={`${styles.primaryNavigation} navigation-capsule hidden lg:flex min-h-14 items-center gap-0.5 p-1 shrink-0 lg:mx-auto`}
       >
         {primaryNav.map((item) => {
           const active = navItemIsActive(item, pathname);
@@ -309,8 +333,12 @@ function TopNavContent() {
       </nav>
 
       {/* RIGHT: Actions */}
-      <div className="flex flex-1 items-center justify-end gap-2 min-w-0 lg:flex-none">
-        <div className="hidden items-center justify-end gap-2 lg:flex">
+      <div
+        className={`${styles.actions} flex flex-1 items-center justify-end gap-2 min-w-0 lg:flex-none`}
+      >
+        <div
+          className={`${styles.actionRow} hidden items-center justify-end gap-2 lg:flex`}
+        >
           {locationButton(
             "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--b1)] bg-[var(--s0)] px-3 py-1.5 text-[12px] font-bold text-[var(--t3)] hover:text-[var(--t1)]",
           )}
@@ -334,7 +362,9 @@ function TopNavContent() {
           </IconBtn>
         </div>
 
-        <div className="flex items-center justify-end gap-2 lg:hidden">
+        <div
+          className={`${styles.actionRow} flex items-center justify-end gap-2 lg:hidden`}
+        >
           {locationButton(
             "inline-flex max-w-[92px] items-center gap-1.5 rounded-full border border-[var(--b1)] bg-[var(--s0)] px-2.5 py-2 text-[12px] font-black text-[var(--t3)] shadow-[var(--shadow2)] min-[390px]:max-w-[116px]",
             true,

@@ -4502,7 +4502,10 @@ function ScanPageInner() {
     >
       <h1 className="sr-only">Vehicle inventory</h1>
       {/* ── Search bar ── */}
-      <div className="flex flex-wrap items-center gap-2 md:sticky md:top-4 md:z-20">
+      <div
+        className="flex flex-wrap items-center gap-2 md:sticky md:top-4 md:z-20"
+        style={{ top: "calc(var(--top-nav-height, 3.5rem) + 1rem)" }}
+      >
         {newCount > 0 && (
           <button
             onClick={clearNew}

@@ -12,6 +12,7 @@ import {
   AnimatePresence,
 } from "framer-motion";
 import { CheckCircle2, X, Heart } from "lucide-react";
+import { vehicleSwipeDecision } from "@/lib/ui/vehicle-swipe";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. TEXT REVEAL — Characters slide up into view on scroll, like Framer's
@@ -592,13 +593,30 @@ function SwipeCardFace({
   onDecide: (id: string, dir: "save" | "pass") => void;
 }) {
   const x = useMotionValue(0);
+  const face = useRef<HTMLDivElement>(null);
+  const width = useMotionValue(360);
+  useEffect(() => {
+    const element = face.current;
+    if (!element) return;
+    const measure = () => {
+      const size = element.getBoundingClientRect().width;
+      if (size > 0) width.set(size);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [width]);
   const reducedMotion = useReducedMotion();
-  const rotate = useTransform(x, [-220, 220], [-9, 9]);
-  const saveOpacity = useTransform(x, [24, 130], [0, 1]);
-  const passOpacity = useTransform(x, [-24, -130], [0, 1]);
+  const progress = useTransform(() => x.get() / width.get());
+  const rotate = useTransform(progress, [-0.61, 0.61], [-9, 9]);
+  const saveOpacity = useTransform(progress, [0.067, 0.36], [0, 1]);
+  const passOpacity = useTransform(progress, [-0.067, -0.36], [0, 1]);
 
   return (
     <motion.div
+      ref={face}
       className="absolute inset-0 z-20 touch-pan-y cursor-grab active:cursor-grabbing"
       style={{ x, rotate: reducedMotion ? 0 : rotate }}
       drag="x"
@@ -608,16 +626,12 @@ function SwipeCardFace({
       onDragEnd={(event, info) => {
         if (event.type === "pointercancel" || event.type === "touchcancel")
           return;
-        if (
-          info.offset.x > 100 ||
-          (info.offset.x > 40 && info.velocity.x > 600)
-        )
-          onDecide(card.id, "save");
-        else if (
-          info.offset.x < -100 ||
-          (info.offset.x < -40 && info.velocity.x < -600)
-        )
-          onDecide(card.id, "pass");
+        const decision = vehicleSwipeDecision(
+          info.offset.x,
+          info.velocity.x,
+          width.get(),
+        );
+        if (decision) onDecide(card.id, decision);
       }}
       whileDrag={reducedMotion ? undefined : { scale: 1.01 }}
       transition={{ type: "spring", stiffness: 300, damping: 26 }}

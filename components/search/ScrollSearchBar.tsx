@@ -58,6 +58,7 @@ export function ScrollSearchBar({
       ref={root}
       hidden={!visible}
       data-scroll-search-bar
+      style={{ top: "var(--top-nav-height, 3.5rem)" }}
       className="fixed inset-x-0 top-14 z-20 border-b border-[var(--b1)] bg-[var(--s0)] px-3 py-2 shadow-lg sm:px-6"
       aria-label="Search and filters while browsing"
       role="region"

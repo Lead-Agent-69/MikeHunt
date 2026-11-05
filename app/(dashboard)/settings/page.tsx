@@ -36,6 +36,7 @@ function SettingsSectionNav({ business }: { business: boolean }) {
   return (
     <nav
       aria-label="Settings sections"
+      style={{ top: "var(--top-nav-height, 3.5rem)" }}
       className="browse-segmented sticky top-14 z-20 flex gap-1 overflow-x-auto p-1"
     >
       {[

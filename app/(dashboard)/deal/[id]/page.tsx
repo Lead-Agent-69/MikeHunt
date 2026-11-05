@@ -861,6 +861,7 @@ export default function DealPage({
 
       <nav
         aria-label="Vehicle detail sections"
+        style={{ top: "var(--top-nav-height, 3.5rem)" }}
         className="browse-segmented sticky top-14 z-20 grid grid-cols-4 gap-1 p-1"
       >
         <button

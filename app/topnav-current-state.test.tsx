@@ -47,6 +47,40 @@ afterEach(() => {
   act(() => root.unmount());
   host.remove();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+it("publishes resized header layout height for sticky controls and clears it on unmount", async () => {
+  let resize: () => void = () => {};
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(callback: () => void) {
+        resize = callback;
+      }
+      observe = vi.fn();
+      disconnect = disconnect;
+    },
+  );
+  const height = vi
+    .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+    .mockReturnValue(113);
+  await act(async () => root.render(<TopNav />));
+  expect(
+    document.documentElement.style.getPropertyValue("--top-nav-height"),
+  ).toBe("113px");
+  height.mockReturnValue(56);
+  act(() => resize());
+  expect(
+    document.documentElement.style.getPropertyValue("--top-nav-height"),
+  ).toBe("56px");
+  act(() => root.unmount());
+  expect(disconnect).toHaveBeenCalledOnce();
+  expect(
+    document.documentElement.style.getPropertyValue("--top-nav-height"),
+  ).toBe("");
+  root = createRoot(host);
 });
 
 it("marks desktop All tools current on Deal Check, matching the mobile workflow owner", async () => {

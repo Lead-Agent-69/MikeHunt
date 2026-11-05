@@ -142,7 +142,7 @@ export function MarketResultsMap({
   return (
     <section
       aria-label="Interactive results map"
-      className="overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)]"
+      className="min-w-0 overflow-hidden rounded-2xl border border-[var(--b1)] bg-[var(--s1)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--b1)] px-4 py-3">
         <div>
@@ -152,13 +152,13 @@ export function MarketResultsMap({
             current-page listings are mapped
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {points.length > 0 && (
             <select
               aria-label="Inspect mapped listing"
               value={selectedId}
               onChange={(event) => selectPoint(event.target.value)}
-              className="field min-h-10 !w-auto max-w-[14rem] text-xs"
+              className="field min-h-11 min-w-0 !w-auto max-w-full sm:max-w-[14rem] text-xs"
             >
               {points.map((point) => (
                 <option key={point.id} value={String(point.id)}>
@@ -209,7 +209,11 @@ export function MarketResultsMap({
 
       {selected && (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--b1)] px-4 py-3">
-          <div className="flex min-w-0 flex-1 items-center gap-3">
+          <div
+            role="group"
+            aria-label="Selected mapped listing"
+            className="flex min-w-0 flex-[1_1_18rem] items-start gap-3"
+          >
             {gallery.image && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -225,18 +229,18 @@ export function MarketResultsMap({
               <p className="break-words text-sm font-bold text-[var(--t1)]">
                 {selected.title}
               </p>
+              <p className="mt-1 break-words text-[10px] text-[var(--t4)]">
+                {[selected.locationCity, selected.locationState]
+                  .filter(Boolean)
+                  .join(", ") || "Location not reported"}
+                {selected.mileage != null
+                  ? ` · ${selected.mileage.toLocaleString()} mi`
+                  : " · mileage not reported"}
+              </p>
             </div>
-            <p className="text-[10px] text-[var(--t4)]">
-              {[selected.locationCity, selected.locationState]
-                .filter(Boolean)
-                .join(", ") || "Location not reported"}
-              {selected.mileage != null
-                ? ` · ${selected.mileage.toLocaleString()} mi`
-                : " · mileage not reported"}
-            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
+          <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
+            <div className="min-w-0 text-right">
               <p className="text-[10px] text-[var(--t4)]">
                 {metric === "profit"
                   ? "Estimated net profit"
@@ -252,7 +256,7 @@ export function MarketResultsMap({
             </div>
             <Link
               href={`/deal/${encodeURIComponent(selected.id)}`}
-              className="inline-flex min-h-10 items-center rounded-lg bg-[var(--blue)] px-3 text-xs font-bold text-white"
+              className="inline-flex min-h-11 shrink-0 items-center rounded-lg bg-[var(--blue)] px-3 text-xs font-bold text-white"
             >
               Review listing
             </Link>
