@@ -64,7 +64,10 @@ it("preserves a failed save for retry and counts only confirmed writes", async (
   const fetchMock = vi
     .fn()
     .mockResolvedValueOnce({ ok: false })
-    .mockResolvedValueOnce({ ok: true });
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: "saved-car" }),
+    });
   vi.stubGlobal("fetch", fetchMock);
   await act(async () => root.render(React.createElement(SwipePage)));
   expect(state.key).toContain("/api/scan?state=TX");
@@ -98,7 +101,45 @@ it("does not attribute an earlier search's pending save to a new search", async 
   act(() => state.save!("car"));
   state.query = "state=CA";
   await act(async () => root.render(React.createElement(SwipePage)));
-  await act(async () => resolve({ ok: true }));
+  await act(async () =>
+    resolve({ ok: true, json: async () => ({ id: "saved-car" }) }),
+  );
   expect(host.textContent).toContain("0 saved");
   expect(state.key).toContain("state=CA");
 });
+
+it.each([true, false])(
+  "undo restores the card and deletes only a new save (%s)",
+  async (created) => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        created
+          ? { ok: true, json: async () => ({ id: "saved-car" }) }
+          : {
+              ok: false,
+              status: 409,
+              json: async () => ({
+                error: "Deal already saved",
+                id: "existing",
+              }),
+            },
+      )
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+    await act(async () => root.render(React.createElement(SwipePage)));
+    await act(async () => state.save!("car"));
+    await act(async () =>
+      Array.from(host.querySelectorAll("button"))
+        .find((button) => button.textContent === "Undo save")!
+        .click(),
+    );
+    expect(host.textContent).toContain("Test car");
+    expect(host.textContent).toContain("0 saved");
+    expect(fetchMock).toHaveBeenCalledTimes(created ? 2 : 1);
+    if (created)
+      expect(fetchMock).toHaveBeenLastCalledWith("/api/saved-cars/saved-car", {
+        method: "DELETE",
+      });
+  },
+);

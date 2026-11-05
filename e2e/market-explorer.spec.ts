@@ -7,6 +7,41 @@ test.describe("Market Explorer home", () => {
   localOnly();
   test.use({ storageState: storagePath("personal") });
 
+  test("stages filter changes until Apply and discards them on Cancel", async ({
+    page,
+  }) => {
+    await page.goto("/market?scope=explicit&browse=1");
+    const filters = page.getByRole("button", { name: /^Filters(?: |$)/ });
+    const cleanTitle = page
+      .locator("#market-filter-panel")
+      .getByRole("button", {
+        name: "Clean title",
+        exact: true,
+      });
+    await filters.click();
+    await expect(cleanTitle).toHaveAttribute("aria-pressed", "false");
+    const originalUrl = page.url();
+    await cleanTitle.click();
+    await expect(cleanTitle).toHaveAttribute("aria-pressed", "true");
+    expect(page.url()).toBe(originalUrl);
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
+    await filters.click();
+    await expect(cleanTitle).toHaveAttribute("aria-pressed", "false");
+    await cleanTitle.click();
+    const filtered = page.waitForRequest((request) => {
+      const url = new URL(request.url());
+      return (
+        url.pathname === "/api/market/explore" &&
+        url.searchParams.get("conditions") === "clean_title"
+      );
+    });
+    await page
+      .getByRole("button", { name: "Apply filters", exact: true })
+      .click();
+    await filtered;
+    await expect(cleanTitle).toBeHidden();
+  });
+
   test("opens the whole market for personal buyers with Market first and Discover second", async ({
     page,
   }, testInfo) => {

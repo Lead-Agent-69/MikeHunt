@@ -4,6 +4,15 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ## Released foundation
 
+### November 4 private pilot evidence
+
+- PR #630 passed CI and deployed. The Missouri and Florida cash-price feed returned 50 listings in 3.41 s, 1.23 s, and 1.38 s on three uncached runs. Three consecutive cursor pages returned 150 unique listings.
+- The same scope returned HTTP 500 for price ascending (10.10 s), mileage ascending (30.57 s), and aggregate Insights (25.17 s). These paths still read the full result set and remain open.
+- PR #631 shipped keyboard navigation and Back restoration in Market Table. It passed 137 focused tests, type checking, and CI on the merged revision. Vercel deployed merge `88cca474`. A fresh production feed smoke check returned 50 listings with a continuation in 3.75 s.
+- The app and Playwright reached isolated Auth by sharing the local Kong container's network namespace and using loopback. Applying the existing atomic owner preferences migration to the isolated database restored preference saves. A service-role write was confirmed in a rolled-back transaction.
+- After that migration, all six desktop account setup checks, Market Back restoration, and the light and dark outcome ledger tests passed. The purchase retry rerun passed after the assertion was scoped to the recorded vehicle's visible Purchase cost row. It verified matching retry submissions, a single stored purchase, retained photos, and cents. Grid/Table later-batch restoration and the full owner and isolation suites remain open.
+- The inventory owner-guard and stage-transition test passed at desktop and 390 px after explicitly persisting the reseller fixture mode. The Pipeline financial evidence rerun passed at both sizes after opening Costs and performance before checking the metrics. That run used mocked financial and sale-review responses; it verifies UI behavior separately from persisted inventory isolation.
+
 ### November 3 private pilot evidence
 
 - PR #628 deployed a narrower Market analysis projection. The 49 Market route tests, full local gate, and CI passed. A read-only 500-row sample transferred 659,726 bytes before the change and 260,412 bytes with the new projection.

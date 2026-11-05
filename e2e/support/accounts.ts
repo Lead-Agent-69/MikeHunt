@@ -72,10 +72,8 @@ export async function completeOnboarding(page: Page, desk: Desk) {
     await page.getByRole("button", { name: /^Continue/ }).click();
   }
   await page.waitForURL(/\/market(?:\?|$)/, { timeout: 30_000 });
-  if (desk !== "reseller") {
-    const legacy = await page.request.put("/api/preferences", {
-      data: { buyerScope: { buyerMode: desk } },
-    });
-    expect(legacy.ok()).toBe(true);
-  }
+  const preferences = await page.request.put("/api/preferences", {
+    data: { buyerScope: { buyerMode: desk } },
+  });
+  expect(preferences.ok()).toBe(true);
 }

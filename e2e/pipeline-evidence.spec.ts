@@ -107,6 +107,7 @@ test.describe("Pipeline financial evidence", () => {
       });
     });
     await page.goto("/fleet");
+    await page.getByText(/^Costs and performance ·/).click();
     const metrics = page.getByRole("region", { name: "Pipeline metrics" });
     await expect(metrics).toContainText("Avg recorded net");
     await expect(metrics).toContainText("-$13,820");

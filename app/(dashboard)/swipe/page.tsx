@@ -115,6 +115,14 @@ export default function SwipePage() {
   const [runId, setRunId] = useState(0);
   const [decided, setDecided] = useState(0);
   const [saved, setSaved] = useState(0);
+  const [undoVersion, setUndoVersion] = useState(0);
+  const [undoing, setUndoing] = useState(false);
+  const [lastDecision, setLastDecision] = useState<{
+    id: string;
+    scope: string;
+    kind: "pass" | "save";
+    savedId?: string;
+  } | null>(null);
   const [passed, setPassed] = useState(0);
   const [failedSaves, setFailedSaves] = useState<string[]>([]);
   const [pendingSaves, setPendingSaves] = useState<string[]>([]);
@@ -197,16 +205,33 @@ export default function SwipePage() {
     decidedIds.current.clear();
   }, [batch, runId]);
 
+  const savesInFlight = useRef(new Set<string>());
   const persistSave = useCallback((id: string) => {
+    if (savesInFlight.current.has(id)) return;
+    savesInFlight.current.add(id);
     const scope = currentScope.current;
+    const decisionScope = currentPhotoScope.current;
     setPendingSaves((ids) => [...ids, id]);
     fetch("/api/saved-cars", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ dealId: id }),
     })
-      .then((res) => {
-        if (!res.ok) throw new Error();
+      .then(async (res) => {
+        let savedId: string | undefined;
+        if (!res.ok) {
+          const conflict = res.status === 409 ? await res.json() : null;
+          if (conflict?.error !== "Deal already saved" || !conflict.id)
+            throw new Error();
+        } else {
+          const result = await res.json();
+          if (typeof result.id === "string") savedId = result.id;
+        }
+        setLastDecision((decision) =>
+          decision?.id === id && decision.scope === decisionScope
+            ? { ...decision, savedId }
+            : decision,
+        );
         if (currentScope.current === scope) setSaved((n) => n + 1);
         setFailedSaves((ids) => ids.filter((value) => value !== id));
         toast.success("Saved to your garage");
@@ -215,24 +240,65 @@ export default function SwipePage() {
         setFailedSaves((ids) => (ids.includes(id) ? ids : [...ids, id]));
         toast.error("Couldn't save. Sign in if needed, then retry.");
       })
-      .finally(() =>
-        setPendingSaves((ids) => ids.filter((value) => value !== id)),
-      );
+      .finally(() => {
+        savesInFlight.current.delete(id);
+        setPendingSaves((ids) => ids.filter((value) => value !== id));
+      });
   }, []);
   const onSave = useCallback(
     (id: string) => {
+      if (decidedIds.current.has(id)) return;
       decidedIds.current.add(id);
       setDecided((n) => n + 1);
+      setLastDecision({ id, scope: photoScope, kind: "save" });
       persistSave(id);
     },
-    [persistSave],
+    [persistSave, photoScope],
   );
 
-  const onPass = useCallback((id: string) => {
-    decidedIds.current.add(id);
-    setDecided((n) => n + 1);
-    setPassed((n) => n + 1);
-  }, []);
+  const onPass = useCallback(
+    (id: string) => {
+      if (decidedIds.current.has(id)) return;
+      decidedIds.current.add(id);
+      setDecided((n) => n + 1);
+      setPassed((n) => n + 1);
+      setLastDecision({ id, scope: photoScope, kind: "pass" });
+    },
+    [photoScope],
+  );
+
+  const undoDecision = async () => {
+    const decision = lastDecision;
+    if (
+      decision?.scope !== photoScope ||
+      undoing ||
+      savesInFlight.current.has(decision.id)
+    )
+      return;
+    setUndoing(true);
+    try {
+      if (decision.savedId) {
+        const response = await fetch(
+          `/api/saved-cars/${encodeURIComponent(decision.savedId)}`,
+          { method: "DELETE" },
+        );
+        if (!response.ok && response.status !== 404) throw new Error();
+      }
+      setFailedSaves((ids) => ids.filter((id) => id !== decision.id));
+      if (currentPhotoScope.current !== decision.scope) return;
+      decidedIds.current.delete(decision.id);
+      setLastDecision(null);
+      setDecided((count) => count - 1);
+      if (decision.kind === "pass") setPassed((count) => count - 1);
+      else if (!failedSaves.includes(decision.id))
+        setSaved((count) => count - 1);
+      setUndoVersion((version) => version + 1);
+    } catch {
+      toast.error("Couldn't undo the save. Try again.");
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   const nextBatch = useCallback(() => {
     setBatch((b) => b + 1);
@@ -290,6 +356,16 @@ export default function SwipePage() {
           </select>
         </label>
       </InventoryViewLinks>
+      {lastDecision?.scope === photoScope && (
+        <button
+          type="button"
+          disabled={undoing || pendingSaves.includes(lastDecision.id)}
+          onClick={() => void undoDecision()}
+          className="feedback-control min-h-11 rounded-xl border border-[var(--b1)] px-4 text-sm font-semibold"
+        >
+          {lastDecision.kind === "pass" ? "Undo pass" : "Undo save"}
+        </button>
+      )}
       {failedSaves.length > 0 && (
         <div
           role="status"
@@ -301,7 +377,7 @@ export default function SwipePage() {
           </span>
           <button
             type="button"
-            disabled={pendingSaves.length > 0}
+            disabled={undoing || pendingSaves.length > 0}
             onClick={() => failedSaves.forEach(persistSave)}
             className="inline-flex min-h-11 items-center gap-2 px-2 disabled:opacity-50"
           >
@@ -391,13 +467,19 @@ export default function SwipePage() {
           />
         </div>
       ) : (
-        <SwipeCardStack
-          key={`${batch}:${runId}`}
-          cards={cards}
-          onSave={onSave}
-          onPass={onPass}
-          height="clamp(360px, calc(100svh - 450px), 560px)"
-        />
+        <div
+          ref={(node) => {
+            if (node) node.inert = undoing;
+          }}
+        >
+          <SwipeCardStack
+            key={`${batch}:${runId}:${undoVersion}`}
+            cards={cards.filter((card) => !decidedIds.current.has(card.id))}
+            onSave={onSave}
+            onPass={onPass}
+            height="clamp(360px, calc(100svh - 450px), 560px)"
+          />
+        </div>
       )}
     </div>
   );

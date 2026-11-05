@@ -524,9 +524,20 @@ export default function DiscoverPage() {
           onSubmit={openInventorySearch}
           disabled={!discoverReady}
         />
-        <p className="text-xs font-bold text-[var(--t1)] md:text-sm">
-          {activeScopeLabel}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-x-3">
+          <p className="text-xs font-bold text-[var(--t1)] md:text-sm">
+            {activeScopeLabel}
+          </p>
+          <Link
+            href={inventorySearchHref(scopeQuery, browseSearch, {
+              path: "/feed",
+            })}
+            prefetch={false}
+            className="feedback-control inline-flex min-h-11 items-center px-2 text-sm font-semibold text-[var(--blue)]"
+          >
+            Browse feed
+          </Link>
+        </div>
         <div className="grid grid-cols-2 items-start gap-x-3">
           <div className="col-span-2 min-w-0">
             <div className="flex items-center justify-between gap-2 lg:hidden">

@@ -85,6 +85,14 @@ function click(detail = 1) {
 }
 
 describe("mobile navigation scrub", () => {
+  it("selects the matching tab when the dock flows right to left", () => {
+    (host.firstElementChild as HTMLElement).style.direction = "rtl";
+    pointer("pointerdown", 364);
+    pointer("pointermove", 124);
+    pointer("pointerup", 124);
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(3);
+  });
+
   it("previews while dragging, commits once on release and suppresses the origin link", () => {
     pointer("pointerdown", 44);
     pointer("pointermove", 284);

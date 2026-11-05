@@ -604,7 +604,10 @@ function SwipeCardFace({
       drag="x"
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.9}
-      onDragEnd={(_, info) => {
+      dragMomentum={false}
+      onDragEnd={(event, info) => {
+        if (event.type === "pointercancel" || event.type === "touchcancel")
+          return;
         if (
           info.offset.x > 100 ||
           (info.offset.x > 40 && info.velocity.x > 600)
@@ -680,7 +683,7 @@ export function SwipeCardStack({
   const decide = useCallback(
     (id: string, dir: "save" | "pass") => {
       const card = stack.find((c) => c.id === id);
-      if (!card || leaving) return;
+      if (!card || leaving || decidedIds.current.has(id)) return;
       decidedIds.current.add(id);
       if (dir === "save") onSave(id);
       else onPass(id);

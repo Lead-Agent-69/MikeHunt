@@ -65,6 +65,7 @@ function FeedContents() {
     setItems((previous) => previous.filter((item) => item.id !== id));
     setHiddenPhotos((previous) => previous + 1);
   }, []);
+  const retryRefresh = useRef(false);
   const offset = useRef(0);
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -82,8 +83,6 @@ function FeedContents() {
       if (reset) {
         request.current?.abort();
         generation.current++;
-        offset.current = 0;
-        setHiddenPhotos(0);
       }
       const token = generation.current;
       const controller = new AbortController();
@@ -91,7 +90,7 @@ function FeedContents() {
       busy.current = true;
       setLoading(true);
       try {
-        const cursor = offset.current;
+        const cursor = reset ? 0 : offset.current;
         const response = await fetch(
           `/api/feed?${query}&browse=all&offset=${cursor}&limit=12`,
           { signal: controller.signal },
@@ -100,12 +99,19 @@ function FeedContents() {
         if (token !== generation.current || controller.signal.aborted) return;
         if (!response.ok || data.error || data.degraded)
           throw new Error("Feed unavailable");
+        retryRefresh.current = false;
         setFailed(false);
+        if (reset) setHiddenPhotos(0);
         const next: FeedVehicle[] = data.items || [];
         setItems((previous) => {
-          if (reset) return next;
-          const seen = new Set(previous.map((item) => item.id));
-          return [...previous, ...next.filter((item) => !seen.has(item.id))];
+          const retained = reset ? [] : previous;
+          const seen = new Set(retained.map((item) => item.id));
+          const unique = next.filter((item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+          });
+          return [...retained, ...unique];
         });
         offset.current = data.nextOffset ?? cursor + 12;
         setDone(
@@ -116,8 +122,10 @@ function FeedContents() {
         setBoundedPool(Boolean(data.boundedPool));
         setCapped(Boolean(data.capped));
       } catch {
-        if (token === generation.current && !controller.signal.aborted)
+        if (token === generation.current && !controller.signal.aborted) {
+          retryRefresh.current = reset;
           setFailed(true);
+        }
       } finally {
         if (token === generation.current && !controller.signal.aborted) {
           busy.current = false;
@@ -141,16 +149,23 @@ function FeedContents() {
 
   useEffect(() => {
     const node = sentinel.current;
-    if (!node) return;
+    if (
+      !node ||
+      loading ||
+      failed ||
+      done ||
+      typeof IntersectionObserver === "undefined"
+    )
+      return;
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !failed) void loadMore();
+        if (entry.isIntersecting) void loadMore();
       },
       { rootMargin: "400px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, [loadMore, failed]);
+  }, [loadMore, loading, failed, done]);
 
   if (viewReady && !prefsLoading && viewIssue)
     return (
@@ -222,7 +237,7 @@ function FeedContents() {
           compact
           title="Feed temporarily unavailable"
           message="Your existing cars are still here. Try again when your connection is ready."
-          onRetry={() => void loadMore()}
+          onRetry={() => void loadMore(retryRefresh.current)}
           retryLabel="Try again"
         />
       )}

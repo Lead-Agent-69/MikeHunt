@@ -18,7 +18,12 @@ export function inventorySearchHref(
   {
     openFilters = false,
     currentQuery = "",
-  }: { openFilters?: boolean; currentQuery?: string } = {},
+    path = "/market",
+  }: {
+    openFilters?: boolean;
+    currentQuery?: string;
+    path?: "/market" | "/feed";
+  } = {},
 ) {
   const params = new URLSearchParams(scopeQuery);
   const explicit = new URLSearchParams(currentQuery);
@@ -42,5 +47,5 @@ export function inventorySearchHref(
   params.delete("page");
   if (openFilters) params.set("filters", "open");
   else params.delete("filters");
-  return `/market?${params.toString()}`;
+  return `${path}?${params.toString()}`;
 }
