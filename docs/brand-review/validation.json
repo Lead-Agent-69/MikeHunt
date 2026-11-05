@@ -9,20 +9,6 @@
     "legacyAppTypeFixturesPresent": false,
     "generatedValidator": "validator.ts"
   },
-  "fullGate": {
-    "command": "npm run verify",
-    "exitCode": 0,
-    "typecheck": "passed",
-    "lint": {
-      "errors": 0,
-      "warnings": 193
-    },
-    "testFilesPassed": 776,
-    "testsPassed": 5887,
-    "build": "passed",
-    "durationSeconds": 772.5,
-    "validatedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61"
-  },
   "targetedTestsPassed": 30,
   "browser": {
     "stateSizeThemeCases": 16,
@@ -44,7 +30,8 @@
     "high": 0,
     "critical": 0,
     "moderate": 6,
-    "low": 6
+    "low": 6,
+    "evidence": "test-results/dh-brand-review/startup-production-audit.log"
   },
   "limitations": [
     "Raster embedded in SVG; not vector artwork",
@@ -54,12 +41,61 @@
     "Screen-reader speech output not manually tested"
   ],
   "startupAcceptance": {
-    "status": "not_implemented_no_eligible_shared_blocking_client_stage",
-    "maximumDurationValidated": false,
-    "firstSessionGuardImplemented": false,
-    "usableContentTerminationValidated": false,
-    "repeatSessionSkipValidated": false,
-    "followupScope": "documentation only",
+    "acceptanceStatus": "implemented_verified_dashboard_route_boundary_design_review_pending",
+    "scope": "first eligible dashboard group fallback per browser session, not global app initialization",
+    "maximumDurationValidated": true,
+    "firstSessionGuardImplemented": true,
+    "repeatSessionSkipValidated": true,
+    "usableContentTerminationValidated": true,
+    "errorRouteUnmountValidated": true,
+    "neutralPendingAfterCapValidated": true,
+    "reducedMotionValidated": true,
+    "staticAppMotionValidated": true,
     "evidence": "startup-acceptance.json"
-  }
+  },
+  "previousFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 776,
+    "testsPassed": 5887,
+    "build": "passed",
+    "durationSeconds": 772.5,
+    "validatedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61"
+  },
+  "fullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 777,
+    "testsPassed": 5897,
+    "build": "passed",
+    "durationSeconds": 1429.0,
+    "stageDurationSeconds": {
+      "Typecheck": 22.0,
+      "Lint": 47.7,
+      "Tests": 1242.6,
+      "Build": 116.8
+    },
+    "sourceGitBlobIds": {
+      "app/(dashboard)/loading.tsx": "950d31d2ec3118ee15b8982b95d5a425a7281722",
+      "components/brand/BrandStartupLoader.tsx": "b915e7ed4edad94529341fbe5479158549382fb0",
+      "components/brand/BrandStartupLoader.module.css": "9980c91c6777fadda5799af80e2be1032c85993d",
+      "components/brand/MikeHuntLoader.tsx": "7b6d6b45b607a9759ae8b72a9bf95a139b686532",
+      "components/brand/MikeHuntLoader.module.css": "c6d87dcc995487978f8c22104807a33920d19810",
+      "app/brand-startup-loader.test.tsx": "179b74ed6acb87607a49c3ea169029fb554dbc0f"
+    },
+    "evidence": "test-results/dh-brand-review/startup-full-verify.log"
+  },
+  "startupTargetedTestsPassed": 10,
+  "combinedTargetedTestsPassed": 40,
+  "startupBrowserEvidence": "test-results/dh-brand-review/startup-browser-checks.json"
 }

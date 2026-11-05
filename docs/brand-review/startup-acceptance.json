@@ -1,42 +1,83 @@
 {
-  "reviewedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61",
-  "acceptanceStatus": "not_implemented_no_eligible_shared_blocking_client_stage",
-  "appWideBlockingClientInitializationFound": false,
-  "dashboardGroupLoadingFileExists": false,
-  "routeLoadingFiles": [
-    "app/(dashboard)/deal/[id]/loading.tsx",
-    "app/(dashboard)/discover/loading.tsx",
-    "app/(dashboard)/find/loading.tsx",
-    "app/(dashboard)/fleet/loading.tsx",
-    "app/(dashboard)/map/loading.tsx"
+  "acceptanceStatus": "implemented_verified_dashboard_route_boundary_design_review_pending",
+  "scope": "first eligible dashboard group fallback per browser session, not global app initialization",
+  "installedGuide": "node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/loading.md",
+  "dashboardGroupLoadingFileExists": true,
+  "eligibleRouteBlockingStageIntegrated": true,
+  "appWideBlockingClientInitializationInvented": false,
+  "startupAnimationIntegrated": true,
+  "startupAnimationMaximumMs": 1300,
+  "sharedVisualGuardMs": 200,
+  "reservedArtworkSlotPx": 64,
+  "maximumDurationValidated": true,
+  "firstSessionGuardImplemented": true,
+  "sessionStorageKey": "dealerhunt:dashboard-route-startup:v1",
+  "moduleFallbackIfStorageBlocked": true,
+  "repeatSessionSkipValidated": true,
+  "usableContentTerminationValidated": true,
+  "errorRouteUnmountValidated": true,
+  "neutralPendingAfterCapValidated": true,
+  "reducedMotionValidated": true,
+  "staticAppMotionValidated": true,
+  "staticAppMotionInputs": [
+    "motion=\"static\"",
+    "html[data-motion=\"static\"]",
+    "html[data-app-motion=\"static\"]"
   ],
-  "genuineWaitsPresent": [
-    "server-side home-page account lookup before landing or redirect",
-    "route-segment Suspense fallbacks",
-    "page-specific identity, preferences, permissions and data loading"
-  ],
-  "startupAnimationIntegrated": false,
-  "startupAnimationMaximumMsRequired": 1300,
-  "maximumDurationValidated": false,
-  "firstSessionGuardImplemented": false,
-  "repeatSessionSkipValidated": false,
-  "usableContentTerminationValidated": false,
-  "mobileSplashScreenHasCallers": false,
   "noArtificialContentDelayAdded": true,
-  "followupScope": "documentation only; no application, hook, provider, test, or loading component changes",
-  "evidenceGitBlobIds": {
-    "app/layout.tsx": "eb1a29779b8e4494a64acfececa5632a3b746667",
-    "app/(dashboard)/layout.tsx": "16cd2e4ec0ac6a8dafcf8396f96bc6c3f55c9da2",
-    "app/page.tsx": "d84e664114e121125bb1241fc834327aaa0bd59f",
-    "app/(dashboard)/market/layout.tsx": "a87abadbc3058982aae1531e0ab7c1f4abdcbb7e",
-    "components/layout/TopNav.tsx": "4489eb3cd1040cf6dfd13f51738c730831e93263",
-    "components/providers/SWRProvider.tsx": "44681699728b2ebcc586cda8ee7d8a77edc8a7f9",
-    "components/discovery/DiscoverySaveProvider.tsx": "4135e9ffced4b64141f63409b037dac7084952ba",
-    "components/ui/responsive-design-system.tsx": "39bbf64ff886a61415cd5e55ca892cb279e4bbb9",
-    "components/ui/framer-components.tsx": "97811f788385a4f85e1aa058856fb4fef5116d47",
-    "components/ui/mobile-ux.tsx": "a0f8eec1e719f12e47505d15ed24fc10c6136bfc",
-    "components/PWARegister.tsx": "271bb2802bad14469bb40fddecaacda189d5b995",
-    "components/shared/FlipDeskGate.tsx": "b2783b3f75542ff1b6605db9f753660e067b1909",
-    "hooks/useDealerId.ts": "7ddd1d2c1949353962f74e7654c5615d65f98a65"
-  }
+  "targetedStartupTestsPassed": 10,
+  "sourceGitBlobIds": {
+    "app/(dashboard)/loading.tsx": "950d31d2ec3118ee15b8982b95d5a425a7281722",
+    "components/brand/BrandStartupLoader.tsx": "b915e7ed4edad94529341fbe5479158549382fb0",
+    "components/brand/BrandStartupLoader.module.css": "9980c91c6777fadda5799af80e2be1032c85993d",
+    "components/brand/MikeHuntLoader.tsx": "7b6d6b45b607a9759ae8b72a9bf95a139b686532",
+    "components/brand/MikeHuntLoader.module.css": "c6d87dcc995487978f8c22104807a33920d19810",
+    "app/brand-startup-loader.test.tsx": "179b74ed6acb87607a49c3ea169029fb554dbc0f"
+  },
+  "previousAbsenceFinding": {
+    "runtimeCommit": "03612d61761820a5bedd762d15037d990df1ea61",
+    "documentationCommit": "711a955c4a8abc6c16d1ef26788cfa1709b09c7e",
+    "supersededBy": "new genuine dashboard Next loading boundary; still no invented global initialization"
+  },
+  "limitations": [
+    "Nested route loading boundaries can handle suspension without mounting the dashboard group fallback",
+    "Session-storage failure falls back to once per JS document; full reload cannot persist protection without storage",
+    "Boundary does not cover pending work in its own layout or sibling error/template files",
+    "Browser captures use the real components with a controlled React Suspense route harness; no slow production request was invented",
+    "Screen-reader speech and mobile installation were not manually tested"
+  ],
+  "fullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 777,
+    "testsPassed": 5897,
+    "build": "passed",
+    "durationSeconds": 1429.0,
+    "stageDurationSeconds": {
+      "Typecheck": 22.0,
+      "Lint": 47.7,
+      "Tests": 1242.6,
+      "Build": 116.8
+    },
+    "sourceGitBlobIds": {
+      "app/(dashboard)/loading.tsx": "950d31d2ec3118ee15b8982b95d5a425a7281722",
+      "components/brand/BrandStartupLoader.tsx": "b915e7ed4edad94529341fbe5479158549382fb0",
+      "components/brand/BrandStartupLoader.module.css": "9980c91c6777fadda5799af80e2be1032c85993d",
+      "components/brand/MikeHuntLoader.tsx": "7b6d6b45b607a9759ae8b72a9bf95a139b686532",
+      "components/brand/MikeHuntLoader.module.css": "c6d87dcc995487978f8c22104807a33920d19810",
+      "app/brand-startup-loader.test.tsx": "179b74ed6acb87607a49c3ea169029fb554dbc0f"
+    },
+    "evidence": "test-results/dh-brand-review/startup-full-verify.log"
+  },
+  "nextBuildClientReferenceManifests": [
+    ".next/server/app/(dashboard)/admin/page_client-reference-manifest.js",
+    ".next/server/app/(dashboard)/alerts/page_client-reference-manifest.js",
+    ".next/server/app/(dashboard)/arbitrage/page_client-reference-manifest.js"
+  ],
+  "designReviewPending": true
 }

@@ -54,22 +54,24 @@ completion: the loop stays pending until actual settlement. Completion or error
 interrupts any beat immediately and displays the static mark. Reduced motion
 removes all four animations and keeps a static HUD after the same anti-flash guard.
 
-## Startup acceptance — explicitly not implemented
+## Startup acceptance — genuine dashboard route boundary
 
-The first-session startup requirement (maximum 1300 ms, immediate stop on usable
-content, skip repeats) is **not implemented or validated**. The inspected branch
-has no shared blocking client initialization owner or `app/(dashboard)/loading.tsx`.
-Its shell/providers render children immediately; real server-side and route-local
-waits remain separate. MobileSplashScreen is an unused export without a duration
-cap or first-session guard. The request-loader timings and four visual beats do
-not establish startup acceptance.
+`app/(dashboard)/loading.tsx` now mounts the shared BrandStartupLoader only as
+Next's genuine route-child Suspense fallback, inside the existing dashboard shell.
+No global boot barrier, full-screen background, new request, or content delay was
+added. The first eligible fallback claims a session guard (module fallback if
+storage fails); repeats are static. A fixed 64 px slot uses the shared 200 ms
+visual guard, caps animation at 1300 ms from client mount, then remains static and
+still pending with neutral “Loading workspace” text. Next unmounts it immediately
+when usable content or an error route replaces the fallback. Reduced/static app
+motion is honored.
 
-[Startup architecture audit and acceptance matrix](brand-review/startup-acceptance.md)
+[Boundary contract, acceptance matrix, tests, and limitations](brand-review/startup-acceptance.md)
 · [Machine-readable findings](brand-review/startup-acceptance.json).
 
-No runtime changes were made for this finding. No fake splash or content delay
-was added. The full-gate results below apply to the unchanged application-code
-commit `03612d61761820a5bedd762d15037d990df1ea61`, not a claimed startup integration.
+The previous no-boundary finding was accurate at `03612d61`/`711a955c` and is now
+superseded by this implementation. The new code's full gate passed: 5897 tests in 777 files, typecheck, lint,
+and the default production build. Prior 5887-test results are historical.
 
 ## Clean build and stale generated types
 
@@ -105,7 +107,7 @@ include React 18 deprecation and broad filesystem tracing in an unrelated scrape
   from each beat; zero animations under reduced motion.
 - Pixel extraction: 153,064 retained pixels, zero changed RGB samples, zero crop-edge pixels.
 - Clean default production build: passed.
-- Full `npm run verify` gate: **passed** — typecheck, lint (zero errors; 193 warnings), **5887 tests in 776 files**, and default production build. The complete gate took 772.5 seconds; all checks remained enabled.
+- New full `npm run verify` gate: **passed** — typecheck, lint (0 errors; 193 warnings), **5897 tests in 777 files**, and the default production build; 1429.0 seconds. See `startup-full-verify.log`. The prior 5887-test gate remains historical.
 - Production audit: passed, zero high/critical findings (6 low, 6 moderate).
 
 A compact machine-readable summary is included at `docs/brand-review/validation.json`.
@@ -141,6 +143,11 @@ npm run verify
 node scripts/audit-production-dependencies.mjs
 ```
 
+Startup-specific local evidence: `startup-tests.log`, `startup-browser-checks.json`,
+`startup-full-verify.log`, and `startup-{pending-200ms,capped-1300ms,reduced-motion}.png`
+under the same evidence directory. Run `node scripts/preview-brand-startup.mjs` to
+reproduce the startup browser scenarios.
+
 ## Review media
 
 These selected captures are also included in the branch for remote review:
@@ -153,6 +160,12 @@ These selected captures are also included in the branch for remote review:
 
 ## Changed paths
 
+- `app/(dashboard)/loading.tsx`
+- `app/brand-startup-loader.test.tsx`
+- `components/brand/BrandStartupLoader.tsx`
+- `components/brand/BrandStartupLoader.module.css`
+- `scripts/preview-brand-startup.mjs`
+
 - `app/(dashboard)/deal-check/page.tsx`
 - `app/dealerhunt-loader.test.tsx`
 - `app/offer-review-workflow.test.ts`
@@ -162,6 +175,9 @@ These selected captures are also included in the branch for remote review:
 - `docs/brand-review/branding-compact-200ms.png`
 - `docs/brand-review/branding-reduced-motion.png`
 - `docs/brand-review/branding-motion.webm`
+- `docs/brand-review/startup-pending-200ms.png`
+- `docs/brand-review/startup-capped-1300ms.png`
+- `docs/brand-review/startup-reduced-motion.png`
 - `docs/brand-review/startup-acceptance.md`
 - `docs/brand-review/startup-acceptance.json`
 - `docs/brand-review/validation.json`

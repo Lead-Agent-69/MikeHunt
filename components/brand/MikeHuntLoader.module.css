@@ -130,6 +130,20 @@
     filter: drop-shadow(0 0 2px rgb(0 188 232 / 65%));
   }
 }
+.loader[data-state="loading"][data-motion="static"]
+  .visual:not([hidden])
+  [data-motion],
+:global(html[data-motion="static"])
+  .loader[data-state="loading"]
+  .visual:not([hidden])
+  [data-motion],
+:global(html[data-app-motion="static"])
+  .loader[data-state="loading"]
+  .visual:not([hidden])
+  [data-motion] {
+  animation: none;
+  filter: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .loader[data-state="loading"] .visual:not([hidden]) .arc,
   .loader[data-state="loading"] .visual:not([hidden]) .scanLine,

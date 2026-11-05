@@ -78,11 +78,13 @@ export function MikeHuntLoader({
   size = 64,
   label = "Loading",
   className,
+  motion = "animated",
 }: {
   state: MikeHuntLoaderState;
   size?: number;
   label?: string;
   className?: string;
+  motion?: "animated" | "static";
 }) {
   const announcement =
     state === "loading"
@@ -96,6 +98,7 @@ export function MikeHuntLoader({
     <div
       className={cn(styles.loader, className)}
       data-state={state}
+      data-motion={motion}
       role="status"
       aria-live="polite"
       aria-atomic="true"
