@@ -52,10 +52,11 @@ const localFetch: typeof fetch = async (input, init) => {
     headers: response.headers,
   });
 };
-const legacyFields = readFileSync(
-  "supabase/tests/market-candidate-legacy-select.txt",
-  "utf8",
-).trim();
+const legacyFields =
+  readFileSync(
+    "supabase/tests/market-candidate-legacy-select.txt",
+    "utf8",
+  ).trim() + ",evidence_gates:deal_analysis->evidenceGates";
 const token = (role: string) => {
   const header = Buffer.from(
     JSON.stringify({ alg: "HS256", typ: "JWT" }),
@@ -158,6 +159,48 @@ describe.skipIf(!endpoint)(
       expect(
         view.data!.filter((row: any) => row.analysis_roi === "20").length,
       ).toBeGreaterThan(0);
+      for (const costsConfirmed of [true, false, "true"])
+        expect(
+          view.data!.some(
+            (row: any) => row.evidence_gates?.costsConfirmed === costsConfirmed,
+          ),
+        ).toBe(true);
+    });
+
+    it("uses decoded purchase gates for row economics and aggregate evidence", async () => {
+      const search = "mode=all&aggregate=1&hasPhotos=any&pageSize=200";
+      const result = await paired(search);
+      const rows = [...result.rows];
+      for (let page = 1; rows.length < result.total; page++) {
+        const next = await request(`${search}&page=${page}`);
+        rows.push(...next.rows);
+      }
+      const raw = await client()
+        .from("market_candidate_projection")
+        .select("id,valuation,evidence_gates:deal_analysis->evidenceGates");
+      expect(raw.error).toBeNull();
+      const evidence = new Map(raw.data!.map((row: any) => [row.id, row]));
+      const supported = rows.filter((row: any) => row.profitEstimate != null);
+      expect(supported.length).toBeGreaterThan(0);
+      expect(supported.length).toBeLessThan(rows.length);
+      for (const row of rows) {
+        const stored: any = evidence.get(row.id);
+        if (row.profitEstimate != null) {
+          expect(stored.valuation.compKind).toBe("sold");
+          expect(stored.valuation.soldAnchored).toBe(true);
+          expect(stored.evidence_gates).toMatchObject({
+            priceMeaningConfirmed: true,
+            titleReviewed: true,
+            conditionInspected: true,
+            costsConfirmed: true,
+          });
+        } else {
+          expect(row).not.toHaveProperty("recommendedMaxBid");
+          expect(row).not.toHaveProperty("dealVerdict");
+          expect(row).not.toHaveProperty("roi");
+        }
+      }
+      expect(result.facets.profitEvidence).toBe(supported.length);
     });
 
     it.each(["asc", "desc"])(

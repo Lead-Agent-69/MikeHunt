@@ -186,7 +186,17 @@ const rows = Array.from({ length: 520 }, (_, offset) => {
               resaleEvidence: true,
               compCount: 8,
               confidence: "medium",
-              compKind: "ask",
+              compKind: i % 5 === 0 ? "sold" : "ask",
+              soldLane: "clean",
+              soldAnchored: i % 5 === 0,
+              soldCount: i % 5 === 0 ? 3 : 0,
+              soldAt: new Date(Date.now() - 86400000).toISOString(),
+            },
+            evidenceGates: {
+              priceMeaningConfirmed: true,
+              titleReviewed: true,
+              conditionInspected: true,
+              costsConfirmed: i % 7 === 0 ? "true" : i % 11 !== 0,
             },
             acquisitionPriceMissing:
               i % 71 === 0 ? true : i % 73 === 0 ? "true" : false,
