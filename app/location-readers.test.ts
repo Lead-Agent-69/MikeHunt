@@ -20,7 +20,10 @@ describe("legacy location readers prefer the #66 fields", () => {
     expect(src).toContain("JSON.stringify(savedScopeStates(prefs) || [])");
     expect(src).not.toContain("prefs.carsStates as string[]");
     // Seeding waits for prefs to load instead of seeding "all states" from the empty default.
-    expect(src).toContain("const ready = viewReady && !prefsLoading");
+    expect(src).toContain(
+      "scopeReady={authReady && viewReady && !prefsLoading}",
+    );
+    expect(src).toContain("const ready = scopeReady && !viewIssue");
     expect(src).toContain("if (!ready ||");
   });
 

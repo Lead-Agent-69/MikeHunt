@@ -144,3 +144,29 @@ it("cancels restoration when results unmount before the frame", async () => {
   await act(async () => vi.runAllTimers());
   expect(scrollTo).not.toHaveBeenCalled();
 });
+
+it("restores the mobile dashboard body instead of the document scroller", async () => {
+  const bodyScroll = vi.fn();
+  document.body.style.overflowY = "auto";
+  Object.defineProperty(document.body, "scrollTo", {
+    configurable: true,
+    value: bodyScroll,
+  });
+  try {
+    rememberMarketPosition(card);
+    vi.mocked(card.getBoundingClientRect).mockReturnValue({
+      top: 1210,
+    } as DOMRect);
+    await act(async () => root.render(<MarketReturnPosition />));
+    await act(async () => vi.advanceTimersByTime(16));
+    expect(bodyScroll).toHaveBeenCalledWith({ top: 930, behavior: "instant" });
+    expect(scrollTo).not.toHaveBeenCalled();
+    await act(async () => window.dispatchEvent(new Event("touchstart")));
+    await act(async () => vi.runAllTimers());
+    expect(bodyScroll).toHaveBeenCalledTimes(1);
+    expect(window.history.state).toEqual({ nextRouterState: "preserved" });
+  } finally {
+    document.body.style.overflowY = "";
+    delete (document.body as Partial<HTMLElement>).scrollTo;
+  }
+});

@@ -401,7 +401,10 @@ export default function SavedCarsPage() {
       />
       {/* HEADER SECTION */}
       {comparisonIds.length > 0 && (
-        <div className="browse-panel sticky top-16 z-20 flex flex-wrap items-center gap-3 p-3">
+        <div
+          className="browse-panel sticky top-16 z-20 flex flex-wrap items-center gap-3 p-3"
+          style={{ top: "calc(var(--top-nav-height, 3.5rem) + 0.5rem)" }}
+        >
           <span>{comparisonIds.length} of 4 selected</span>
           {comparisonIds.length >= 2 ? (
             <Link

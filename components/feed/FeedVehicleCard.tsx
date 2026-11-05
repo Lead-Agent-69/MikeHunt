@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { Heart, ExternalLink, ChevronRight } from "lucide-react";
+import { Heart, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
@@ -65,7 +65,10 @@ export function FeedVehicleCard({
     alsoOn: [],
     listingCount: 1,
   });
-  const gallery = useListingPhotos([item.image, ...(item.images || [])]);
+  const gallery = useListingPhotos(
+    [item.image, ...(item.images || [])],
+    item.id,
+  );
   useEffect(() => {
     if (gallery.exhausted) onPhotoUnavailable?.(item.id);
   }, [gallery.exhausted, onPhotoUnavailable, item.id]);
@@ -75,6 +78,7 @@ export function FeedVehicleCard({
   return (
     <article
       data-testid="feed-vehicle"
+      data-feed-vehicle={item.id}
       className="inventory-card overflow-hidden lg:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]"
       style={{ contentVisibility: "auto", containIntrinsicSize: "auto 600px" }}
     >
@@ -98,6 +102,60 @@ export function FeedVehicleCard({
           title={item.title}
           className="absolute right-2 top-2 z-20"
         />
+        {gallery.sourceImages.length > 1 && (
+          <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              aria-label={`Previous photo of ${item.title}`}
+              disabled={gallery.images.length < 2}
+              onClick={() =>
+                gallery.select(
+                  (gallery.index - 1 + gallery.images.length) %
+                    gallery.images.length,
+                )
+              }
+              className="grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+            >
+              <ChevronLeft size={20} aria-hidden="true" />
+            </button>
+            <span
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="rounded-full bg-black/75 px-3 py-2 text-xs text-white"
+            >
+              Photo {gallery.sourceImages.indexOf(gallery.image!) + 1} of{" "}
+              {gallery.sourceImages.length}
+            </span>
+            <button
+              type="button"
+              aria-label={`Next photo of ${item.title}`}
+              disabled={gallery.images.length < 2}
+              onClick={() =>
+                gallery.select((gallery.index + 1) % gallery.images.length)
+              }
+              className="grid h-11 w-11 place-items-center rounded-full bg-black/75 text-white disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-white"
+            >
+              <ChevronRight size={20} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+        {gallery.images.length < gallery.sourceImages.length && (
+          <button
+            type="button"
+            aria-label={`Retry failed photos of ${item.title}`}
+            onClick={() => {
+              const failedIndex = gallery.sourceImages.findIndex(
+                (src) => !gallery.images.includes(src),
+              );
+              gallery.sourceImages.forEach(gallery.restore);
+              gallery.selectSource(failedIndex);
+            }}
+            className="absolute left-2 top-2 min-h-11 rounded-full bg-black/75 px-3 text-xs text-white focus-visible:outline-2 focus-visible:outline-white"
+          >
+            Retry failed photos
+          </button>
+        )}
       </div>
       <div className="flex min-w-0 flex-col gap-4 p-4 md:p-5">
         <div className="text-xs text-[var(--t3)]">

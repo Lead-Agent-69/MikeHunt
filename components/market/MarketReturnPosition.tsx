@@ -22,6 +22,7 @@ function isSavedMarketPosition(value: unknown): value is SavedMarketPosition {
     typeof saved.id === "string" &&
     Number.isFinite(saved.top) &&
     Number.isFinite(saved.savedAt) &&
+    Number(saved.savedAt) <= Date.now() &&
     Date.now() - Number(saved.savedAt) <= MAX_AGE_MS
   );
 }
@@ -106,7 +107,13 @@ export function MarketReturnPosition() {
         return;
       }
 
-      const root = document.scrollingElement || document.documentElement;
+      // The mobile dashboard can scroll its body separately from the document.
+      const bodyScrolls =
+        document.body.scrollTop > 0 ||
+        /auto|scroll/.test(getComputedStyle(document.body).overflowY);
+      const root = bodyScrolls
+        ? document.body
+        : document.scrollingElement || document.documentElement;
       const delta = card.getBoundingClientRect().top - saved.top;
       if (Math.abs(delta) > 1) {
         stableFrames = 0;
@@ -134,14 +141,34 @@ export function MarketReturnPosition() {
       frame = requestAnimationFrame(attemptRestore);
     };
 
+    const stopRestore = () => {
+      cancelAnimationFrame(frame);
+      // A deliberate interaction takes precedence over a saved position.
+      const saved = readSavedPosition();
+      if (saved?.url === window.location.pathname + window.location.search)
+        consumeSavedPosition();
+    };
+    const interactions = [
+      "wheel",
+      "touchstart",
+      "pointerdown",
+      "keydown",
+    ] as const;
+
     startRestore();
     window.addEventListener("popstate", startRestore);
     window.addEventListener("pageshow", startRestore);
+    interactions.forEach((event) =>
+      window.addEventListener(event, stopRestore, { passive: true }),
+    );
     return () => {
       disposed = true;
       cancelAnimationFrame(frame);
       window.removeEventListener("popstate", startRestore);
       window.removeEventListener("pageshow", startRestore);
+      interactions.forEach((event) =>
+        window.removeEventListener(event, stopRestore),
+      );
     };
   }, []);
   return null;

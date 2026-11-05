@@ -124,6 +124,88 @@ function roundedMapPoint(latValue: unknown, lngValue: unknown) {
 }
 
 export async function GET(req: NextRequest) {
+  const requestStarted = performance.now();
+  const diagnostics = {
+    computed: false,
+    authMs: 0,
+    locationMs: 0,
+    readMs: 0,
+    candidateWaitMs: 0,
+    eligibilityMs: 0,
+    priceInterpretationMs: 0,
+    photoEvidenceMs: 0,
+    aggregationMs: 0,
+    sortMs: 0,
+    samplingMs: 0,
+    candidates: 0,
+    matches: 0,
+    sampledRows: 0,
+    decodedBytesEstimate: 0,
+    fieldBytesEstimate: {} as Record<string, number>,
+    pages: [] as { rows: number; ms: number }[],
+  };
+  const samplePayload = (batch: any[]) => {
+    const started = performance.now();
+    // Bound profiling overhead: inspect at most eight spread-out rows per batch.
+    // These are re-encoded JSON estimates, NOT wire bytes or PostgreSQL timings.
+    const count = Math.min(8, batch.length);
+    for (let index = 0; index < count; index++) {
+      const row = batch[Math.floor((index * batch.length) / count)];
+      const weight = batch.length / count;
+      diagnostics.decodedBytesEstimate +=
+        Buffer.byteLength(JSON.stringify(row)) * weight;
+      for (const field of [
+        "images",
+        "listing_description",
+        "price_evidence",
+        "valuation",
+        "placeholder_urls",
+      ]) {
+        diagnostics.fieldBytesEstimate[field] =
+          (diagnostics.fieldBytesEstimate[field] || 0) +
+          Buffer.byteLength(JSON.stringify(row[field] ?? null)) * weight;
+      }
+    }
+    diagnostics.sampledRows += count;
+    diagnostics.samplingMs += performance.now() - started;
+  };
+  const readBatch = async (query: PromiseLike<any>) => {
+    const started = performance.now();
+    const result = await query;
+    const ms = performance.now() - started;
+    diagnostics.readMs += ms;
+    diagnostics.pages.push({
+      rows: result.data?.length ?? 0,
+      ms: Math.round(ms),
+    });
+    if (!result.error) samplePayload(result.data ?? []);
+    return result;
+  };
+  const respond = (body: unknown) => {
+    const started = performance.now();
+    const response = NextResponse.json(body);
+    const serializationMs = performance.now() - started;
+    const totalMs = performance.now() - requestStarted;
+    if (totalMs >= 2000 || process.env.MARKET_EXPLORE_PROFILE === "1") {
+      console.info("market.explore.timing", {
+        ...diagnostics,
+        // Zero reads can mean a completed cache hit OR a shared in-flight read.
+        payloadSource: diagnostics.computed ? "computed" : "cache-or-inflight",
+        candidateSource: diagnostics.pages.length
+          ? "database-client"
+          : diagnostics.computed
+            ? "cache-or-inflight"
+            : "not-run",
+        fetchMs: Math.round(diagnostics.readMs),
+        processingMs: Math.round(
+          diagnostics.eligibilityMs + diagnostics.aggregationMs,
+        ),
+        serializationMs,
+        totalMs,
+      });
+    }
+    return response;
+  };
   const rl = rateLimit(req, {
     key: "market-explore",
     limit: 30,
@@ -219,7 +301,9 @@ export async function GET(req: NextRequest) {
       detailParams.delete("maxPrice");
       detailParams.delete("pricePolicy");
     }
+    const authStarted = performance.now();
     const flipDesk = await resolveCallerFlipDesk();
+    diagnostics.authMs = performance.now() - authStarted;
     const conditions = csv(sp.get("conditions"));
     const verdicts = flipDesk ? csv(sp.get("verdicts")) : [];
     const sources = csv(sp.get("sources"))
@@ -285,13 +369,37 @@ export async function GET(req: NextRequest) {
     cacheParams.delete("page");
     cacheParams.delete("pageSize");
     if (streaming) cacheParams.set("pageSize", String(pageSize));
+    cacheParams.sort();
+    const candidateParams = new URLSearchParams(cacheParams);
+    for (const key of ["sort", "sortDir", "aggregate", "after"])
+      candidateParams.delete(key);
+    // Canonicalize only set-valued filters, using the exact values consumed above.
+    // In particular, keep internal make/search whitespace and the 25-make cutoff.
+    const candidateSets: Record<string, readonly string[]> = {
+      states,
+      lanes,
+      makes,
+      categories,
+      conditions,
+      verdicts,
+      sources,
+      sellerTypes,
+      titleType: parseTitleTypes(detailParams.get("titleType")),
+    };
+    for (const [key, values] of Object.entries(candidateSets)) {
+      if (candidateParams.has(key))
+        candidateParams.set(key, Array.from(new Set(values)).sort().join(","));
+    }
+    candidateParams.sort();
 
     // Same filter combo within 30s → serve the computed result instantly (no re-scan/re-facet).
     const payload = await cached(
       `mkt:explore:${flipDesk ? "flip" : "personal"}:${cacheParams.toString()}`,
       30_000,
       async () => {
+        diagnostics.computed = true;
         const supabase = createServerComponentClient();
+        const locationStarted = performance.now();
         const center =
           location.center ||
           (location.place
@@ -300,6 +408,7 @@ export async function GET(req: NextRequest) {
                   fetch(url, { ...init, signal: AbortSignal.timeout(6000) }),
               })
             : null);
+        diagnostics.locationMs = performance.now() - locationStarted;
         if (location.radius != null && !center)
           throw new Error("MARKET_LOCATION_UNRESOLVED");
         const bounds =
@@ -382,7 +491,10 @@ export async function GET(req: NextRequest) {
           return q;
         };
         const eligibleRows = (data: any[]) => {
+          const started = performance.now();
+          diagnostics.candidates += data.length;
           let rows = data.filter(isInVehicleScope).map((d: any) => {
+            const photoStarted = performance.now();
             const photos = photoEvidence(d.images, {
               placeholderUrls: d.placeholder_urls,
             });
@@ -392,9 +504,13 @@ export async function GET(req: NextRequest) {
                 : photos.images
                     .filter((url) => /^https?:\/\//i.test(url))
                     .slice(0, 30);
+            diagnostics.photoEvidenceMs += performance.now() - photoStarted;
             const mapPoint = roundedMapPoint(d.lat, d.lng);
             const valuation = marketValuation(d.valuation, d.sell_estimate, d);
+            const priceStarted = performance.now();
             const price = sourcePriceContext(d);
+            diagnostics.priceInterpretationMs +=
+              performance.now() - priceStarted;
             // Stored profit math must use the same acquisition amount as the displayed quote.
             // Deposits, payments, references, unverified amounts, and corrected teaser prices
             // cannot inherit an old GO/profit simply because the resale estimate has comps.
@@ -537,6 +653,8 @@ export async function GET(req: NextRequest) {
           if (minRoi > 0)
             rows = rows.filter((r) => (r.roi ?? -Infinity) >= minRoi);
 
+          diagnostics.eligibilityMs += performance.now() - started;
+          diagnostics.matches += rows.length;
           return rows;
         };
 
@@ -577,7 +695,7 @@ export async function GET(req: NextRequest) {
                 );
               }
             }
-            const result = await query;
+            const result = await readBatch(query);
             if (result.error) throw result.error;
             const batch = result.data ?? [];
             rows.push(...eligibleRows(batch));
@@ -618,43 +736,55 @@ export async function GET(req: NextRequest) {
         const pageTimings: { offset: number; ms: number; rows: number }[] = [];
         // A keyset avoids rescanning and decoding every earlier row for each offset.
         // Keep the complete eligible sample before cash-price sorting and aggregates.
-        const data: any[] = [];
-        let scanAfter: string | undefined;
-        const scanPageSize = 500;
-        for (;;) {
-          const started = performance.now();
-          let query = build()
-            .order("id", { ascending: true })
-            .limit(scanPageSize);
-          if (scanAfter) query = query.gt("id", scanAfter);
-          const result = await query;
-          const ms = Math.round(performance.now() - started);
-          pageTimings.push({
-            offset: data.length,
-            ms,
-            rows: result.data?.length ?? 0,
-          });
-          if (result.error) {
-            console.warn("market.explore.page_failed", {
-              offset: data.length,
-              ms,
-              code: result.error.code,
-            });
-            throw result.error;
-          }
-          const batch = result.data ?? [];
-          if (!batch.length) break;
-          const nextId = batch.at(-1)?.id;
-          if (typeof nextId !== "string" || nextId === scanAfter)
-            throw new Error("Market scan did not advance");
-          data.push(...batch);
-          scanAfter = nextId;
-          if (batch.length < scanPageSize) break;
-        }
+        const data = await cached(
+          `mkt:candidates:${flipDesk ? "flip" : "personal"}:${candidateParams.toString()}`,
+          30_000,
+          async () => {
+            const candidates: any[] = [];
+            let scanAfter: string | undefined;
+            const scanPageSize = 500;
+            for (;;) {
+              const started = performance.now();
+              let query = build()
+                .order("id", { ascending: true })
+                .limit(scanPageSize);
+              if (scanAfter) query = query.gt("id", scanAfter);
+              const result = await readBatch(query);
+              const ms = Math.round(performance.now() - started);
+              pageTimings.push({
+                offset: candidates.length,
+                ms,
+                rows: result.data?.length ?? 0,
+              });
+              if (result.error) {
+                console.warn("market.explore.page_failed", {
+                  offset: candidates.length,
+                  ms,
+                  code: result.error.code,
+                });
+                throw result.error;
+              }
+              const batch = result.data ?? [];
+              if (!batch.length) break;
+              const nextId = batch.at(-1)?.id;
+              if (typeof nextId !== "string" || nextId === scanAfter)
+                throw new Error("Market scan did not advance");
+              candidates.push(...batch);
+              scanAfter = nextId;
+              if (batch.length < scanPageSize) break;
+            }
+            return candidates;
+          },
+          undefined,
+          { prefix: "mkt:candidates:", maxEntries: 2 },
+        );
         const fetchedAt = performance.now();
+        diagnostics.candidateWaitMs = fetchedAt - fetchStarted;
+        if (pageTimings.length) diagnostics.pages = pageTimings;
         const capped = false;
 
         const rows = eligibleRows(data);
+        const aggregationStarted = performance.now();
 
         // Facets over the post-filter set so the UI shows live counts.
         const count = <T extends string>(
@@ -801,6 +931,7 @@ export async function GET(req: NextRequest) {
 
         // Sort + paginate.
         const sortStarted = performance.now();
+        diagnostics.aggregationMs += sortStarted - aggregationStarted;
         const dir = sortDir === "asc" ? 1 : -1;
         const sortKey = (
           {
@@ -845,17 +976,8 @@ export async function GET(req: NextRequest) {
 
         const total = rows.length;
         const sortedAt = performance.now();
-        if (sortedAt - fetchStarted >= 2000) {
-          console.info("market.explore.timing", {
-            fetchMs: Math.round(fetchedAt - fetchStarted),
-            processingMs: Math.round(sortStarted - fetchedAt),
-            sortMs: Math.round(sortedAt - sortStarted),
-            candidates: data.length,
-            matches: total,
-            pages: pageTimings,
-          });
-        }
-        return {
+        diagnostics.sortMs = sortedAt - sortStarted;
+        const result = {
           rows,
           total,
           capped,
@@ -916,12 +1038,14 @@ export async function GET(req: NextRequest) {
             laneColors: LANE_COLORS,
           },
         };
+        diagnostics.aggregationMs += performance.now() - sortedAt;
+        return result;
       },
       undefined,
       { prefix: "mkt:explore:", maxEntries: 4 },
     );
     if (payload.total === null) {
-      return NextResponse.json({
+      return respond({
         ...payload,
         rows: flipDesk ? payload.rows : listingsForDesk(payload.rows, false),
         deskAccess: flipDesk ? "flip" : "personal",
@@ -943,7 +1067,7 @@ export async function GET(req: NextRequest) {
       pageSize,
     };
     // Cache is shared; redact AFTER so a personal caller never gets a flip-desk hit.
-    return NextResponse.json(
+    return respond(
       flipDesk
         ? { ...paged, deskAccess: "flip" }
         : {

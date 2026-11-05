@@ -1,0 +1,23 @@
+/* Content, rather than a viewport breakpoint alone, decides when another row is
+   needed. CSS scaling can enlarge controls without changing media queries. */
+.header {
+  flex-wrap: wrap;
+}
+
+.header .primaryNavigation {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  flex-shrink: 1;
+  flex-wrap: wrap;
+}
+
+.header .actions {
+  max-inline-size: 100%;
+  margin-inline-start: auto;
+}
+
+.header .actionRow {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  flex-wrap: wrap;
+}

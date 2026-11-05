@@ -6,6 +6,9 @@ const scopeState = vi.hoisted(() => ({
   query: "state=TX",
   displayedStates: undefined as string[] | undefined,
 }));
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({ dealerId: "feed-owner", loading: false, error: null }),
+}));
 vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
   DiscoverySaveProvider: ({ children }: { children: React.ReactNode }) =>
     children,
@@ -39,6 +42,7 @@ afterEach(() => {
   if (root) act(() => root.unmount());
   vi.unstubAllGlobals();
   scopeState.query = "state=TX";
+  sessionStorage.clear();
 });
 
 describe("Feed scope request isolation", () => {

@@ -43,6 +43,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -91,6 +92,22 @@ describe("mobile navigation scrub", () => {
     pointer("pointermove", 124);
     pointer("pointerup", 124);
     expect(navigate).toHaveBeenCalledExactlyOnceWith(3);
+  });
+
+  it("keeps a new drag active when an earlier navigation timeout would expire", () => {
+    vi.useFakeTimers();
+    pointer("pointerdown", 44);
+    pointer("pointermove", 124);
+    pointer("pointerup", 124);
+    act(() => vi.advanceTimersByTime(3500));
+    pointer("pointerdown", 124);
+    pointer("pointermove", 284);
+    act(() => vi.advanceTimersByTime(1000));
+    expect(captured).toBe(true);
+    expect(host.firstElementChild?.getAttribute("data-preview")).toBe("3");
+    pointer("pointerup", 284);
+    expect(navigate).toHaveBeenLastCalledWith(3);
+    expect(navigate).toHaveBeenCalledTimes(2);
   });
 
   it("previews while dragging, commits once on release and suppresses the origin link", () => {

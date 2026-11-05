@@ -102,6 +102,8 @@ vi.mock("@/lib/deals/deal-desk-access", async (original) => ({
 }));
 import { GET } from "./route";
 import { invalidate } from "@/lib/cache";
+import { SOURCE_PRICE_FIELDS } from "@/lib/deals/source-price-context";
+import { marketValuation } from "@/lib/market/valuation";
 const request = (search: string) => {
   // General filter fixtures intentionally include incomplete records for explicit research.
   const params = new URLSearchParams(search);
@@ -514,6 +516,337 @@ describe("Market inventory filtering and pagination", () => {
     expect(body.sourceCoverage.accessReviewIds).toContain("ae-of-miami");
     expect(state.calls).toContainEqual(["gt", "id", "car-999"]);
     expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
+  });
+
+  it("shares candidate reads across price directions and independent Insights", async () => {
+    const first = await (
+      await request("mode=all&sort=askPrice&sortDir=asc")
+    ).json();
+    const reads = state.calls.filter(([method]) => method === "select").length;
+    const second = await (
+      await request("sortDir=desc&sort=askPrice&mode=all")
+    ).json();
+    const insights = await (await request("aggregate=1&mode=all")).json();
+    expect(first.total).toBe(second.total);
+    expect(insights.total).toBe(first.total);
+    expect(second.rows[0].askPrice).toBeGreaterThan(first.rows[0].askPrice);
+    expect(state.calls.filter(([method]) => method === "select")).toHaveLength(
+      reads,
+    );
+  });
+
+  it("canonicalizes parameter ordering for repeated result requests", async () => {
+    await request("mode=all&sort=askPrice&sortDir=asc");
+    const count = state.calls.length;
+    await request("sortDir=asc&mode=all&sort=askPrice");
+    expect(state.calls).toHaveLength(count);
+  });
+
+  it("shares candidate reads for reordered, deduplicated and parsed CSV filter sets", async () => {
+    await request(
+      "mode=all&sort=askPrice&states=mo,FL,MO&sources=copart!,govdeals&makes=FORD!,Honda,Ford&sellerTypes=DEALER,auction&categories=trucks,suvs&conditions=clean_title,run_drive&lanes=auction,clean-retail&verdicts=go,hold&titleType=clean,rebuilt",
+    );
+    const reads = state.calls.filter(([method]) => method === "select").length;
+    expect(reads).toBeGreaterThan(0);
+    await request(
+      "mode=all&sort=askPrice&sortDir=asc&states=FL,MO&sources=govdeals,copart&makes=honda,ford&sellerTypes=auction,dealer&categories=suvs,trucks&conditions=run_drive,clean_title&lanes=clean-retail,auction&verdicts=hold,go&titleType=rebuilt,clean",
+    );
+    expect(state.calls.filter(([method]) => method === "select")).toHaveLength(
+      reads,
+    );
+  });
+
+  it.each(["makes=Land++Rover", "q=Ford++Ranger", "model=Range++Rover"])(
+    "does not collapse meaningful internal whitespace: %s",
+    async (filter) => {
+      await request(`mode=all&${filter}`);
+      const reads = state.calls.filter(
+        ([method]) => method === "select",
+      ).length;
+      await request(`mode=all&${filter.replace("++", "+")}`);
+      expect(
+        state.calls.filter(([method]) => method === "select").length,
+      ).toBeGreaterThan(reads);
+    },
+  );
+
+  it("canonicalizes makes after the existing 25-value cutoff", async () => {
+    const makes = Array.from({ length: 25 }, (_, i) => `make${i}`);
+    await request(`mode=all&makes=${[...makes, "excluded"].join(",")}`);
+    const reads = state.calls.filter(([method]) => method === "select").length;
+    await request(`mode=all&makes=${[...makes].reverse().join(",")}`);
+    expect(state.calls.filter(([method]) => method === "select")).toHaveLength(
+      reads,
+    );
+    await request(`mode=all&makes=${["excluded", ...makes].join(",")}`);
+    expect(
+      state.calls.filter(([method]) => method === "select").length,
+    ).toBeGreaterThan(reads);
+  });
+
+  it("profiles cold reads separately from shared candidate reuse and cached payloads", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.stubEnv("MARKET_EXPLORE_PROFILE", "1");
+    try {
+      await request("mode=all&sort=askPrice&sortDir=asc");
+      const cold = log.mock.calls.at(-1)!;
+      expect(cold[0]).toBe("market.explore.timing");
+      expect(cold[1]).toMatchObject({
+        payloadSource: "computed",
+        candidateSource: "database-client",
+        candidates: 1105,
+        matches: 1105,
+        sampledRows: 24,
+      });
+      expect(cold[1].pages).toHaveLength(3);
+      expect(cold[1].pages.map((page: { rows: number }) => page.rows)).toEqual([
+        500, 500, 105,
+      ]);
+      for (const field of [
+        "authMs",
+        "locationMs",
+        "readMs",
+        "candidateWaitMs",
+        "eligibilityMs",
+        "priceInterpretationMs",
+        "photoEvidenceMs",
+        "aggregationMs",
+        "sortMs",
+        "samplingMs",
+        "serializationMs",
+        "totalMs",
+        "decodedBytesEstimate",
+      ])
+        expect(cold[1][field]).toBeGreaterThanOrEqual(0);
+      const selects = state.calls.filter(
+        ([method]) => method === "select",
+      ).length;
+      await request("mode=all&sort=askPrice&sortDir=desc");
+      expect(log.mock.calls.at(-1)![1]).toMatchObject({
+        payloadSource: "computed",
+        candidateSource: "cache-or-inflight",
+        sampledRows: 0,
+        readMs: 0,
+      });
+      await request("mode=all&sort=askPrice&sortDir=desc");
+      expect(log.mock.calls.at(-1)![1]).toMatchObject({
+        payloadSource: "cache-or-inflight",
+        candidateSource: "not-run",
+        sampledRows: 0,
+        readMs: 0,
+      });
+      expect(
+        state.calls.filter(([method]) => method === "select"),
+      ).toHaveLength(selects);
+    } finally {
+      log.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it.each([
+    "mode=all&priceBasis=cash&sort=askPrice&sortDir=asc&priceMax=13000&hasPhotos=yes",
+    "mode=all&priceBasis=cash&sort=askPrice&sortDir=desc&hasPhotos=any",
+    "aggregate=1&mode=all&hasPhotos=any",
+    "mode=curated&minProfit=1&hasPhotos=any",
+    "browse=1&sort=lastSeenAt&hasPhotos=yes",
+  ])(
+    "keeps eligibility, economics, photos, ordering and aggregates unchanged while profiling: %s",
+    async (search) => {
+      const now = new Date().toISOString();
+      const base = {
+        source: "independent_dealer",
+        source_url: "https://dealer.test/car",
+        year: 2020,
+        make: "Ford",
+        model: "Ranger",
+        last_seen_at: now,
+        ask_price: 12000,
+        sell_estimate: 15000,
+        true_net_profit: 2500,
+        deal_verdict: "go",
+        price_evidence: { kind: "asking", askingPrice: 12000 },
+        images: ["https://dealer.test/logo.png", "https://dealer.test/car.jpg"],
+        deal_analysis: {
+          roi: 20,
+          valuation: {
+            source: "comparables",
+            resaleEvidence: true,
+            compCount: 8,
+            confidence: "medium",
+            compKind: "ask",
+          },
+        },
+      };
+      state.rows = [
+        { ...base, id: "cash" },
+        {
+          ...base,
+          id: "corrected-teaser",
+          ask_price: 1000,
+          listing_description: "Cash price $12,000",
+        },
+        {
+          ...base,
+          id: "deposit",
+          ask_price: 500,
+          listing_description: "Down payment $500",
+        },
+        {
+          ...base,
+          id: "monthly",
+          ask_price: 299,
+          listing_description: "$299 per month",
+        },
+        {
+          ...base,
+          id: "placeholder",
+          images: ["https://dealer.test/logo.png"],
+        },
+        {
+          ...base,
+          id: "audited-placeholder",
+          placeholder_urls: ["https://dealer.test/car.jpg"],
+        },
+        { ...base, id: "powersport", make: "CFMOTO", model: "UFORCE" },
+      ];
+      const before = await (await request(search)).json();
+      invalidate();
+      const log = vi.spyOn(console, "info").mockImplementation(() => {});
+      vi.stubEnv("MARKET_EXPLORE_PROFILE", "1");
+      try {
+        const after = await (await request(search)).json();
+        // The clock annotation is generated anew, not part of eligibility or counts.
+        if (before.summary) before.summary.asOf = after.summary.asOf;
+        expect(after).toEqual(before);
+        expect(
+          log.mock.calls.at(-1)![1].fieldBytesEstimate.listing_description,
+        ).toBeGreaterThan(0);
+        expect(JSON.stringify(log.mock.calls)).not.toContain("dealer.test");
+        expect(JSON.stringify(log.mock.calls)).not.toContain("Down payment");
+        const selections = state.calls.filter(
+          ([method]) => method === "select",
+        );
+        for (const [, fields] of selections)
+          expect(String(fields)).toContain(SOURCE_PRICE_FIELDS);
+      } finally {
+        log.mockRestore();
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it("keeps late usable photos and description overrides in the full-scan candidate evidence", async () => {
+    state.rows = [
+      {
+        id: "late-photo",
+        source: "independent_dealer",
+        source_url: "https://dealer.test/car",
+        make: "Ford",
+        model: "Ranger",
+        ask_price: 500,
+        listing_description: "Cash price $12,000",
+        price_evidence: { kind: "asking", askingPrice: 500 },
+        images: [
+          ...Array.from(
+            { length: 35 },
+            (_, i) => `https://dealer.test/placeholder-${i}.png`,
+          ),
+          "https://dealer.test/real-car.jpg",
+        ],
+      },
+    ];
+    const body = await (
+      await request("mode=all&priceBasis=cash&priceMax=13000&hasPhotos=yes")
+    ).json();
+    expect(body.total).toBe(1);
+    expect(body.rows[0].price.cashPrice).toBe(12000);
+    expect(body.rows[0].images).toEqual(["https://dealer.test/real-car.jpg"]);
+    expect(
+      (
+        await (
+          await request("mode=all&priceBasis=cash&priceMax=1000&hasPhotos=yes")
+        ).json()
+      ).total,
+    ).toBe(0);
+  });
+
+  it("documents a compact valuation candidate without removing its sold-date or guide-value gates", () => {
+    const fields = [
+      "source",
+      "resaleEvidence",
+      "kbbValue",
+      "compCount",
+      "confidence",
+      "compKind",
+      "soldCount",
+      "soldAnchored",
+      "soldAt",
+    ];
+    const asking = {
+      source: "comparables",
+      resaleEvidence: true,
+      compCount: 8,
+      confidence: "medium",
+      compKind: "ask",
+    };
+    const samples = [
+      asking,
+      { ...asking, compCount: 2 },
+      { ...asking, resaleEvidence: false },
+      { ...asking, compCount: "8" },
+      { ...asking, compKind: "sold", soldCount: 3, soldAnchored: true },
+      {
+        ...asking,
+        compKind: "sold",
+        soldCount: 3,
+        soldAnchored: true,
+        soldAt: new Date(Date.now() - 86400000).toISOString(),
+      },
+      {
+        ...asking,
+        compKind: "sold",
+        soldCount: 3,
+        soldAnchored: true,
+        soldAt: "2000-01-01",
+      },
+      { source: "third_party", resaleEvidence: true },
+      { source: "third_party", resaleEvidence: true, kbbValue: 15000 },
+    ];
+    for (const evidence of samples) {
+      const recorded = {
+        ...evidence,
+        asOf: "2026-11-05",
+        basis: "retail",
+        sampleCount: 8,
+        compConfidence: "medium",
+        cleanComp: 15000,
+        soldLane: "clean",
+        mileageMult: 1,
+        titleMult: 1,
+        titleTag: "clean",
+        baseline: 13000,
+        compScope: "index",
+        compExcludedSelf: true,
+      };
+      const compact = Object.fromEntries(
+        fields
+          .filter((field) => field in recorded)
+          .map((field) => [
+            field,
+            (recorded as Record<string, unknown>)[field],
+          ]),
+      );
+      expect(marketValuation(compact, 15000)).toEqual(
+        marketValuation(recorded, 15000),
+      );
+      expect(
+        marketValuation(compact, 15000, { make: "Ford", model: " " }),
+      ).toEqual(marketValuation(recorded, 15000, { make: "Ford", model: " " }));
+      expect(Buffer.byteLength(JSON.stringify(compact))).toBeLessThan(
+        Buffer.byteLength(JSON.stringify(recorded)),
+      );
+    }
   });
 
   it("reuses the filtered dataset for subsequent result pages", async () => {

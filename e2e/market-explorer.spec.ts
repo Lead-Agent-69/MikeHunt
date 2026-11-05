@@ -1,7 +1,9 @@
 import { openMarketArea, setMarketRadius } from "./support/market-area";
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { storagePath } from "./support/accounts";
-import { localOnly } from "./support/target";
+import { assertLocalTarget, localOnly } from "./support/target";
 
 test.describe("Market Explorer home", () => {
   localOnly();
@@ -360,7 +362,7 @@ test.describe("Market Explorer home", () => {
 
   test("Back restores a vehicle farther down the results without losing filters", async ({
     page,
-  }) => {
+  }, testInfo) => {
     const marketResponse = page.waitForResponse((response) => {
       if (!response.url().includes("/api/market/explore?")) return false;
       const params = new URL(response.url()).searchParams;
@@ -380,6 +382,9 @@ test.describe("Market Explorer home", () => {
     const before = await card.boundingBox();
     const origin = page.url();
     const destination = await link.getAttribute("href");
+    await page.screenshot({
+      path: testInfo.outputPath("market-before-detail.png"),
+    });
     await link.click();
     await expect(page).toHaveURL(new URL(destination!, origin).href);
     await expect(
@@ -391,9 +396,30 @@ test.describe("Market Explorer home", () => {
     await page.goBack();
     await expect(page).toHaveURL(origin);
     await expect(link).toHaveAttribute("href", destination!);
-    await expect
-      .poll(async () => Math.abs((await card.boundingBox())!.y - before!.y))
-      .toBeLessThan(16);
+    try {
+      await expect
+        .poll(async () => Math.abs((await card.boundingBox())!.y - before!.y))
+        .toBeLessThan(16);
+    } finally {
+      const after = await card.boundingBox();
+      await testInfo.attach("market-return-position", {
+        body: JSON.stringify(
+          {
+            origin,
+            destination,
+            before,
+            after,
+            deltaPx: after ? Math.abs(after.y - before!.y) : null,
+          },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
+      await page.screenshot({
+        path: testInfo.outputPath("market-after-back.png"),
+      });
+    }
     await expect(page.getByLabel("Sort market results")).toHaveValue(
       "askPrice:asc",
     );
@@ -431,16 +457,24 @@ test.describe("Market Explorer home", () => {
       .click();
     await search.fill("dgautollc.com");
     await page.getByRole("checkbox", { name: /^D&G Auto\b/ }).check();
+    await expect(
+      page.getByRole("checkbox", { name: /^D&G Auto\b/ }),
+    ).toBeChecked();
     await search.fill("aeofmiami");
     await page.getByRole("checkbox", { name: /^AE of Miami\b/ }).check();
-    await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
+    await expect(
+      page.getByRole("checkbox", { name: /^AE of Miami\b/ }),
+    ).toBeChecked();
+    // Source choices are drafts until Apply, just like the other exact filters.
+    await expect(page).not.toHaveURL(/sources=/);
     await expect(page).toHaveURL(/near=63101/);
     await expect(page).toHaveURL(/radius=250/);
     await search.scrollIntoViewIfNeeded();
     await expect(search).toHaveCSS("font-size", "16px");
-    const resultsAction = page
-      .getByRole("button", { name: /^Show .* listings$/ })
-      .last();
+    const resultsAction = page.getByRole("button", {
+      name: "Apply filters",
+      exact: true,
+    });
     const mobileNav = page.getByRole("navigation", {
       name: "Primary mobile navigation",
     });
@@ -454,12 +488,35 @@ test.describe("Market Explorer home", () => {
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(page.viewportSize()!.width);
     await page.screenshot({
-      path: testInfo.outputPath("dealer-source-radius.png"),
+      path: testInfo.outputPath("dealer-source-radius-draft.png"),
     });
     await search.fill("no-such-source-example");
     await expect(
       page.getByRole("status").filter({ hasText: "No matching source." }),
     ).toBeVisible();
+    const applied = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/market/explore" &&
+        url.searchParams.get("sources") === "dg-auto,ae-of-miami" &&
+        url.searchParams.get("near") === "63101" &&
+        url.searchParams.get("radius") === "250"
+      );
+    });
+    await resultsAction.click();
+    const appliedResponse = await applied;
+    expect(appliedResponse.ok()).toBe(true);
+    await testInfo.attach("applied-source-radius-request", {
+      body: appliedResponse.url(),
+      contentType: "text/plain",
+    });
+    await expect(search).toBeHidden();
+    await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
+    await expect(page).toHaveURL(/near=63101/);
+    await expect(page).toHaveURL(/radius=250/);
+    await page.screenshot({
+      path: testInfo.outputPath("dealer-source-radius-applied.png"),
+    });
     await page.reload();
     await expect(page).toHaveURL(/sources=dg-auto%2Cae-of-miami/);
     await openMarketArea(page);
@@ -467,11 +524,32 @@ test.describe("Market Explorer home", () => {
       page.getByRole("slider", { name: "Search radius" }),
     ).toHaveAttribute("aria-valuetext", "250 miles");
     await page.keyboard.press("Escape");
+    await filters.click();
+    await page
+      .getByTestId("exact-market-filters")
+      .locator("summary")
+      .first()
+      .click();
+    await page
+      .getByTestId("exact-market-filters")
+      .getByText(/^Sources & dealers \(/)
+      .click();
+    await search.fill("dgautollc.com");
+    await expect(
+      page.getByRole("checkbox", { name: /^D&G Auto\b/ }),
+    ).toBeChecked();
+    await search.fill("aeofmiami");
+    await expect(
+      page.getByRole("checkbox", { name: /^AE of Miami\b/ }),
+    ).toBeChecked();
+    await page.screenshot({
+      path: testInfo.outputPath("dealer-source-radius-reloaded.png"),
+    });
   });
 
   test("runs a ZIP radius search, sorts by distance and restores its shareable URL", async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.goto("/market?mode=all");
     const area = await openMarketArea(page);
     await area
@@ -483,22 +561,99 @@ test.describe("Market Explorer home", () => {
     const result = page.waitForResponse(
       (response) =>
         response.url().includes("/api/market/explore?") &&
-        new URL(response.url()).searchParams.get("near") === "63101",
+        new URL(response.url()).searchParams.get("near") === "63101" &&
+        new URL(response.url()).searchParams.get("radius") === "100",
     );
     await area.getByRole("button", { name: "Apply area" }).click();
     const response = await result;
     expect(response.ok()).toBeTruthy();
     const body = await response.json();
-    expect(body.total).toBeGreaterThan(0);
+    // Recently-seen browsing intentionally returns a bounded cursor page,
+    // not an exact aggregate count. Still require actual nearby inventory.
+    expect(body.total).toBeNull();
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.location).toMatchObject({
+      label: "63101",
+      radius: 100,
+      approximate: true,
+    });
+    expect(body).toHaveProperty("nextCursor");
+    if (body.nextCursor !== null) {
+      expect(body.nextCursor).toMatch(
+        /^\d{4}-\d{2}-\d{2}T[^|]+\|[0-9a-f-]{36}$/i,
+      );
+      const continuation = new URL(response.url());
+      continuation.searchParams.set("after", body.nextCursor);
+      const nextResponse = await page.request.get(continuation.href);
+      expect(nextResponse.ok()).toBe(true);
+      const next = await nextResponse.json();
+      expect(next.total).toBeNull();
+      const firstIds = new Set(body.rows.map((row: { id: string }) => row.id));
+      expect(
+        next.rows.every(
+          (row: { id: string; distanceMiles: number }) =>
+            !firstIds.has(row.id) &&
+            Number.isFinite(row.distanceMiles) &&
+            row.distanceMiles >= 0 &&
+            row.distanceMiles <= 100,
+        ),
+      ).toBe(true);
+      expect(next.nextCursor).not.toBe(body.nextCursor);
+    }
+    await testInfo.attach("zip-cursor-response", {
+      body: JSON.stringify(
+        {
+          total: body.total,
+          nextCursor: body.nextCursor,
+          rows: body.rows.map((row: { id: string; distanceMiles: number }) => ({
+            id: row.id,
+            distanceMiles: row.distanceMiles,
+          })),
+        },
+        null,
+        2,
+      ),
+      contentType: "application/json",
+    });
     expect(
       body.rows.every(
         (row: { distanceMiles: number }) =>
-          row.distanceMiles >= 0 && row.distanceMiles <= 100,
+          Number.isFinite(row.distanceMiles) &&
+          row.distanceMiles >= 0 &&
+          row.distanceMiles <= 100,
       ),
     ).toBe(true);
+    const sorted = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/market/explore" &&
+        url.searchParams.get("sort") === "distanceMiles" &&
+        url.searchParams.get("sortDir") === "asc" &&
+        url.searchParams.get("near") === "63101"
+      );
+    });
     await page
       .getByLabel("Sort market results")
       .selectOption("distanceMiles:asc");
+    const sortedResponse = await sorted;
+    expect(sortedResponse.ok()).toBe(true);
+    const sortedBody = await sortedResponse.json();
+    expect(sortedBody.total).toBeGreaterThan(0);
+    expect(sortedBody.rows.length).toBeGreaterThan(0);
+    expect(sortedBody.total).toBeGreaterThanOrEqual(sortedBody.rows.length);
+    expect(
+      sortedBody.rows.every(
+        (row: { distanceMiles: number }, index: number) =>
+          Number.isFinite(row.distanceMiles) &&
+          row.distanceMiles >= 0 &&
+          row.distanceMiles <= 100 &&
+          (index === 0 ||
+            row.distanceMiles >= sortedBody.rows[index - 1].distanceMiles),
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath("zip-radius-distance-sorted.png"),
+    });
     await page.reload();
     await expect(page.getByLabel("Sort market results")).toHaveValue(
       "distanceMiles:asc",
@@ -741,19 +896,88 @@ test.describe("Market Explorer home", () => {
   test("keeps table view reachable and separates bids from cash asks", async ({
     page,
   }) => {
-    await page.goto("/market?priceKind=current_bid&mode=all");
-    await expect(page.locator("article").first()).toBeVisible();
-    const bidLabels = page
-      .locator("article")
-      .first()
-      .getByText("Current bid", { exact: true });
-    await expect(bidLabels).toHaveCount(1);
-    await expect(bidLabels.first()).toBeVisible();
-    await expect(bidLabels.last()).toBeVisible();
-    await page.getByRole("button", { name: "Table view", exact: true }).click();
-    await expect(page.getByRole("table")).toBeVisible();
-    await expect(
-      page.getByRole("table").getByText("Current bid", { exact: true }).first(),
-    ).toBeVisible();
+    assertLocalTarget("create the market bid fixture");
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname))
+      throw new Error("Market bid fixtures require local Supabase.");
+    const db = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const id = randomUUID();
+    const token = `local-market-bid-${id}`;
+    const title = `2020 Honda Accord ${token}`;
+    const image = `https://photos.test/${token}.svg`;
+    const now = Date.now();
+    // Own a fresh auction per invocation: global seed auctions eventually expire,
+    // and a unique search also isolates parallel projects/retries and API caches.
+    try {
+      // Cards hide listings with exhausted photos. Keep this fixture's image
+      // browser-local while exercising the real database and market endpoint.
+      await page.route(image, (route) =>
+        route.fulfill({
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#245074"/></svg>',
+        }),
+      );
+      const inserted = await db.from("deals").insert({
+        id,
+        source: "copart",
+        source_deal_id: token,
+        source_url: `https://www.copart.com/lot/${id}`,
+        title,
+        year: 2020,
+        make: "Honda",
+        model: "Accord",
+        condition: "clean_title",
+        mileage: 50000,
+        images: [image],
+        ask_price: 5000,
+        active: true,
+        last_seen_at: new Date(now).toISOString(),
+        auction_end_at: new Date(now + 7 * 86400000).toISOString(),
+        options: {
+          priceEvidence: {
+            kind: "current_bid",
+            currentBid: 5000,
+            checkedAt: new Date(now).toISOString(),
+          },
+        },
+      });
+      expect(inserted.error, "Insert this test's local auction").toBeNull();
+      await page.goto(
+        `/market?priceKind=current_bid&priceBasis=advertised&mode=all&q=${token}`,
+      );
+      const card = page.locator("article");
+      await expect(card).toHaveCount(1);
+      await expect(card.getByRole("heading")).toHaveText(title);
+      await expect(card.getByText("Current bid", { exact: true })).toHaveCount(
+        1,
+      );
+      await expect(
+        card.getByText("Current bid", { exact: true }),
+      ).toBeVisible();
+      await expect(card.getByText("Asking price", { exact: true })).toHaveCount(
+        0,
+      );
+      await page
+        .getByRole("button", { name: "Table view", exact: true })
+        .click();
+      const table = page.getByRole("table");
+      await expect(table).toBeVisible();
+      const row = table.getByRole("row").filter({
+        has: page.locator(`a[href="/deal/${id}"]`),
+      });
+      await expect(row).toHaveCount(1);
+      await expect(row.getByText("Current bid", { exact: true })).toBeVisible();
+      await expect(row.getByText("Asking price", { exact: true })).toHaveCount(
+        0,
+      );
+    } finally {
+      const removed = await db.from("deals").delete().eq("id", id);
+      expect(removed.error, "Remove only this test's local auction").toBeNull();
+      const remaining = await db.from("deals").select("id").eq("id", id);
+      expect(remaining.error, "Verify local auction cleanup").toBeNull();
+      expect(remaining.data).toEqual([]);
+    }
   });
 });
