@@ -3,6 +3,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { benchmarkEvidenceGates } from "./market-evidence-gates-benchmark.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 process.chdir(root);
@@ -14,6 +15,7 @@ const port = Number(process.env.MARKET_PROJECTION_LOCAL_PORT || 55442);
 if (!Number.isSafeInteger(port) || port < 1024 || port > 65535)
   throw Error("Invalid local port");
 const secret = "local-market-projection-verification-secret-only";
+const evidenceBenchmark = process.argv.includes("--evidence-gates");
 // Opt-in batching mode reuses the isolated schema/view without production access.
 const batchCap = Number(process.env.MARKET_BATCH_TEST_CAP || 0);
 if (![0, 500, 1000].includes(batchCap)) throw Error("Invalid batch test cap");
@@ -36,7 +38,7 @@ if (normalizedCache) {
 const run = (args, options = {}) =>
   execFileSync("docker", args, {
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: (evidenceBenchmark ? 128 : 32) * 1024 * 1024,
     ...options,
   });
 const sql = (text) =>
@@ -226,6 +228,16 @@ const rows = Array.from({ length: 520 }, (_, offset) => {
           },
   };
 });
+if (evidenceBenchmark) {
+  const originals = rows.slice();
+  for (let copy = 1; copy < 4; copy++)
+    rows.push(
+      ...originals.map((row, i) => ({
+        ...row,
+        id: uuid(copy * originals.length + i + 1),
+      })),
+    );
+}
 const wait = async (check) => {
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
@@ -322,6 +334,30 @@ try {
     "-f",
     "/workspace/supabase/migrations/20261105094153_market_candidate_projection.sql",
   ]);
+  const evidenceGates = evidenceBenchmark
+    ? benchmarkEvidenceGates({ sql, stamp })
+    : null;
+  if (!evidenceBenchmark)
+    sql(
+      fs
+        .readFileSync(
+          "supabase/migrations/20261105155012_market_candidate_evidence_gates.sql",
+          "utf8",
+        )
+        .replace(/^\uFEFF/, ""),
+    );
+  sql(
+    fs.readFileSync(
+      "supabase/tests/market_candidate_evidence_gates.sql",
+      "utf8",
+    ),
+  );
+  if (evidenceBenchmark) {
+    // Restore the existing REST regression's original fixture size after the
+    // larger disposable benchmark; this never runs against a hosted database.
+    rows.length /= 4;
+    sql(`delete from public.deals where id > '${uuid(rows.length)}'::uuid;`);
+  }
   if (!batchCap)
     sql(
       fs.readFileSync("supabase/tests/market_candidate_projection.sql", "utf8"),
@@ -441,6 +477,7 @@ try {
     fixtureRows: rows.length,
     source: "synthetic toasted JSON, not production data",
     sqlRecordMismatches: 0,
+    evidenceGates,
     plans,
   };
   fs.mkdirSync("artifacts/market-candidate-projection", { recursive: true });
