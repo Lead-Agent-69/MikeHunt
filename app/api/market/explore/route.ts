@@ -22,6 +22,7 @@ import { cached } from "@/lib/cache";
 import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
 import { sourcePriceContext } from "@/lib/deals/source-price-context";
+import { economicsEvidenceReady } from "@/lib/deals/economics-evidence";
 import {
   MARKET_CANDIDATE_RELATION,
   MARKET_CANDIDATE_FIELDS,
@@ -524,8 +525,16 @@ export async function GET(req: NextRequest) {
               price.amount != null &&
               price.amount === Number(d.ask_price) &&
               d.acquisition_price_missing !== true;
-            const economicsSupported =
+            const comparisonSupported =
               valuation.supported && acquisitionSupported;
+            // Asking comparisons can describe an estimate, but cannot establish
+            // net profit, ROI, a purchase ceiling or GO without the shared gates.
+            const economicsSupported =
+              comparisonSupported &&
+              economicsEvidenceReady({
+                valuation: d.valuation,
+                evidenceGates: d.evidence_gates,
+              });
             const economicsNumber = (value: unknown) =>
               economicsSupported &&
               typeof value === "number" &&
@@ -595,7 +604,7 @@ export async function GET(req: NextRequest) {
               valuationEvidence: valuation,
               sellEstimate: valuation.supported ? d.sell_estimate : undefined,
               priceGap:
-                economicsSupported &&
+                comparisonSupported &&
                 price.kind === "asking" &&
                 d.price_implausible !== true
                   ? d.sell_estimate - Number(d.ask_price)

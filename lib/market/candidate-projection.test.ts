@@ -12,7 +12,10 @@ const legacy = readFileSync(
 );
 describe("Market candidate projection contract", () => {
   it("keeps every original response field without returning the source blobs", () => {
-    expect(MARKET_CANDIDATE_FIELDS.split(",").sort()).toEqual(
+    const fields = MARKET_CANDIDATE_FIELDS.split(",");
+    expect(
+      fields.filter((field) => !field.startsWith("evidence_gates:")).sort(),
+    ).toEqual(
       legacy
         .split(",")
         .map((field) => field.trim().split(":")[0])
@@ -20,6 +23,9 @@ describe("Market candidate projection contract", () => {
     );
     expect(MARKET_CANDIDATE_FIELDS.split(",")).not.toContain("options");
     expect(MARKET_CANDIDATE_FIELDS.split(",")).not.toContain("deal_analysis");
+    expect(fields.filter((field) => field.includes("->"))).toEqual([
+      "evidence_gates:deal_analysis->evidenceGates",
+    ]);
   });
   it("expands each guarded JSON root once and preserves evidence JSON types", () => {
     expect(migration.match(/jsonb_to_record\(/g)).toHaveLength(2);

@@ -57,6 +57,7 @@ function query() {
         ? state.rows.slice(start, end).map(({ deal_analysis, ...row }) => ({
             ...row,
             valuation: deal_analysis?.valuation,
+            evidence_gates: deal_analysis?.evidenceGates,
             acquisition_price_missing: deal_analysis?.acquisitionPriceMissing,
             price_implausible: deal_analysis?.priceImplausible,
             analysis_roi: deal_analysis?.roi,
@@ -122,13 +123,66 @@ const request = (search: string) => {
   );
 };
 
+const verifiedEconomics = () => ({
+  roi: 20,
+  valuation: {
+    source: "comparables",
+    resaleEvidence: true,
+    compCount: 8,
+    confidence: "medium",
+    compKind: "sold",
+    soldLane: "clean",
+    soldAnchored: true,
+    soldCount: 3,
+    soldAt: new Date(Date.now() - 86400000).toISOString(),
+  },
+  evidenceGates: {
+    priceMeaningConfirmed: true,
+    titleReviewed: true,
+    conditionInspected: true,
+    costsConfirmed: true,
+  },
+});
+
+const economicListing = (analysis: Record<string, unknown>) => ({
+  id: "economic-listing",
+  source: "independent_dealer",
+  source_url: "https://dealer.test/car",
+  year: 2020,
+  make: "Ford",
+  model: "Ranger",
+  condition: "clean_title",
+  mileage: 50000,
+  last_seen_at: new Date().toISOString(),
+  ask_price: 12000,
+  sell_estimate: 15000,
+  true_net_profit: 2500,
+  profit_score: 80,
+  recommended_max_bid: 11000,
+  deal_verdict: "go",
+  price_evidence: { kind: "asking", askingPrice: 12000 },
+  deal_analysis: analysis,
+});
+
+const purchaseEconomicsFields = [
+  "profitEstimate",
+  "profitScore",
+  "recommendedMaxBid",
+  "dealVerdict",
+  "roi",
+];
+
 describe("Market inventory filtering and pagination", () => {
   it("reads the server-only projection without fetching raw JSON roots", async () => {
     await request("mode=all");
     expect(state.calls).toContainEqual(["from", MARKET_CANDIDATE_RELATION]);
-    expect(MARKET_CANDIDATE_FIELDS).not.toMatch(
-      /->|\*|\boptions\b|\bdeal_analysis\b/,
-    );
+    const fields = MARKET_CANDIDATE_FIELDS.split(",");
+    expect(fields).not.toContain("options");
+    expect(fields).not.toContain("deal_analysis");
+    expect(fields.filter((field) => field.includes("->"))).toEqual([
+      "evidence_gates:deal_analysis->evidenceGates",
+    ]);
+    expect(MARKET_CANDIDATE_FIELDS).not.toContain("*");
   });
   it("returns a bounded recent batch and resumes after its last eligible listing", async () => {
     const time = "2026-11-03T20:00:00.123456+00:00";
@@ -410,15 +464,7 @@ describe("Market inventory filtering and pagination", () => {
       profit_score: 80,
       last_seen_at: seenAt(12),
       price_evidence: { kind: "asking", askingPrice: 10000 },
-      deal_analysis: {
-        valuation: {
-          resaleEvidence: true,
-          source: "comparables",
-          compCount: 6,
-          compKind: "ask",
-          confidence: "medium",
-        },
-      },
+      deal_analysis: verifiedEconomics(),
     };
     state.rows = [
       {
@@ -965,7 +1011,7 @@ describe("Market inventory filtering and pagination", () => {
     expect(state.calls.some((call) => call[1] === "deal_verdict")).toBe(false);
   });
 
-  it("withholds baseline economics and excludes them from profit filters and lane medians", async () => {
+  it("keeps asking comparisons separate from economics in rows, filters and aggregates", async () => {
     const common = {
       source: "independent_dealer",
       make: "Ford",
@@ -1004,15 +1050,37 @@ describe("Market inventory filtering and pagination", () => {
           },
         },
       },
+      {
+        ...common,
+        id: "missing-costs",
+        deal_analysis: {
+          ...verifiedEconomics(),
+          evidenceGates: {
+            ...verifiedEconomics().evidenceGates,
+            costsConfirmed: false,
+          },
+        },
+      },
+      { ...common, id: "verified", deal_analysis: verifiedEconomics() },
     ];
     const body = await (
       await request("mode=all&sort=profitEstimate&sortDir=desc")
     ).json();
-    expect(body.total).toBe(2);
-    expect(body.rows[0].id).toBe("comparisons");
-    expect(body.rows[0].valuationEvidence.label).toContain(
+    expect(body.total).toBe(4);
+    expect(body.rows[0]).toMatchObject({
+      id: "verified",
+      profitEstimate: 2500,
+      profitScore: 80,
+      recommendedMaxBid: 11000,
+      dealVerdict: "go",
+      roi: 20,
+    });
+    const comparisons = body.rows.find((row: any) => row.id === "comparisons");
+    expect(comparisons.valuationEvidence.label).toContain(
       "8 asking-price comparisons",
     );
+    expect(comparisons).toMatchObject({ sellEstimate: 15000, priceGap: 3000 });
+    const baseline = body.rows.find((row: any) => row.id === "baseline");
     for (const key of [
       "sellEstimate",
       "profitEstimate",
@@ -1021,16 +1089,162 @@ describe("Market inventory filtering and pagination", () => {
       "dealVerdict",
       "roi",
     ])
-      expect(body.rows[1]).not.toHaveProperty(key);
+      expect(baseline).not.toHaveProperty(key);
+    for (const row of body.rows.filter((row: any) => row.id !== "verified")) {
+      for (const key of [
+        "profitEstimate",
+        "profitScore",
+        "recommendedMaxBid",
+        "dealVerdict",
+        "roi",
+      ])
+        expect(row).not.toHaveProperty(key);
+    }
+    for (const row of body.rows) {
+      for (const key of [
+        "deal_analysis",
+        "evidence_gates",
+        "evidenceGates",
+        "valuation",
+      ])
+        expect(row).not.toHaveProperty(key);
+    }
+    expect(body.facets.profitEvidence).toBe(1);
+    expect(body.facets.profitScoreEvidence).toBe(1);
     expect(Object.values(body.facets.laneProfit)).toEqual([2500]);
     const filtered = await (await request("mode=all&minProfit=1000")).json();
     expect(filtered.rows.map((row: { id: string }) => row.id)).toEqual([
-      "comparisons",
+      "verified",
     ]);
     const curated = await (await request("mode=curated")).json();
     expect(curated.rows.map((row: { id: string }) => row.id)).toEqual([
-      "comparisons",
+      "verified",
     ]);
+    for (const filter of ["minRoi=1", "verdicts=go"]) {
+      const filtered = await (await request(`mode=all&${filter}`)).json();
+      expect(filtered.rows.map((row: any) => row.id)).toEqual(["verified"]);
+    }
+    const streaming = await (
+      await request("mode=all&browse=1&sort=lastSeenAt")
+    ).json();
+    expect(
+      streaming.rows.find((row: any) => row.id === "comparisons"),
+    ).not.toHaveProperty("profitEstimate");
+    expect(
+      streaming.rows.find((row: any) => row.id === "verified").profitEstimate,
+    ).toBe(2500);
+  });
+
+  it.each(
+    [
+      "priceMeaningConfirmed",
+      "titleReviewed",
+      "conditionInspected",
+      "costsConfirmed",
+    ].flatMap((gate) =>
+      [undefined, null, false, "true", "false", 1, {}].map((value) => ({
+        gate,
+        value,
+      })),
+    ),
+  )(
+    "requires literal true for purchase gate $gate: $value",
+    async ({ gate, value }) => {
+      const analysis = verifiedEconomics();
+      state.rows = [
+        economicListing({
+          ...analysis,
+          evidenceGates: { ...analysis.evidenceGates, [gate]: value },
+        }),
+      ];
+      const body = await (await request("mode=all")).json();
+      expect(body.rows).toHaveLength(1);
+      expect(body.rows[0].sellEstimate).toBe(15000);
+      for (const key of purchaseEconomicsFields)
+        expect(body.rows[0]).not.toHaveProperty(key);
+      expect(body.facets.profitEvidence).toBe(0);
+      expect(body.facets.laneProfit).toEqual({});
+    },
+  );
+
+  it.each([
+    { soldAt: undefined },
+    { soldAt: "2000-01-01" },
+    { soldAt: new Date(Date.now() + 86400000).toISOString() },
+    { soldCount: "3" },
+    { soldCount: 2 },
+    { soldAnchored: "true" },
+    { soldLane: undefined },
+    { soldLane: "unknown" },
+    { confidence: "low" },
+    { resaleEvidence: "true" },
+    { source: "third_party", kbbValue: 15000 },
+  ])(
+    "withholds purchase economics for unsupported sold evidence: %j",
+    async (patch) => {
+      const analysis = verifiedEconomics();
+      state.rows = [
+        economicListing({
+          ...analysis,
+          valuation: { ...analysis.valuation, ...patch },
+        }),
+      ];
+      const body = await (await request("mode=all")).json();
+      for (const key of purchaseEconomicsFields)
+        expect(body.rows[0]).not.toHaveProperty(key);
+      expect(body.facets.laneProfit).toEqual({});
+    },
+  );
+
+  it("does not infer any purchase checks from otherwise valid sold valuation", async () => {
+    state.rows = [
+      economicListing({ valuation: verifiedEconomics().valuation }),
+    ];
+    const body = await (await request("mode=all")).json();
+    expect(body.rows[0].valuationEvidence.supported).toBe(true);
+    for (const key of purchaseEconomicsFields)
+      expect(body.rows[0]).not.toHaveProperty(key);
+  });
+
+  it("keeps comparison cash and deposit price semantics independent of purchase evidence", async () => {
+    const cash = economicListing(verifiedEconomics());
+    state.rows = [
+      { ...cash, id: "cash" },
+      {
+        ...cash,
+        id: "deposit",
+        ask_price: 500,
+        price_evidence: { kind: "down_payment", listedAmount: 500 },
+      },
+    ];
+    const body = await (await request("mode=all&priceBasis=cash")).json();
+    const cashRow = body.rows.find((row: any) => row.id === "cash");
+    const deposit = body.rows.find((row: any) => row.id === "deposit");
+    expect(cashRow.price).toMatchObject({
+      cashPrice: 12000,
+      comparisonEligible: true,
+    });
+    expect(cashRow).toMatchObject({
+      profitEstimate: 2500,
+      recommendedMaxBid: 11000,
+      dealVerdict: "go",
+    });
+    expect(deposit.price).toMatchObject({
+      kind: "down_payment",
+      amount: 500,
+      cashPrice: null,
+      comparisonEligible: false,
+    });
+    expect(deposit.sellEstimate).toBe(15000);
+    expect(deposit).not.toHaveProperty("priceGap");
+    for (const key of purchaseEconomicsFields)
+      expect(deposit).not.toHaveProperty(key);
+    expect(body.summary.askingSample).toBe(1);
+    expect(body.summary.medianAsk).toBe(12000);
+    const filtered = await (
+      await request("mode=all&priceBasis=cash&minPrice=1&pricePolicy=reported")
+    ).json();
+    expect(filtered.rows.map((row: any) => row.id)).toEqual(["cash"]);
   });
 
   it.each([
@@ -1058,14 +1272,8 @@ describe("Market inventory filtering and pagination", () => {
           last_seen_at: new Date().toISOString(),
           price_evidence: priceEvidence,
           deal_analysis: {
+            ...verifiedEconomics(),
             roi: 1200,
-            valuation: {
-              source: "comparables",
-              resaleEvidence: true,
-              compCount: 8,
-              confidence: "medium",
-              compKind: "ask",
-            },
           },
         },
       ];
@@ -1133,15 +1341,9 @@ describe("Market inventory filtering and pagination", () => {
           last_seen_at: new Date().toISOString(),
           price_evidence: evidence,
           deal_analysis: {
+            ...verifiedEconomics(),
             acquisitionPriceMissing: missing,
             roi: 0,
-            valuation: {
-              source: "comparables",
-              resaleEvidence: true,
-              compCount: 8,
-              confidence: "medium",
-              compKind: "ask",
-            },
           },
         },
       ];
