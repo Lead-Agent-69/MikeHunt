@@ -422,10 +422,28 @@ export function canonicalSource(source?: string | null): string {
   return k;
 }
 
+// Registry mutations above finish at module initialization. Cache only public
+// normalized host -> source identity, including misses; never URLs or row data.
+const SOURCE_HOST_CACHE_LIMIT = 1024;
+const sourceHostCache = new Map<string, string | null>();
+
 export function sourceFromUrl(sourceUrl?: string | null): string | null {
   // Hostname match only (exact or dot-suffix), never a substring of the whole URL.
   const host = hostOf(sourceUrl);
   if (!host) return null;
+  const cached = sourceHostCache.get(host);
+  if (cached !== undefined) return cached;
+  const source = sourceFromHost(host, sourceUrl);
+  if (sourceHostCache.size >= SOURCE_HOST_CACHE_LIMIT)
+    sourceHostCache.delete(sourceHostCache.keys().next().value!);
+  sourceHostCache.set(host, source);
+  return source;
+}
+
+function sourceFromHost(
+  host: string,
+  sourceUrl?: string | null,
+): string | null {
   const on = (...domains: string[]) =>
     domains.some((domain) => hostMatches(host, domain));
   if (on("govdeals.com")) return "govdeals";
