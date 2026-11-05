@@ -557,7 +557,10 @@ export async function GET(req: NextRequest) {
             let query = build()
               .order(byMileage ? "mileage" : "last_seen_at", {
                 ascending: byMileage && sortDir === "asc",
-                nullsFirst: false,
+                // The observation range already excludes null timestamps.
+                // Match the existing DESC index so Postgres can stop at LIMIT.
+                // Mileage still keeps unknown values at the end.
+                nullsFirst: !byMileage,
               })
               .order("id", { ascending: true })
               .limit(batchSize);

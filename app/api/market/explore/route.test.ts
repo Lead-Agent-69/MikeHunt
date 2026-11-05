@@ -141,6 +141,21 @@ describe("Market inventory filtering and pagination", () => {
     ]);
   });
 
+  it("uses index-compatible timestamp ordering while excluding unobserved rows", async () => {
+    await GET(new NextRequest("http://localhost/api/market/explore?browse=1"));
+    expect(state.calls).toContainEqual([
+      "order",
+      "last_seen_at",
+      { ascending: false, nullsFirst: true },
+    ]);
+    expect(
+      state.calls.some(
+        ([method, column]) => method === "gte" && column === "last_seen_at",
+      ),
+    ).toBe(true);
+    expect(state.calls).toContainEqual(["order", "id", { ascending: true }]);
+  });
+
   it("continues mileage browsing through equal values and unknown mileage", async () => {
     const ids = [1, 2, 3].map((n) => `00000000-0000-0000-0000-00000000000${n}`);
     state.rows = ids.map((id, index) => ({

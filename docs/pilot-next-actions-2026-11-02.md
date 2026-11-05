@@ -4,6 +4,13 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ## Released foundation
 
+### PR #633 release verification
+
+- Vercel reported a successful production deployment of merge 081c6973. GitHub CI and 5,877 local tests passed.
+- Signed-in desktop Chromium ran against the isolated Docker stack with the repository lockfile installed and the app, browser, and Auth gateway sharing loopback. All 10 selected checks passed: six account setups, Market filter Apply and Cancel, light and dark outcome ledger, and purchase retry with one recorded purchase and retained photos and cents.
+- The deployed Missouri and Florida cash search with photos required and repairables excluded returned HTTP 500 for newest first (9.02 s), price ascending (10.09 s), mileage ascending (11.32 s), and aggregate Insights (21.81 s). The public status reported buyerReady=true and decisionReady=false. The request failure cause is unconfirmed. Treat the earlier successful feed timings as historical.
+- Later-batch Grid and Table restoration, the full owner journey and isolation, source publication receipts, physical devices, and independent recovery still need acceptance evidence.
+
 ### November 4 private pilot evidence
 
 - PR #630 passed CI and deployed. The Missouri and Florida cash-price feed returned 50 listings in 3.41 s, 1.23 s, and 1.38 s on three uncached runs. Three consecutive cursor pages returned 150 unique listings.
