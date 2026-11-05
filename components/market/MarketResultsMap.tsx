@@ -93,10 +93,47 @@ export function MarketResultsMap({
     [rows, metric],
   );
   const [selectedId, setSelectedId] = React.useState("");
+  const selectPoint = (id: string) => {
+    setSelectedId(id);
+    try {
+      sessionStorage.setItem(
+        "dh-market-map-selection-v1",
+        JSON.stringify({
+          scope: window.location.pathname + window.location.search,
+          id,
+          at: Date.now(),
+        }),
+      );
+    } catch {
+      // Selection remains usable when session storage is unavailable.
+    }
+  };
   React.useEffect(() => {
-    if (!points.some((point) => String(point.id) === selectedId))
-      setSelectedId(points[0] ? String(points[0].id) : "");
-  }, [points, selectedId]);
+    try {
+      const saved = JSON.parse(
+        sessionStorage.getItem("dh-market-map-selection-v1") || "null",
+      );
+      if (
+        saved?.scope === window.location.pathname + window.location.search &&
+        Number.isFinite(saved.at) &&
+        saved.at <= Date.now() &&
+        Date.now() - saved.at < 30 * 60 * 1000 &&
+        points.some((point) => String(point.id) === saved.id)
+      ) {
+        setSelectedId(saved.id);
+        return;
+      }
+    } catch {
+      // A corrupt or expired record falls back to an available vehicle.
+    }
+    setSelectedId((current) =>
+      points.some((point) => String(point.id) === current)
+        ? current
+        : points[0]
+          ? String(points[0].id)
+          : "",
+    );
+  }, [points]);
   const selected =
     rows.find((row) => row.id === selectedId) ||
     rows.find((row) => row.id === String(points[0]?.id));
@@ -120,7 +157,7 @@ export function MarketResultsMap({
             <select
               aria-label="Inspect mapped listing"
               value={selectedId}
-              onChange={(event) => setSelectedId(event.target.value)}
+              onChange={(event) => selectPoint(event.target.value)}
               className="field min-h-10 !w-auto max-w-[14rem] text-xs"
             >
               {points.map((point) => (
@@ -153,7 +190,7 @@ export function MarketResultsMap({
           <DealerMap
             points={points}
             compact
-            onPointSelect={(id) => setSelectedId(String(id))}
+            onPointSelect={(id) => selectPoint(String(id))}
           />
         </div>
       ) : (

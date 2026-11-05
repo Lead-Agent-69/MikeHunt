@@ -47,3 +47,27 @@ it("reveals the same scoped filter destination while browsing and removes its li
   act(() => root.render(<></>));
   expect(observer.cleanup).toHaveBeenCalledTimes(1);
 });
+
+it("keeps Feed search context and active criteria visible in its upward-scroll controls", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  act(() =>
+    root.render(
+      <BrowseFilterShortcut
+        current="/feed"
+        query="states=MO&zip=63101&radius=75&q=Ford&maxMileage=50000&maxPrice=20000&minYear=2018"
+      />,
+    ),
+  );
+  act(() => observer.publish(true));
+  const region = host.querySelector(
+    '[aria-label="Refine search while browsing"]',
+  )!;
+  expect(region.textContent).toContain("Ford · Within 75 mi of 63101");
+  const links = region.querySelectorAll("a");
+  expect(links[0].textContent).toBe("Results");
+  expect(links[1].textContent).toContain("Search & filters3");
+  expect(new URL(links[1].href).searchParams.get("maxMileage")).toBe("50000");
+});

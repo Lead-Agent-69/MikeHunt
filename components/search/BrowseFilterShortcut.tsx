@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
+import { inventoryScopeLabel } from "@/lib/search/inventory-view-scope";
+import { DEFAULT_RADIUS_MI } from "@/lib/search/zip-radius-scope";
 import { observeScrollReveal } from "@/lib/ui/observe-scroll-reveal";
 
 /** Secondary views return to the same search with the complete filters already open. */
@@ -25,6 +27,26 @@ export function BrowseFilterShortcut({
     );
   }, []);
   const params = new URLSearchParams(query);
+  const summary = [
+    params.get("q") ||
+      [params.get("makes"), params.get("model")].filter(Boolean).join(" ") ||
+      "Vehicles",
+    params.get("near")
+      ? `Within ${params.get("radius") || DEFAULT_RADIUS_MI} mi of ${params.get("near")}`
+      : inventoryScopeLabel(params),
+  ].join(" · ");
+  const filterCount = [
+    "minPrice",
+    "maxPrice",
+    "maxMileage",
+    "minMileage",
+    "minYear",
+    "maxYear",
+    "sources",
+    "titleType",
+    "conditions",
+    "categories",
+  ].filter((key) => !!params.get(key)).length;
   params.set("filters", "open");
   const href = `/market?${params}`;
   const control = (
@@ -35,6 +57,11 @@ export function BrowseFilterShortcut({
       title="Open this search's full filters in Results"
     >
       <SlidersHorizontal size={17} aria-hidden="true" /> Search &amp; filters
+      {filterCount > 0 && (
+        <span className="rounded-full bg-[var(--accent-surface)] px-1.5 text-xs text-[var(--blue)]">
+          {filterCount}
+        </span>
+      )}
     </Link>
   );
   return (
@@ -49,9 +76,17 @@ export function BrowseFilterShortcut({
         >
           {current === "/feed" ? (
             <div className="flex w-full max-w-3xl items-center gap-2">
-              <span className="mr-auto pl-1 text-sm font-bold text-[var(--t1)]">
-                Feed
-              </span>
+              <div className="mr-auto min-w-0 pl-1">
+                <span className="block text-xs font-bold text-[var(--t1)]">
+                  Feed
+                </span>
+                <span
+                  className="block truncate text-xs text-[var(--t3)]"
+                  title={summary}
+                >
+                  {summary}
+                </span>
+              </div>
               <Link
                 href={`/market?${query}`}
                 prefetch={false}

@@ -1,7 +1,9 @@
 import { openMarketArea, setMarketRadius } from "./support/market-area";
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { randomUUID } from "node:crypto";
 import { storagePath } from "./support/accounts";
-import { localOnly } from "./support/target";
+import { assertLocalTarget, localOnly } from "./support/target";
 
 test.describe("Market Explorer home", () => {
   localOnly();
@@ -741,19 +743,88 @@ test.describe("Market Explorer home", () => {
   test("keeps table view reachable and separates bids from cash asks", async ({
     page,
   }) => {
-    await page.goto("/market?priceKind=current_bid&mode=all");
-    await expect(page.locator("article").first()).toBeVisible();
-    const bidLabels = page
-      .locator("article")
-      .first()
-      .getByText("Current bid", { exact: true });
-    await expect(bidLabels).toHaveCount(1);
-    await expect(bidLabels.first()).toBeVisible();
-    await expect(bidLabels.last()).toBeVisible();
-    await page.getByRole("button", { name: "Table view", exact: true }).click();
-    await expect(page.getByRole("table")).toBeVisible();
-    await expect(
-      page.getByRole("table").getByText("Current bid", { exact: true }).first(),
-    ).toBeVisible();
+    assertLocalTarget("create the market bid fixture");
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+    if (!["127.0.0.1", "localhost", "[::1]"].includes(new URL(url).hostname))
+      throw new Error("Market bid fixtures require local Supabase.");
+    const db = createClient(url, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const id = randomUUID();
+    const token = `local-market-bid-${id}`;
+    const title = `2020 Honda Accord ${token}`;
+    const image = `https://photos.test/${token}.svg`;
+    const now = Date.now();
+    // Own a fresh auction per invocation: global seed auctions eventually expire,
+    // and a unique search also isolates parallel projects/retries and API caches.
+    try {
+      // Cards hide listings with exhausted photos. Keep this fixture's image
+      // browser-local while exercising the real database and market endpoint.
+      await page.route(image, (route) =>
+        route.fulfill({
+          contentType: "image/svg+xml",
+          body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480"><rect width="640" height="480" fill="#245074"/></svg>',
+        }),
+      );
+      const inserted = await db.from("deals").insert({
+        id,
+        source: "copart",
+        source_deal_id: token,
+        source_url: `https://www.copart.com/lot/${id}`,
+        title,
+        year: 2020,
+        make: "Honda",
+        model: "Accord",
+        condition: "clean_title",
+        mileage: 50000,
+        images: [image],
+        ask_price: 5000,
+        active: true,
+        last_seen_at: new Date(now).toISOString(),
+        auction_end_at: new Date(now + 7 * 86400000).toISOString(),
+        options: {
+          priceEvidence: {
+            kind: "current_bid",
+            currentBid: 5000,
+            checkedAt: new Date(now).toISOString(),
+          },
+        },
+      });
+      expect(inserted.error, "Insert this test's local auction").toBeNull();
+      await page.goto(
+        `/market?priceKind=current_bid&priceBasis=advertised&mode=all&q=${token}`,
+      );
+      const card = page.locator("article");
+      await expect(card).toHaveCount(1);
+      await expect(card.getByRole("heading")).toHaveText(title);
+      await expect(card.getByText("Current bid", { exact: true })).toHaveCount(
+        1,
+      );
+      await expect(
+        card.getByText("Current bid", { exact: true }),
+      ).toBeVisible();
+      await expect(card.getByText("Asking price", { exact: true })).toHaveCount(
+        0,
+      );
+      await page
+        .getByRole("button", { name: "Table view", exact: true })
+        .click();
+      const table = page.getByRole("table");
+      await expect(table).toBeVisible();
+      const row = table.getByRole("row").filter({
+        has: page.locator(`a[href="/deal/${id}"]`),
+      });
+      await expect(row).toHaveCount(1);
+      await expect(row.getByText("Current bid", { exact: true })).toBeVisible();
+      await expect(row.getByText("Asking price", { exact: true })).toHaveCount(
+        0,
+      );
+    } finally {
+      const removed = await db.from("deals").delete().eq("id", id);
+      expect(removed.error, "Remove only this test's local auction").toBeNull();
+      const remaining = await db.from("deals").select("id").eq("id", id);
+      expect(remaining.error, "Verify local auction cleanup").toBeNull();
+      expect(remaining.data).toEqual([]);
+    }
   });
 });

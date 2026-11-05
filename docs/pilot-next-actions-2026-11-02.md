@@ -4,6 +4,16 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ## Released foundation
 
+### November 5 interaction and search follow-up — acceptance in progress
+
+- Working branch `codex/pilot-interaction-completion` shares complete candidate scans for equivalent set-valued filters, opposite price directions, and independent Insights within a bounded 30-second, per-instance cache. Identical concurrent reads coalesce. Eligibility, full-result ordering, unknown-value handling and desk scope remain unchanged. This is not a distributed cache or proof of cold-search acceptance.
+- Added bounded server diagnostics for Auth, location lookup, database-client batch wait, price interpretation, photo eligibility, aggregation, sorting and response serialization. Payload sizes are sampled decoded-JSON estimates, not measured wire bytes; client batch wait includes network and decoding, not isolated PostgreSQL execution. Retained all evidence fields: candidate/display splitting and a new index require representative production measurements before changes.
+- Feed snapshots retain owner, desk, search, loaded vehicles, continuation, retry state and vehicle anchor for 30 minutes within the browser session. Account switches discard rendered owner-scoped state; unavailable storage falls back to fetching. Photo navigation retains its position, fixed stage dimensions and local retry. Map selection restores only for the same search and available vehicle. Feed scroll-up controls now show search/location context and active-filter count.
+- Fixed a previous navigation timeout canceling a newer drag. Existing rim, inner highlight and pressed surfaces were verified against cached official Nuvio mobile source (revision `46febb568348aa5e135bff0d4d5c914933aff5a0`): 0.75 dp reference rim and 24 dp blur; DealerHunt uses a 1 px rim and 24 px blur. Native fidelity and physical feel are not claimed. Navigation component checks covered 320/390/430/768/1200/1440px, light/dark, reduced motion and keyboard focus.
+- Replaced the expired-auction bid-label dependency with a dedicated isolated fixture and verified-cleanup assertions. Presentation mocks remain separate from persisted workflow acceptance. Initial focused checks passed; full local gate, exact-head CI, deployment and authenticated rerun receipts must be attached before release acceptance.
+- Branding lives separately in `codex/dh-brand-review`. The approved raster reference supplies the H geometry; review captures and motion evidence are prepared separately. It must not merge or deploy before design review and its release gate passes.
+- Still open: three genuinely cold price-ascending, price-descending and Insights requests each under 10 seconds; production query-plan and transfer analysis; complete owner and cross-account journey; source publication receipts; long-session memory/slow-network profiling; physical iPhone/Android installed-app and touch acceptance. Keep archival disabled pending independent recovery and isolated restore.
+
 ### PR #633 release verification
 
 - Vercel reported a successful production deployment of merge 081c6973. GitHub CI and 5,877 local tests passed.

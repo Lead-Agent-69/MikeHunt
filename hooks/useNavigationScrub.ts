@@ -128,6 +128,7 @@ export function useNavigationScrub(
           event.shiftKey
         )
           return;
+        clearPending();
         gesture.current = {
           id: event.pointerId,
           x: event.clientX,
