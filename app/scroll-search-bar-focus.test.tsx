@@ -27,7 +27,7 @@ function scroll(y: number) {
   vi.stubGlobal("scrollY", y);
   act(() => {
     window.dispatchEvent(new Event("scroll"));
-    const pending = [...frames.values()];
+    const pending = Array.from(frames.values());
     frames.clear();
     pending.forEach((callback) => callback(0));
   });

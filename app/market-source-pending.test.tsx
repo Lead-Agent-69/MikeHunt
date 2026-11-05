@@ -1,7 +1,7 @@
 import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { Simulate } from "react-dom/test-utils";
-import { SWRConfig } from "swr";
+import { SWRConfig, type Cache } from "swr";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 const preferences = vi.hoisted(() => ({ loading: false }));
@@ -38,7 +38,7 @@ import MarketPage from "./(dashboard)/market/page";
 
 let host: HTMLDivElement;
 let root: Root;
-let cache: Map<unknown, unknown>;
+let cache: Cache;
 let requests: {
   params: URLSearchParams;
   jsonRead: boolean;
