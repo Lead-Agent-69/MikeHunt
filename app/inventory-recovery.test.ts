@@ -10,6 +10,13 @@ vi.mock("@/components/discovery/DiscoverySaveProvider", () => ({
 vi.mock("@/hooks/usePreferences", () => ({
   usePreferences: () => ({ prefs: {}, isLoading: false }),
 }));
+vi.mock("@/hooks/useDealerId", () => ({
+  useDealerId: () => ({
+    dealerId: "recovery-owner",
+    loading: false,
+    error: null,
+  }),
+}));
 vi.mock("@/components/shared/MyStatesButton", () => ({
   MyStatesButton: () => null,
 }));
@@ -33,6 +40,7 @@ let element: HTMLDivElement;
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  sessionStorage.clear();
   element = document.createElement("div");
   root = createRoot(element);
   fetchMock = vi.fn();
