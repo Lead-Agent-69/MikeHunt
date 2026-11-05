@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const state = vi.hoisted(() => ({
@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   calls: [] as unknown[][],
   rows: null as Record<string, any>[] | null,
   center: { lat: 38.63, lng: -90.2 } as { lat: number; lng: number } | null,
+  readBarrier: null as null | (() => Promise<void>),
 }));
 function query() {
   const q: any = {};
@@ -44,7 +45,7 @@ function query() {
     state.calls.push(["range", from, to]);
     return q;
   };
-  q.then = (resolve: (value: unknown) => unknown) => {
+  q.then = async (resolve: (value: unknown) => unknown) => {
     const afterIndex = scanAfter
       ? state.rows
         ? state.rows.findIndex((row) => row.id === scanAfter) + 1
@@ -52,7 +53,7 @@ function query() {
       : 0;
     const start = afterIndex + range[0];
     const end = Math.min(afterIndex + range[1] + 1, start + state.serverCap);
-    return resolve({
+    const result = {
       error: state.error,
       data: state.rows
         ? state.rows.slice(start, end).map(({ deal_analysis, ...row }) => ({
@@ -85,7 +86,9 @@ function query() {
               analysis_roi: 50,
             }),
           ),
-    });
+    };
+    await state.readBarrier?.();
+    return resolve(result);
   };
   return q;
 }
@@ -115,6 +118,10 @@ import {
   MARKET_CANDIDATE_RELATION,
 } from "@/lib/market/candidate-projection";
 import { marketValuation } from "@/lib/market/valuation";
+import * as priceContext from "@/lib/deals/source-price-context";
+import * as photos from "@/lib/images/photo-evidence";
+import * as valuation from "@/lib/market/valuation";
+import * as cache from "@/lib/cache";
 const request = (search: string) => {
   // General filter fixtures intentionally include incomplete records for explicit research.
   const params = new URLSearchParams(search);
@@ -503,6 +510,11 @@ describe("Market inventory filtering and pagination", () => {
     state.error = null;
     state.rows = null;
     state.center = { lat: 38.63, lng: -90.2 };
+    state.readBarrier = null;
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
   it("keeps photo-less and placeholder listings researchable but out of usable-photo matches", async () => {
     state.rows = [
@@ -664,6 +676,231 @@ describe("Market inventory filtering and pagination", () => {
     expect(
       state.calls.filter(([method]) => method === "select").length,
     ).toBeGreaterThan(reads);
+  });
+
+  it("normalizes once for concurrent opposite price sorts and Insights without mutating shared rows", async () => {
+    state.rows = [12000, 8000, 16000].map((amount, index) => ({
+      ...economicListing(verifiedEconomics()),
+      id: `car-${index}`,
+      ask_price: amount,
+      price_evidence: { kind: "asking", askingPrice: amount },
+      images: [`https://dealer.test/car-${index}.jpg`],
+    }));
+    const price = vi.spyOn(priceContext, "sourcePriceContext");
+    const photo = vi.spyOn(photos, "photoEvidence");
+    const value = vi.spyOn(valuation, "marketValuation");
+    const cacheRead = vi.spyOn(cache, "cached");
+    const common = "mode=all&browse=1&priceBasis=cash";
+    const variants = [
+      "sort=askPrice&sortDir=asc",
+      "sort=askPrice&sortDir=desc",
+      "sort=lastSeenAt&sortDir=desc&aggregate=1",
+    ];
+    const bodies = await Promise.all(
+      variants.map(async (variant) =>
+        (await request(`${common}&${variant}`)).json(),
+      ),
+    );
+    // One complete keyset traversal (data + exhaustion), not one per payload.
+    expect(state.calls.filter(([method]) => method === "select")).toHaveLength(
+      2,
+    );
+    expect(price).toHaveBeenCalledTimes(3);
+    expect(photo).toHaveBeenCalledTimes(3);
+    expect(value).toHaveBeenCalledTimes(3);
+    expect(bodies[0].rows.map((r: any) => r.price.cashPrice)).toEqual([
+      8000, 12000, 16000,
+    ]);
+    expect(bodies[1].rows.map((r: any) => r.price.cashPrice)).toEqual([
+      16000, 12000, 8000,
+    ]);
+    for (const body of bodies) {
+      expect(body.total).toBe(3);
+      expect(body.facets).toEqual(bodies[0].facets);
+    }
+    // Freeze the actual shared sample, including every nested value.
+    const cachedIndex = cacheRead.mock.calls.findIndex(([key]) =>
+      key.startsWith("mkt:candidates:"),
+    );
+    const shared = await cacheRead.mock.results[cachedIndex].value;
+    const freeze = (value: unknown) => {
+      if (!value || typeof value !== "object") return;
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    };
+    freeze(shared);
+    invalidate("mkt:explore:");
+    for (let index = 0; index < variants.length; index++) {
+      const again = await (
+        await request(`${common}&${variants[index]}`)
+      ).json();
+      again.summary.asOf = bodies[index].summary.asOf;
+      expect(again).toEqual(bodies[index]);
+    }
+    expect(price).toHaveBeenCalledTimes(3);
+  });
+
+  it("isolates desk scopes and redacts after reuse without poisoning flip economics", async () => {
+    state.rows = [
+      {
+        ...economicListing(verifiedEconomics()),
+        dealer_id: "owner-private-sentinel",
+        options: { ownerNote: "owner-private-sentinel" },
+      },
+    ];
+    const common = "mode=all&sort=askPrice&sortDir=asc";
+    const price = vi.spyOn(priceContext, "sourcePriceContext");
+    const flip = await (await request(common)).json();
+    expect(flip.rows[0].profitEstimate).toBe(2500);
+    state.flip = false;
+    const personal = await (await request(common)).json();
+    expect(personal.deskAccess).toBe("personal");
+    for (const key of purchaseEconomicsFields)
+      expect(personal.rows[0]).not.toHaveProperty(key);
+    expect(personal.facets.laneProfit).toEqual({});
+    expect(JSON.stringify([flip, personal])).not.toContain(
+      "owner-private-sentinel",
+    );
+    state.flip = true;
+    invalidate("mkt:explore:");
+    const again = await (await request(common.replace("asc", "desc"))).json();
+    expect(again.rows[0].profitEstimate).toBe(2500);
+    expect(price).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    "hasPhotos=yes",
+    "pricePolicy=reported",
+    "minPrice=9000",
+    "states=MO",
+    "includeRepairable=0",
+    "near=63101&radius=50",
+    "seenWithin=7",
+    "priceKind=asking",
+    "priceBasis=cash",
+    "_qa=separate",
+    "unknown=future",
+  ])(
+    "does not reuse eligibility across a changed semantic or unknown parameter: %s",
+    async (filter) => {
+      state.size = 1;
+      const price = vi.spyOn(priceContext, "sourcePriceContext");
+      await request("mode=all&sort=askPrice");
+      await request(`mode=all&sort=askPrice&${filter}`);
+      expect(price).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("bounds normalized scopes to two and retries a failed complete scan", async () => {
+    state.size = 1;
+    const price = vi.spyOn(priceContext, "sourcePriceContext");
+    for (const scope of ["a", "b", "c"])
+      await request(`mode=all&sort=askPrice&_qa=${scope}`);
+    invalidate("mkt:explore:");
+    await request("mode=all&sort=askPrice&_qa=b");
+    expect(price).toHaveBeenCalledTimes(3);
+    await request("mode=all&sort=askPrice&_qa=a");
+    expect(price).toHaveBeenCalledTimes(4);
+    state.error = { message: "temporary REST failure" };
+    const errors = await Promise.all([
+      request("mode=all&sort=askPrice&_qa=retry"),
+      request("mode=all&sort=askPrice&sortDir=asc&_qa=retry"),
+    ]);
+    expect(errors.map((r) => r.status)).toEqual([500, 500]);
+    state.error = null;
+    expect((await request("mode=all&sort=askPrice&_qa=retry")).status).toBe(
+      200,
+    );
+    expect(price).toHaveBeenCalledTimes(5);
+  });
+
+  it("does not retain a derived payload past normalized price/economics expiry", async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    state.rows = [economicListing(verifiedEconomics())];
+    const price = vi.spyOn(priceContext, "sourcePriceContext");
+    await request("mode=all&sort=askPrice&sortDir=asc");
+    vi.setSystemTime(now + 29_000);
+    const warm = await (
+      await request("mode=all&sort=askPrice&sortDir=desc")
+    ).json();
+    expect(warm.rows[0].profitEstimate).toBe(2500);
+    expect(price).toHaveBeenCalledTimes(1);
+    state.rows[0].deal_analysis.evidenceGates.costsConfirmed = false;
+    state.rows[0].price_evidence = { kind: "down_payment", downPayment: 500 };
+    vi.setSystemTime(now + 30_001);
+    const fresh = await (
+      await request("mode=all&sort=askPrice&sortDir=desc")
+    ).json();
+    expect(price).toHaveBeenCalledTimes(2);
+    expect(fresh.rows[0].price.kind).toBe("down_payment");
+    expect(fresh.rows[0]).not.toHaveProperty("profitEstimate");
+  });
+
+  it("rechecks the existing seven-day price currency boundary after 30 seconds", async () => {
+    vi.useFakeTimers();
+    const now = Date.now();
+    state.rows = [
+      {
+        ...economicListing(verifiedEconomics()),
+        price_evidence: {
+          kind: "asking",
+          askingPrice: 12000,
+          checkedAt: new Date(now - 7 * 86400000 + 15000).toISOString(),
+        },
+      },
+    ];
+    const first = await (
+      await request("mode=all&sort=askPrice&sortDir=asc")
+    ).json();
+    expect(first.rows[0].price.evidenceCurrent).toBe(true);
+    expect(first.rows[0].profitEstimate).toBe(2500);
+    vi.setSystemTime(now + 29000);
+    await request("mode=all&sort=askPrice&sortDir=desc");
+    vi.setSystemTime(now + 30001);
+    const expired = await (
+      await request("mode=all&sort=askPrice&sortDir=desc")
+    ).json();
+    expect(expired.rows[0].price.evidenceCurrent).toBe(false);
+    expect(expired.rows[0].price.comparisonEligible).toBe(false);
+    expect(expired.rows[0]).not.toHaveProperty("profitEstimate");
+  });
+
+  it("does not let an invalidated in-flight normalization replace a newer sample", async () => {
+    state.rows = [economicListing(verifiedEconomics())];
+    let release!: () => void;
+    let started!: () => void;
+    const entered = new Promise<void>((r) => {
+      started = r;
+    });
+    state.readBarrier = () => {
+      started();
+      return new Promise<void>((r) => {
+        release = r;
+      });
+    };
+    const old = request("mode=all&sort=askPrice&sortDir=asc");
+    await entered;
+    state.readBarrier = null;
+    invalidate();
+    state.rows = [
+      {
+        ...state.rows[0],
+        ask_price: 9000,
+        price_evidence: { kind: "asking", askingPrice: 9000 },
+      },
+    ];
+    const fresh = await (
+      await request("mode=all&sort=askPrice&sortDir=asc")
+    ).json();
+    expect(fresh.rows[0].price.amount).toBe(9000);
+    release();
+    await old;
+    invalidate("mkt:explore:");
+    const reused = await (
+      await request("mode=all&sort=askPrice&sortDir=desc")
+    ).json();
+    expect(reused.rows[0].price.amount).toBe(9000);
   });
 
   it("profiles cold reads separately from shared candidate reuse and cached payloads", async () => {

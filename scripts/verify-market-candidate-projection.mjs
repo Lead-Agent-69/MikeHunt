@@ -17,6 +17,22 @@ const secret = "local-market-projection-verification-secret-only";
 // Opt-in batching mode reuses the isolated schema/view without production access.
 const batchCap = Number(process.env.MARKET_BATCH_TEST_CAP || 0);
 if (![0, 500, 1000].includes(batchCap)) throw Error("Invalid batch test cap");
+const normalizedCache = process.env.MARKET_NORMALIZED_CACHE_TEST === "1";
+if (normalizedCache && batchCap) throw Error("Choose one verification mode");
+if (normalizedCache) {
+  fs.mkdirSync("artifacts/market-normalized-cache", { recursive: true });
+  fs.writeFileSync(
+    "artifacts/market-normalized-cache/baseline-route.ts",
+    execFileSync(
+      "git",
+      [
+        "show",
+        "42e72e120fe262404f68b7ce5b9c6a6de24ee057:app/api/market/explore/route.ts",
+      ],
+      { encoding: "utf8" },
+    ),
+  );
+}
 const run = (args, options = {}) =>
   execFileSync("docker", args, {
     encoding: "utf8",
@@ -397,9 +413,11 @@ try {
     [
       "node_modules/vitest/vitest.mjs",
       "run",
-      batchCap
-        ? "app/api/market/explore/batching.integration.test.ts"
-        : "app/api/market/explore/projection.integration.test.ts",
+      normalizedCache
+        ? "app/api/market/explore/normalized-cache.integration.test.ts"
+        : batchCap
+          ? "app/api/market/explore/batching.integration.test.ts"
+          : "app/api/market/explore/projection.integration.test.ts",
       "lib/market/candidate-projection.test.ts",
     ],
     {
@@ -410,6 +428,9 @@ try {
         MARKET_PROJECTION_TEST_URL: "http://127.0.0.1:" + port,
         MARKET_PROJECTION_TEST_RELAY: relay,
         MARKET_PROJECTION_TEST_INTERNAL_URL: internalUrl,
+        MARKET_NORMALIZED_BASELINE: normalizedCache
+          ? root + "artifacts/market-normalized-cache/baseline-route.ts"
+          : "",
       },
     },
   );

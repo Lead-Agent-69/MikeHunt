@@ -8,7 +8,8 @@ const pending = new Map<string, Promise<unknown>>();
 
 export async function cached<T>(
   key: string,
-  ttlMs: number,
+  // A dependent result can use its source's remaining TTL at completion.
+  ttlMs: number | (() => number),
   fn: () => Promise<T>,
   // Optional guard: skip caching when this returns false (e.g. an empty/failed result that must NOT stick
   // for the full TTL and starve every subsequent request — retry it next call instead). Default: cache all.
@@ -27,7 +28,8 @@ export async function cached<T>(
     .then((value) => {
       if (pending.get(key) === task && (!shouldCache || shouldCache(value))) {
         const completedAt = Date.now();
-        store.set(key, { value, expires: completedAt + ttlMs });
+        const lifetime = typeof ttlMs === "function" ? ttlMs() : ttlMs;
+        store.set(key, { value, expires: completedAt + lifetime });
         if (limits && key.startsWith(limits.prefix)) {
           const group = Array.from(store.keys()).filter((k) =>
             k.startsWith(limits.prefix),

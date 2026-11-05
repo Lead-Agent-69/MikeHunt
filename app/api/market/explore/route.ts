@@ -394,10 +394,15 @@ export async function GET(req: NextRequest) {
     }
     candidateParams.sort();
 
+    // A derived payload must not extend the normalized evidence's 30s lifetime.
+    let eligibleExpiresAt: number | undefined;
     // Same filter combo within 30s → serve the computed result instantly (no re-scan/re-facet).
     const payload = await cached(
       `mkt:explore:${flipDesk ? "flip" : "personal"}:${cacheParams.toString()}`,
-      30_000,
+      () =>
+        eligibleExpiresAt == null
+          ? 30_000
+          : Math.max(0, eligibleExpiresAt - Date.now()),
       async () => {
         diagnostics.computed = true;
         const supabase = createServerComponentClient();
@@ -743,8 +748,9 @@ export async function GET(req: NextRequest) {
         const fetchStarted = performance.now();
         const pageTimings: { offset: number; ms: number; rows: number }[] = [];
         // A keyset avoids rescanning and decoding every earlier row for each offset.
-        // Keep the complete eligible sample before cash-price sorting and aggregates.
-        const data = await cached(
+        // Share the complete normalized sample across sorts/Insights, not just raw reads.
+        // Keep the existing scope key (including unknown query parameters) and bounds.
+        const eligible = await cached(
           `mkt:candidates:${flipDesk ? "flip" : "personal"}:${candidateParams.toString()}`,
           30_000,
           async () => {
@@ -782,7 +788,8 @@ export async function GET(req: NextRequest) {
               // PostgREST may cap responses below our limit. Only an empty
               // keyset batch proves exhaustion, including exact multiples.
             }
-            return candidates;
+            const rows = eligibleRows(candidates);
+            return { rows, expiresAt: Date.now() + 30_000 };
           },
           undefined,
           { prefix: "mkt:candidates:", maxEntries: 2 },
@@ -792,7 +799,10 @@ export async function GET(req: NextRequest) {
         if (pageTimings.length) diagnostics.pages = pageTimings;
         const capped = false;
 
-        const rows = eligibleRows(data);
+        eligibleExpiresAt = eligible.expiresAt;
+        // Only this outer array is sorted below. Row objects and their nested price,
+        // valuation and image values are read-only; facets/redaction build new objects.
+        const rows = eligible.rows.slice();
         const aggregationStarted = performance.now();
 
         // Facets over the post-filter set so the UI shows live counts.
