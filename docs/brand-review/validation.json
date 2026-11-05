@@ -20,7 +20,8 @@
     "testFilesPassed": 776,
     "testsPassed": 5887,
     "build": "passed",
-    "durationSeconds": 772.5
+    "durationSeconds": 772.5,
+    "validatedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61"
   },
   "targetedTestsPassed": 30,
   "browser": {
@@ -51,5 +52,14 @@
     "Safari/iOS installation not manually tested",
     "Captures use an isolated shared-component harness",
     "Screen-reader speech output not manually tested"
-  ]
+  ],
+  "startupAcceptance": {
+    "status": "not_implemented_no_eligible_shared_blocking_client_stage",
+    "maximumDurationValidated": false,
+    "firstSessionGuardImplemented": false,
+    "usableContentTerminationValidated": false,
+    "repeatSessionSkipValidated": false,
+    "followupScope": "documentation only",
+    "evidence": "startup-acceptance.json"
+  }
 }

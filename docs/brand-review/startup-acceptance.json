@@ -1,0 +1,42 @@
+{
+  "reviewedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61",
+  "acceptanceStatus": "not_implemented_no_eligible_shared_blocking_client_stage",
+  "appWideBlockingClientInitializationFound": false,
+  "dashboardGroupLoadingFileExists": false,
+  "routeLoadingFiles": [
+    "app/(dashboard)/deal/[id]/loading.tsx",
+    "app/(dashboard)/discover/loading.tsx",
+    "app/(dashboard)/find/loading.tsx",
+    "app/(dashboard)/fleet/loading.tsx",
+    "app/(dashboard)/map/loading.tsx"
+  ],
+  "genuineWaitsPresent": [
+    "server-side home-page account lookup before landing or redirect",
+    "route-segment Suspense fallbacks",
+    "page-specific identity, preferences, permissions and data loading"
+  ],
+  "startupAnimationIntegrated": false,
+  "startupAnimationMaximumMsRequired": 1300,
+  "maximumDurationValidated": false,
+  "firstSessionGuardImplemented": false,
+  "repeatSessionSkipValidated": false,
+  "usableContentTerminationValidated": false,
+  "mobileSplashScreenHasCallers": false,
+  "noArtificialContentDelayAdded": true,
+  "followupScope": "documentation only; no application, hook, provider, test, or loading component changes",
+  "evidenceGitBlobIds": {
+    "app/layout.tsx": "eb1a29779b8e4494a64acfececa5632a3b746667",
+    "app/(dashboard)/layout.tsx": "16cd2e4ec0ac6a8dafcf8396f96bc6c3f55c9da2",
+    "app/page.tsx": "d84e664114e121125bb1241fc834327aaa0bd59f",
+    "app/(dashboard)/market/layout.tsx": "a87abadbc3058982aae1531e0ab7c1f4abdcbb7e",
+    "components/layout/TopNav.tsx": "4489eb3cd1040cf6dfd13f51738c730831e93263",
+    "components/providers/SWRProvider.tsx": "44681699728b2ebcc586cda8ee7d8a77edc8a7f9",
+    "components/discovery/DiscoverySaveProvider.tsx": "4135e9ffced4b64141f63409b037dac7084952ba",
+    "components/ui/responsive-design-system.tsx": "39bbf64ff886a61415cd5e55ca892cb279e4bbb9",
+    "components/ui/framer-components.tsx": "97811f788385a4f85e1aa058856fb4fef5116d47",
+    "components/ui/mobile-ux.tsx": "a0f8eec1e719f12e47505d15ed24fc10c6136bfc",
+    "components/PWARegister.tsx": "271bb2802bad14469bb40fddecaacda189d5b995",
+    "components/shared/FlipDeskGate.tsx": "b2783b3f75542ff1b6605db9f753660e067b1909",
+    "hooks/useDealerId.ts": "7ddd1d2c1949353962f74e7654c5615d65f98a65"
+  }
+}

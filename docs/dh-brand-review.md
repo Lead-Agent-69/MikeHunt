@@ -54,6 +54,23 @@ completion: the loop stays pending until actual settlement. Completion or error
 interrupts any beat immediately and displays the static mark. Reduced motion
 removes all four animations and keeps a static HUD after the same anti-flash guard.
 
+## Startup acceptance — explicitly not implemented
+
+The first-session startup requirement (maximum 1300 ms, immediate stop on usable
+content, skip repeats) is **not implemented or validated**. The inspected branch
+has no shared blocking client initialization owner or `app/(dashboard)/loading.tsx`.
+Its shell/providers render children immediately; real server-side and route-local
+waits remain separate. MobileSplashScreen is an unused export without a duration
+cap or first-session guard. The request-loader timings and four visual beats do
+not establish startup acceptance.
+
+[Startup architecture audit and acceptance matrix](brand-review/startup-acceptance.md)
+· [Machine-readable findings](brand-review/startup-acceptance.json).
+
+No runtime changes were made for this finding. No fake splash or content delay
+was added. The full-gate results below apply to the unchanged application-code
+commit `03612d61761820a5bedd762d15037d990df1ea61`, not a claimed startup integration.
+
 ## Clean build and stale generated types
 
 The earlier 15 route/page errors came from stale `.next/types/app/...` validators.
@@ -145,6 +162,8 @@ These selected captures are also included in the branch for remote review:
 - `docs/brand-review/branding-compact-200ms.png`
 - `docs/brand-review/branding-reduced-motion.png`
 - `docs/brand-review/branding-motion.webm`
+- `docs/brand-review/startup-acceptance.md`
+- `docs/brand-review/startup-acceptance.json`
 - `docs/brand-review/validation.json`
 - `docs/dh-brand-review.md`
 - `public/apple-touch-icon-120x120.png`
