@@ -1,5 +1,5 @@
 ﻿const CACHE_NAME = 'DealerHunt-v3'
-const STATIC_CACHE = 'DealerHunt-static-v3'
+const STATIC_CACHE = 'DealerHunt-static-v4-dh'
 const DYNAMIC_CACHE = 'DealerHunt-dynamic-v1'
 
 const STATIC_ASSETS = [
@@ -48,6 +48,12 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache with network fallback
 async function cachedResponse(request) {
+  // Prefer this release's precache over older copies retained in the dynamic cache.
+  try {
+    const cache = await caches.open(STATIC_CACHE)
+    const response = await cache.match(request)
+    if (response) return response
+  } catch { /* Fall back if this cache cannot be read. */ }
   try { return await caches.match(request) } catch (_) { return undefined }
 }
 

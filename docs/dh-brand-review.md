@@ -73,6 +73,21 @@ The previous no-boundary finding was accurate at `03612d61`/`711a955c` and is no
 superseded by this implementation. The new code's full gate passed: 5897 tests in 777 files, typecheck, lint,
 and the default production build. Prior 5887-test results are historical.
 
+## Branding cache update
+
+The service-worker static cache is now `DealerHunt-static-v4-dh`, ensuring the
+changed stable artwork URLs are fetched into a new precache during the existing
+worker update/install path. Reads prefer that current precache over retained old
+dynamic duplicates. `DealerHunt-dynamic-v1`, activation/deletion policy, private
+IndexedDB helpers, dynamic writes, and PWARegister behavior are unchanged.
+
+[Cache upgrade contract, regression tests, and browser evidence](brand-review/cache-upgrade.md).
+Targeted SW/PWA tests: **41 passed**. An actual production PWARegister/native-worker
+browser probe verified install → activate → Refresh, five current artwork hashes,
+old-static cleanup, and unchanged dynamic/private history. The cache correction's
+new full repository gate passed (5899 tests / 777 files, typecheck, lint,
+and production build); the previous startup gate is historical.
+
 ## Clean build and stale generated types
 
 The earlier 15 route/page errors came from stale `.next/types/app/...` validators.
@@ -107,7 +122,7 @@ include React 18 deprecation and broad filesystem tracing in an unrelated scrape
   from each beat; zero animations under reduced motion.
 - Pixel extraction: 153,064 retained pixels, zero changed RGB samples, zero crop-edge pixels.
 - Clean default production build: passed.
-- New full `npm run verify` gate: **passed** — typecheck, lint (0 errors; 193 warnings), **5897 tests in 777 files**, and the default production build; 1429.0 seconds. See `startup-full-verify.log`. The prior 5887-test gate remains historical.
+- Latest cache correction full `npm run verify` gate: **passed** — **5899 tests / 777 files**, typecheck, lint (0 errors; 193 warnings), and production build; 1883.0 seconds. See `cache-full-verify.log`. The startup-specific gate remains historical.
 - Production audit: passed, zero high/critical findings (6 low, 6 moderate).
 
 A compact machine-readable summary is included at `docs/brand-review/validation.json`.
@@ -159,6 +174,12 @@ These selected captures are also included in the branch for remote review:
 [Motion recording](brand-review/branding-motion.webm)
 
 ## Changed paths
+
+- `public/sw.js`
+- `app/service-worker-fallback.test.ts`
+- `docs/brand-review/cache-upgrade.md`
+- `docs/brand-review/cache-upgrade-browser.json`
+- `docs/brand-review/cache-upgrade-source.json`
 
 - `app/(dashboard)/loading.tsx`
 - `app/brand-startup-loader.test.tsx`

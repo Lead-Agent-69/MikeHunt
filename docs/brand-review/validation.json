@@ -31,7 +31,7 @@
     "critical": 0,
     "moderate": 6,
     "low": 6,
-    "evidence": "test-results/dh-brand-review/startup-production-audit.log"
+    "evidence": "test-results/dh-brand-review/cache-production-audit.log"
   },
   "limitations": [
     "Raster embedded in SVG; not vector artwork",
@@ -76,6 +76,33 @@
       "warnings": 193
     },
     "testFilesPassed": 777,
+    "testsPassed": 5899,
+    "build": "passed",
+    "durationSeconds": 1883.0,
+    "stageDurationSeconds": {
+      "Typecheck": 23.5,
+      "Lint": 51.8,
+      "Tests": 1700.5,
+      "Build": 107.2
+    },
+    "sourceGitBlobIds": {
+      "public/sw.js": "56f0705f186a049a09aacbf4623865f210f671d0",
+      "app/service-worker-fallback.test.ts": "1c347b734a0be1fa5d2f5e05ddf9a67dfeeb342f"
+    },
+    "evidence": "test-results/dh-brand-review/cache-full-verify.log"
+  },
+  "startupTargetedTestsPassed": 10,
+  "combinedTargetedTestsPassed": 40,
+  "startupBrowserEvidence": "test-results/dh-brand-review/startup-browser-checks.json",
+  "previousStartupFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 777,
     "testsPassed": 5897,
     "build": "passed",
     "durationSeconds": 1429.0,
@@ -95,7 +122,19 @@
     },
     "evidence": "test-results/dh-brand-review/startup-full-verify.log"
   },
-  "startupTargetedTestsPassed": 10,
-  "combinedTargetedTestsPassed": 40,
-  "startupBrowserEvidence": "test-results/dh-brand-review/startup-browser-checks.json"
+  "cacheUpgrade": {
+    "staticCache": "DealerHunt-static-v4-dh",
+    "dynamicCacheUnchanged": "DealerHunt-dynamic-v1",
+    "currentPrecacheWinsOverRetainedDuplicate": true,
+    "oldStaticRemovedAfterSuccessfulInstall": true,
+    "failedInstallDoesNotEvictExistingData": true,
+    "realPWARegisterRefreshVerified": true,
+    "freshArtworkHashesVerified": 5,
+    "dynamicAndIndexedDBRetained": true,
+    "targetedTestsPassed": 41,
+    "targetedTestFiles": 6,
+    "evidence": "cache-upgrade-browser.json",
+    "sourceScope": "cache-upgrade-source.json",
+    "fullGatePassed": true
+  }
 }
