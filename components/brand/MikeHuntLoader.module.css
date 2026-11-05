@@ -1,7 +1,14 @@
 .loader {
+  display: inline-flex;
+}
+.visual {
+  display: block;
   position: relative;
   aspect-ratio: 1;
   isolation: isolate;
+}
+.visual[hidden] {
+  display: none;
 }
 .final {
   position: absolute;
@@ -16,31 +23,132 @@
   width: 100%;
   height: 100%;
   fill: none;
-  stroke-width: 4;
+  stroke-width: 1.5;
   transform-origin: center;
   opacity: 0;
-  transition: opacity 180ms ease;
 }
 .track {
-  stroke: #c8d8ff;
-  opacity: 0.5;
+  stroke: #0877ff;
+  opacity: 0.35;
+}
+.ticks {
+  stroke: #00bce8;
 }
 .arc {
-  stroke: #2670ff;
+  stroke: #008de8;
   stroke-linecap: round;
-  stroke-dasharray: 39 19 12 19 39 61;
+  stroke-dasharray: 42 128;
+  transform-origin: center;
+}
+.scanLine,
+.brackets {
+  stroke: #00bce8;
+  opacity: 0;
+  transform-origin: center;
 }
 .loader[data-state="loading"] .ring {
   opacity: 1;
-  animation: orbit 1.35s linear infinite;
 }
-@keyframes orbit {
-  to {
+.loader[data-state="loading"] .visual:not([hidden]) .arc {
+  animation: scan 4.8s linear infinite;
+}
+.loader[data-state="loading"] .visual:not([hidden]) .scanLine {
+  animation: discover 4.8s linear infinite;
+}
+.loader[data-state="loading"] .visual:not([hidden]) .brackets {
+  animation: evaluate 4.8s linear infinite;
+}
+.loader[data-state="loading"] .visual:not([hidden]) .final {
+  animation: reveal 4.8s linear infinite;
+}
+/* Decorative looping beats, never request stages or progress. Settlement
+   interrupts every beat immediately; the original artwork is never distorted. */
+@keyframes scan {
+  0% {
+    transform: rotate(0deg);
+    opacity: 1;
+  }
+  24% {
     transform: rotate(360deg);
+    opacity: 1;
+  }
+  25%,
+  99% {
+    transform: rotate(360deg);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(360deg);
+    opacity: 1;
   }
 }
+@keyframes discover {
+  0%,
+  24% {
+    opacity: 0;
+    transform: translateY(-17px);
+  }
+  25% {
+    opacity: 0.7;
+    transform: translateY(-17px);
+  }
+  47% {
+    opacity: 0.7;
+    transform: translateY(17px);
+  }
+  49%,
+  100% {
+    opacity: 0;
+    transform: translateY(17px);
+  }
+}
+@keyframes evaluate {
+  0%,
+  49% {
+    opacity: 0;
+    transform: scale(1.1);
+  }
+  54%,
+  68% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  73%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+@keyframes reveal {
+  0%,
+  74%,
+  100% {
+    filter: none;
+  }
+  84%,
+  90% {
+    filter: drop-shadow(0 0 2px rgb(0 188 232 / 65%));
+  }
+}
+.loader[data-state="loading"][data-motion="static"]
+  .visual:not([hidden])
+  [data-motion],
+:global(html[data-motion="static"])
+  .loader[data-state="loading"]
+  .visual:not([hidden])
+  [data-motion],
+:global(html[data-app-motion="static"])
+  .loader[data-state="loading"]
+  .visual:not([hidden])
+  [data-motion] {
+  animation: none;
+  filter: none;
+}
 @media (prefers-reduced-motion: reduce) {
-  .loader[data-state="loading"] .ring {
+  .loader[data-state="loading"] .visual:not([hidden]) .arc,
+  .loader[data-state="loading"] .visual:not([hidden]) .scanLine,
+  .loader[data-state="loading"] .visual:not([hidden]) .brackets,
+  .loader[data-state="loading"] .visual:not([hidden]) .final {
     animation: none;
   }
   .ring {

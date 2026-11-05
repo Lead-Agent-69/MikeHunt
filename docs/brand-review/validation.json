@@ -1,0 +1,140 @@
+{
+  "scope": "Review-only branding branch. No merge or deployment.",
+  "branch": "codex/dh-brand-review",
+  "baseCommit": "1543f5451e4d742ce671aca104436ea2a36815b5",
+  "cleanDefaultBuild": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "nextVersion": "16.4.2",
+    "legacyAppTypeFixturesPresent": false,
+    "generatedValidator": "validator.ts"
+  },
+  "targetedTestsPassed": 30,
+  "browser": {
+    "stateSizeThemeCases": 16,
+    "hiddenAt199ms": true,
+    "compactAt200ms": true,
+    "requestedSizeAt1000ms": true,
+    "visualBeatsVerified": ["scan", "discover", "evaluate", "reveal"],
+    "neutralTaskTextPreserved": true,
+    "settlementInterruptsEveryBeat": true,
+    "reducedMotionAnimationCount": 0
+  },
+  "pixelExtraction": {
+    "retainedPixels": 153064,
+    "changedColorSamples": 0,
+    "cropEdgeArtworkPixels": 0
+  },
+  "productionAudit": {
+    "exitCode": 0,
+    "high": 0,
+    "critical": 0,
+    "moderate": 6,
+    "low": 6,
+    "evidence": "test-results/dh-brand-review/cache-production-audit.log"
+  },
+  "limitations": [
+    "Raster embedded in SVG; not vector artwork",
+    "Legacy Safari pinned-tab mask unchanged",
+    "Safari/iOS installation not manually tested",
+    "Captures use an isolated shared-component harness",
+    "Screen-reader speech output not manually tested"
+  ],
+  "startupAcceptance": {
+    "acceptanceStatus": "implemented_verified_dashboard_route_boundary_design_review_pending",
+    "scope": "first eligible dashboard group fallback per browser session, not global app initialization",
+    "maximumDurationValidated": true,
+    "firstSessionGuardImplemented": true,
+    "repeatSessionSkipValidated": true,
+    "usableContentTerminationValidated": true,
+    "errorRouteUnmountValidated": true,
+    "neutralPendingAfterCapValidated": true,
+    "reducedMotionValidated": true,
+    "staticAppMotionValidated": true,
+    "evidence": "startup-acceptance.json"
+  },
+  "previousFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 776,
+    "testsPassed": 5887,
+    "build": "passed",
+    "durationSeconds": 772.5,
+    "validatedRuntimeCommit": "03612d61761820a5bedd762d15037d990df1ea61"
+  },
+  "fullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 777,
+    "testsPassed": 5899,
+    "build": "passed",
+    "durationSeconds": 1883.0,
+    "stageDurationSeconds": {
+      "Typecheck": 23.5,
+      "Lint": 51.8,
+      "Tests": 1700.5,
+      "Build": 107.2
+    },
+    "sourceGitBlobIds": {
+      "public/sw.js": "56f0705f186a049a09aacbf4623865f210f671d0",
+      "app/service-worker-fallback.test.ts": "1c347b734a0be1fa5d2f5e05ddf9a67dfeeb342f"
+    },
+    "evidence": "test-results/dh-brand-review/cache-full-verify.log"
+  },
+  "startupTargetedTestsPassed": 10,
+  "combinedTargetedTestsPassed": 40,
+  "startupBrowserEvidence": "test-results/dh-brand-review/startup-browser-checks.json",
+  "previousStartupFullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 777,
+    "testsPassed": 5897,
+    "build": "passed",
+    "durationSeconds": 1429.0,
+    "stageDurationSeconds": {
+      "Typecheck": 22.0,
+      "Lint": 47.7,
+      "Tests": 1242.6,
+      "Build": 116.8
+    },
+    "sourceGitBlobIds": {
+      "app/(dashboard)/loading.tsx": "950d31d2ec3118ee15b8982b95d5a425a7281722",
+      "components/brand/BrandStartupLoader.tsx": "b915e7ed4edad94529341fbe5479158549382fb0",
+      "components/brand/BrandStartupLoader.module.css": "9980c91c6777fadda5799af80e2be1032c85993d",
+      "components/brand/MikeHuntLoader.tsx": "7b6d6b45b607a9759ae8b72a9bf95a139b686532",
+      "components/brand/MikeHuntLoader.module.css": "c6d87dcc995487978f8c22104807a33920d19810",
+      "app/brand-startup-loader.test.tsx": "179b74ed6acb87607a49c3ea169029fb554dbc0f"
+    },
+    "evidence": "test-results/dh-brand-review/startup-full-verify.log"
+  },
+  "cacheUpgrade": {
+    "staticCache": "DealerHunt-static-v4-dh",
+    "dynamicCacheUnchanged": "DealerHunt-dynamic-v1",
+    "currentPrecacheWinsOverRetainedDuplicate": true,
+    "oldStaticRemovedAfterSuccessfulInstall": true,
+    "failedInstallDoesNotEvictExistingData": true,
+    "realPWARegisterRefreshVerified": true,
+    "freshArtworkHashesVerified": 5,
+    "dynamicAndIndexedDBRetained": true,
+    "targetedTestsPassed": 41,
+    "targetedTestFiles": 6,
+    "evidence": "cache-upgrade-browser.json",
+    "sourceScope": "cache-upgrade-source.json",
+    "fullGatePassed": true
+  }
+}

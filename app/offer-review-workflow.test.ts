@@ -2,9 +2,6 @@ import React, { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
-vi.mock("@/components/brand/MikeHuntLoader", () => ({
-  MikeHuntLoader: () => null,
-}));
 import DealCheck from "./(dashboard)/deal-check/page";
 let host: HTMLDivElement;
 let root: Root;
@@ -20,6 +17,7 @@ beforeEach(async () => {
 afterEach(() => {
   act(() => root.unmount());
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 async function fill(index: number, value: string) {
   await act(async () => {
@@ -41,6 +39,73 @@ async function submit() {
   );
 }
 describe("offer-review task", () => {
+  it.each(
+    [true, false].flatMap((ok) =>
+      [100, 200, 10_000].map((duration) => ({ ok, duration })),
+    ),
+  )(
+    "keeps accessible status immediate and settles without a visual delay ($duration ms, success=$ok)",
+    async ({ ok, duration }) => {
+      vi.useFakeTimers();
+      let settle!: (response: unknown) => void;
+      request.mockReturnValue(
+        new Promise((resolve) => {
+          settle = resolve;
+        }),
+      );
+      await act(async () =>
+        Array.from(host.querySelectorAll("button"))
+          .find((button) => button.textContent?.includes("Read offer"))!
+          .click(),
+      );
+      await act(async () => {
+        const input = host.querySelector("textarea")!;
+        Object.getOwnPropertyDescriptor(
+          HTMLTextAreaElement.prototype,
+          "value",
+        )!.set!.call(input, "Dealer quote");
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await submit();
+      const busy = () =>
+        host.querySelector('[role="status"][data-state="loading"]');
+      const visual = () =>
+        busy()!.querySelector<HTMLSpanElement>('span[aria-hidden="true"]')!;
+      // Accessible text and the request start immediately; artwork waits 200ms.
+      expect(busy()).not.toBeNull();
+      expect(busy()!.textContent).toBe("Analyzing deal details");
+      expect(visual().hidden).toBe(true);
+      expect(request).toHaveBeenCalledTimes(1);
+      await act(async () => vi.advanceTimersByTime(duration));
+      expect(busy()).not.toBeNull();
+      expect(visual().hidden).toBe(duration < 200);
+      if (duration === 200) expect(visual().style.width).toBe("32px");
+      if (duration === 10_000) expect(visual().style.width).toBe("64px");
+      expect(host.querySelector('[data-state="complete"]')).toBeNull();
+      await act(async () =>
+        settle({
+          ok,
+          json: async () =>
+            ok
+              ? {
+                  extracted: {
+                    selling_price: 18000,
+                    fees: [],
+                    addons: [],
+                    taxes: 1200,
+                    total_out_the_door: 19200,
+                  },
+                }
+              : { error: "Offer reading unavailable" },
+        }),
+      );
+      // Completion/error removes motion in the same render, with no finish delay.
+      expect(busy()).toBeNull();
+      expect(
+        host.querySelector(`[data-state="${ok ? "complete" : "error"}"]`),
+      ).not.toBeNull();
+    },
+  );
   it("keeps server-rendered controls disabled until client handlers are ready", () => {
     const server = document.createElement("div");
     server.innerHTML = renderToString(React.createElement(DealCheck));

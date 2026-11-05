@@ -1,0 +1,58 @@
+{
+  "passed": true,
+  "legacyStaticCache": "DealerHunt-static-v3",
+  "newStaticCache": "DealerHunt-static-v4-dh",
+  "scriptChanged": true,
+  "legacyArtworkVerified": true,
+  "legacyWorkerCommit": "33263f7a",
+  "retainedOldBrandInDynamicUnchanged": true,
+  "currentPrecacheWinsOverRetainedDuplicate": true,
+  "beforeRefresh": {
+    "keys": [
+      "DealerHunt-static-v3",
+      "DealerHunt-dynamic-v1",
+      "DealerHunt-static-v4-dh"
+    ],
+    "hasRefresh": true
+  },
+  "refreshButtonReloaded": true,
+  "afterRefreshCacheNames": [
+    "DealerHunt-dynamic-v1",
+    "DealerHunt-static-v4-dh"
+  ],
+  "artworkHashes": {
+    "/brand/DEALERHUNT-D.svg": {
+      "actual": "aff29983cd0bc393938351832e2acf54ec3a4bab3abe46c74d0796209ebffbbc",
+      "expected": "aff29983cd0bc393938351832e2acf54ec3a4bab3abe46c74d0796209ebffbbc",
+      "matches": true
+    },
+    "/dealerhunt-icon.svg": {
+      "actual": "91ca72743d5f8b614dbd1277d7be7b7d0045367a1b45a202b5f762cc77d93791",
+      "expected": "91ca72743d5f8b614dbd1277d7be7b7d0045367a1b45a202b5f762cc77d93791",
+      "matches": true
+    },
+    "/icon-192x192.png": {
+      "actual": "c5736266b7580f307a3094b4112e6ca6385d344c0aa5c8b6fc1315aa9e9a46cb",
+      "expected": "c5736266b7580f307a3094b4112e6ca6385d344c0aa5c8b6fc1315aa9e9a46cb",
+      "matches": true
+    },
+    "/icon-512x512.png": {
+      "actual": "d13aa989078a1ff0dc939e4033ae7ce8230dd47e27eacc39866f6bdfe5b32001",
+      "expected": "d13aa989078a1ff0dc939e4033ae7ce8230dd47e27eacc39866f6bdfe5b32001",
+      "matches": true
+    },
+    "/apple-touch-icon.png": {
+      "actual": "d524bb80c1ad492a3d01248a30624e8147a04f867f596d4ad5ca4b675effc624",
+      "expected": "d524bb80c1ad492a3d01248a30624e8147a04f867f596d4ad5ca4b675effc624",
+      "matches": true
+    }
+  },
+  "dynamicCacheVersionUnchanged": "DealerHunt-dynamic-v1",
+  "dynamicBytesRetained": true,
+  "indexedDBRecordRetained": {
+    "id": "saved-vehicle",
+    "note": "retain private history"
+  },
+  "controlledAfterRefresh": true,
+  "probeScope": "isolated headless-browser origin; actual production PWARegister and service-worker install/activate; no user browser profile or production records accessed"
+}
