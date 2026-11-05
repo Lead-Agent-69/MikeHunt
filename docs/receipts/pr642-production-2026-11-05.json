@@ -1,0 +1,616 @@
+{
+  "checkedAt": "2026-11-05T13:43:11.152Z",
+  "base": "https://dealerhunt.vercel.app",
+  "smoke": [
+    {
+      "path": "/market",
+      "status": 307,
+      "ms": 869,
+      "pass": true,
+      "location": "/login"
+    },
+    {
+      "path": "/login",
+      "status": 200,
+      "ms": 491,
+      "pass": true
+    },
+    {
+      "path": "/privacy",
+      "status": 200,
+      "ms": 348,
+      "pass": true
+    },
+    {
+      "path": "/manifest.json",
+      "status": 200,
+      "ms": 302,
+      "pass": true
+    },
+    {
+      "path": "/api/admin/stats",
+      "status": 401,
+      "ms": 686,
+      "pass": true
+    },
+    {
+      "path": "/api/system/status",
+      "status": 200,
+      "ms": 2163,
+      "pass": true,
+      "health": {
+        "buyerReady": true,
+        "decisionReady": false,
+        "activeDeals": 48688,
+        "scope": "public"
+      }
+    }
+  ],
+  "timings": [
+    {
+      "name": "asc",
+      "attempt": 1,
+      "status": 200,
+      "ms": 5737,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "desc",
+      "attempt": 1,
+      "status": 200,
+      "ms": 2363,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "Insights",
+      "attempt": 1,
+      "status": 200,
+      "ms": 2295,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "asc",
+      "attempt": 2,
+      "status": 200,
+      "ms": 5887,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "desc",
+      "attempt": 2,
+      "status": 200,
+      "ms": 3629,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "Insights",
+      "attempt": 2,
+      "status": 200,
+      "ms": 2358,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "asc",
+      "attempt": 3,
+      "status": 200,
+      "ms": 2039,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "desc",
+      "attempt": 3,
+      "status": 200,
+      "ms": 2219,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    },
+    {
+      "name": "Insights",
+      "attempt": 3,
+      "status": 200,
+      "ms": 2030,
+      "rows": 50,
+      "total": 157,
+      "platformCache": "MISS"
+    }
+  ],
+  "pagination": {
+    "pages": [
+      {
+        "page": 0,
+        "status": 200,
+        "rows": 50,
+        "ms": 1900
+      },
+      {
+        "page": 1,
+        "status": 200,
+        "rows": 50,
+        "ms": 267
+      },
+      {
+        "page": 2,
+        "status": 200,
+        "rows": 50,
+        "ms": 252
+      }
+    ],
+    "count": 150,
+    "unique": 150,
+    "allFiniteCash": true,
+    "cashAscending": true,
+    "firstCash": 7900,
+    "lastCash": 47900
+  },
+  "truth": {
+    "deskAccess": "personal",
+    "rowsChecked": 150,
+    "purchaseFieldsPresent": 0,
+    "rawEvidencePresent": 0,
+    "profitEvidence": 0,
+    "profitScoreEvidence": 0,
+    "labelCheck": {
+      "status": 200,
+      "rows": 157,
+      "askingLabels": 157,
+      "sellEstimatesPresent": 1,
+      "valuationEvidence": [
+        {
+          "label": "Resale needs comparable evidence",
+          "supported": false
+        },
+        {
+          "label": "Resale needs comparable evidence",
+          "supported": false
+        },
+        {
+          "label": "3 asking-price comparisons · low confidence",
+          "supported": true
+        }
+      ],
+      "purchaseFieldsPresent": 0,
+      "profitEvidence": 0,
+      "profitScoreEvidence": 0
+    }
+  },
+  "limitations": [
+    "Guest-only: cannot verify authenticated flip-desk supported economics",
+    "Cache-busting query creates distinct app cache keys; database/platform caches are not disabled",
+    "Timings are a bounded sample, not an all-performance pass"
+  ],
+  "asc": {
+    "all200": true,
+    "ms": [5737, 5887, 2039]
+  },
+  "desc": {
+    "all200": true,
+    "ms": [2363, 3629, 2219]
+  },
+  "Insights": {
+    "all200": true,
+    "ms": [2295, 2358, 2030]
+  },
+  "timingScope": "Nine distinct query-key requests, cash basis / reported price / minPrice=1; 157 eligible listings. Not an unfiltered nationwide performance certification.",
+  "smokePassed": true,
+  "nationwideTimings": [
+    {
+      "name": "asc",
+      "attempt": 1,
+      "status": 200,
+      "ms": 3246,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "desc",
+      "attempt": 1,
+      "status": 200,
+      "ms": 2287,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "Insights",
+      "attempt": 1,
+      "status": 200,
+      "ms": 2153,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "asc",
+      "attempt": 2,
+      "status": 200,
+      "ms": 2140,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "desc",
+      "attempt": 2,
+      "status": 200,
+      "ms": 2005,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "Insights",
+      "attempt": 2,
+      "status": 200,
+      "ms": 2074,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "asc",
+      "attempt": 3,
+      "status": 200,
+      "ms": 1899,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "desc",
+      "attempt": 3,
+      "status": 200,
+      "ms": 1894,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    },
+    {
+      "name": "Insights",
+      "attempt": 3,
+      "status": 200,
+      "ms": 2199,
+      "rows": 50,
+      "total": 4328,
+      "capped": false,
+      "platformCache": "MISS",
+      "profitEvidence": 0
+    }
+  ],
+  "release": {
+    "pr": "https://github.com/Lead-Agent-69/MikeHunt/pull/642",
+    "testedHead": "3414298127b933e34207eed707fc0c487b09958a",
+    "ci": "https://github.com/Lead-Agent-69/MikeHunt/actions/runs/42034228789",
+    "ciConclusion": "success",
+    "merge": "04d89aedefa1b469592172283cf2ed212310b604",
+    "mergedAt": "2026-11-05T13:41:49Z",
+    "deploymentId": "dpl_Ctu7TsNMtczhXjQLFuNFezPpBArh",
+    "deploymentUrl": "https://dealerhunt-kh3cga1e1-dealerhunt.vercel.app",
+    "alias": "https://dealerhunt.vercel.app",
+    "deploymentStatus": "success",
+    "releasedAt": "2026-11-05T13:42:56Z",
+    "githubDeploymentId": 7575200641
+  },
+  "nationwideScope": "Nine distinct application query keys; cash basis, no reported-cash filter, 4328 eligible rows, capped=false. Platform cache MISS observed. Database caches remain possible.",
+  "completedAt": "2026-11-05T13:45:02.809Z",
+  "scopeCorrection": {
+    "note": "Original 4328/157 counts were not comparable to pilot MO/FL research scope; original timing queries omitted browse=1, states, includeRepairable=0. Defaults use 3-day observation window, hasPhotos=yes; guest mode=all. No eligibility regression reproduced.",
+    "originalQueries": {
+      "broad": "priceBasis=cash&pageSize=50&sort=askPrice&sortDir=asc|desc&_receipt=<timestamp>-nationwide-<direction>-<attempt>",
+      "insights": "aggregate=1&sort=lastSeenAt&sortDir=desc&priceBasis=cash&pageSize=50&_receipt=<timestamp>-nationwide-Insights-<attempt>",
+      "reportedCash": "same query variants plus pricePolicy=reported&minPrice=1",
+      "paging": "sort=askPrice&sortDir=asc&priceBasis=cash&pricePolicy=reported&minPrice=1&pageSize=50&_receipt=<timestamp>-pages&page=0|1|2"
+    },
+    "exactPilotRerun": [
+      {
+        "dir": "asc",
+        "page": 0,
+        "total": 15124,
+        "rows": 50,
+        "unique": 50,
+        "ms": 21553
+      },
+      {
+        "dir": "asc",
+        "page": 1,
+        "total": 15124,
+        "rows": 50,
+        "unique": 100,
+        "ms": 267
+      },
+      {
+        "dir": "asc",
+        "page": 2,
+        "total": 15124,
+        "rows": 50,
+        "unique": 150,
+        "ms": 248
+      }
+    ],
+    "comparisons": [
+      {
+        "name": "default",
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&_qa=1793886860666-default",
+        "status": 200,
+        "total": 1708,
+        "rows": 50,
+        "capped": false,
+        "deskAccess": "personal",
+        "ms": 1972
+      },
+      {
+        "name": "explicit3",
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&seenWithin=3&_qa=1793886860666-explicit3",
+        "status": 200,
+        "total": 1708,
+        "rows": 50,
+        "capped": false,
+        "deskAccess": "personal",
+        "ms": 3004
+      },
+      {
+        "name": "explicit7",
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&seenWithin=7&_qa=1793886860666-explicit7",
+        "status": 200,
+        "total": 2156,
+        "rows": 50,
+        "capped": false,
+        "deskAccess": "personal",
+        "ms": 1765
+      },
+      {
+        "name": "research30",
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&browse=1&seenWithin=3&_qa=1793886860666-research30",
+        "status": 200,
+        "total": 15124,
+        "rows": 50,
+        "capped": false,
+        "deskAccess": "personal",
+        "ms": 17169
+      }
+    ]
+  },
+  "finalExactScopeAcceptance": {
+    "receipt": "pr642-final-acceptance/receipt.json",
+    "README": "pr642-final-acceptance/README.md",
+    "startedAt": "2026-11-05T14:02:02.210Z",
+    "base": "https://dealerhunt.vercel.app",
+    "scope": {
+      "priceBasis": "cash",
+      "states": "MO,FL",
+      "browse": "1",
+      "hasPhotos": "yes",
+      "includeRepairable": "0",
+      "mode": "all"
+    },
+    "targetMs": 10000,
+    "requestTimeoutMs": 60000,
+    "cacheInterpretation": "Every request uses a unique _qa application cache key. x-vercel-cache records platform status only. Neither proves physical database coldness; database buffers, connections and other caches may be warm.",
+    "requests": [
+      {
+        "name": "asc",
+        "attempt": 1,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&_qa=pr642-final-1793887322212-asc-1",
+        "status": 200,
+        "ms": 23832,
+        "targetPass": false,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "desc",
+        "attempt": 1,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=desc&page=0&_qa=pr642-final-1793887322212-desc-1",
+        "status": 200,
+        "ms": 15889,
+        "targetPass": false,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "aggregate1",
+        "attempt": 1,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=lastSeenAt&sortDir=desc&aggregate=1&page=0&_qa=pr642-final-1793887322212-aggregate1-1",
+        "status": 200,
+        "ms": 8742,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "asc",
+        "attempt": 2,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&_qa=pr642-final-1793887322212-asc-2",
+        "status": 200,
+        "ms": 7468,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "desc",
+        "attempt": 2,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=desc&page=0&_qa=pr642-final-1793887322212-desc-2",
+        "status": 200,
+        "ms": 6690,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "aggregate1",
+        "attempt": 2,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=lastSeenAt&sortDir=desc&aggregate=1&page=0&_qa=pr642-final-1793887322212-aggregate1-2",
+        "status": 200,
+        "ms": 7175,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "asc",
+        "attempt": 3,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=asc&page=0&_qa=pr642-final-1793887322212-asc-3",
+        "status": 200,
+        "ms": 6684,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "desc",
+        "attempt": 3,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=askPrice&sortDir=desc&page=0&_qa=pr642-final-1793887322212-desc-3",
+        "status": 200,
+        "ms": 6528,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      },
+      {
+        "name": "aggregate1",
+        "attempt": 3,
+        "url": "https://dealerhunt.vercel.app/api/market/explore?priceBasis=cash&states=MO%2CFL&browse=1&hasPhotos=yes&includeRepairable=0&mode=all&sort=lastSeenAt&sortDir=desc&aggregate=1&page=0&_qa=pr642-final-1793887322212-aggregate1-3",
+        "status": 200,
+        "ms": 6458,
+        "targetPass": true,
+        "platformCache": "MISS",
+        "total": 15124,
+        "capped": false,
+        "rows": 50,
+        "deskAccess": "personal",
+        "profitEvidence": 0,
+        "profitScoreEvidence": 0,
+        "purchaseFieldsPresent": 0
+      }
+    ],
+    "completedAt": "2026-11-05T14:03:31.687Z",
+    "httpPass": true,
+    "tenSecondTargetPass": false,
+    "targetFailures": 2,
+    "release": {
+      "pr": "https://github.com/Lead-Agent-69/MikeHunt/pull/642",
+      "testedHead": "3414298127b933e34207eed707fc0c487b09958a",
+      "ci": "https://github.com/Lead-Agent-69/MikeHunt/actions/runs/42034228789",
+      "ciConclusion": "success",
+      "merge": "04d89aedefa1b469592172283cf2ed212310b604",
+      "mergedAt": "2026-11-05T13:41:49Z",
+      "deploymentId": "dpl_Ctu7TsNMtczhXjQLFuNFezPpBArh",
+      "deploymentUrl": "https://dealerhunt-kh3cga1e1-dealerhunt.vercel.app",
+      "alias": "https://dealerhunt.vercel.app",
+      "deploymentStatus": "success",
+      "releasedAt": "2026-11-05T13:42:56Z",
+      "githubDeploymentId": 7575200641
+    },
+    "priorExactScopePagination": {
+      "note": "Previously completed exact-scope guest probe; not rerun during final nine.",
+      "pages": [
+        {
+          "dir": "asc",
+          "page": 0,
+          "total": 15124,
+          "rows": 50,
+          "unique": 50,
+          "ms": 21553
+        },
+        {
+          "dir": "asc",
+          "page": 1,
+          "total": 15124,
+          "rows": 50,
+          "unique": 100,
+          "ms": 267
+        },
+        {
+          "dir": "asc",
+          "page": 2,
+          "total": 15124,
+          "rows": 50,
+          "unique": 150,
+          "ms": 248
+        }
+      ],
+      "unique": 150,
+      "cashOrdering": "passed ascending using row.price.cashPrice; finite known values monotonic and unknowns last"
+    }
+  }
+}
