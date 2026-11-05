@@ -43,6 +43,23 @@ it("does not cache failures and retries normally", async () => {
   ).rejects.toThrow("offline");
   expect(await cached("status", 1000, async () => 7)).toBe(7);
 });
+it("caps a dependent result at its source expiry, including computation time", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(1000);
+  const sourceExpires = 31_000;
+  vi.setSystemTime(30_000);
+  const load = vi.fn(async () => {
+    vi.setSystemTime(30_500);
+    return 7;
+  });
+  const remaining = () => Math.max(0, sourceExpires - Date.now());
+  expect(await cached("derived", remaining, load)).toBe(7);
+  vi.setSystemTime(30_999);
+  expect(await cached("derived", remaining, load)).toBe(7);
+  expect(load).toHaveBeenCalledTimes(1);
+  vi.setSystemTime(31_000);
+  expect(await cached("derived", remaining, async () => 9)).toBe(9);
+});
 it("invalidation prevents an older response overwriting a new one", async () => {
   let resolve!: (value: number) => void;
   const old = cached(
