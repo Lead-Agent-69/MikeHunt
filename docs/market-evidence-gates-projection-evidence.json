@@ -1,0 +1,372 @@
+{
+  "base": "bc5e34f8",
+  "decision": "Bounded redundant-work removal for parent review after full gate and CI; no production/cold latency guarantee; parent DB first",
+  "security": {
+    "columnsPreserved": true,
+    "appendedColumn": ["evidence_gates", "3802"],
+    "beforeOptions": ["security_invoker=true"],
+    "afterOptions": ["security_invoker=true"],
+    "aclUnchanged": true,
+    "rlsUnchanged": true,
+    "policiesUnchanged": true
+  },
+  "apiNullness": "JSON-null field becomes SQL NULL; identical wire null, explicitly verified",
+  "native14": {
+    "image": "ghcr.io/supabase/postgrest:v14.5",
+    "stats": {
+      "rows": 2080,
+      "optionsDecodedBytes": 482.112,
+      "analysisDecodedBytes": 1246.372,
+      "stateType": "character(2)"
+    },
+    "summary": {
+      "rawMs": 85.09896150000009,
+      "viewMs": 85.51823299999973,
+      "changePct": 0.492686975974011,
+      "slowerPairs": 4,
+      "robustRegression": false,
+      "concurrencyCaveat": "Sibling local work overlapped; no latency speedup claim"
+    },
+    "candidateRows": 1196,
+    "bytes": 2046948,
+    "bodySha256": "bc716613119eec3e3e26b335a7ede7accdf7effba5ab1cff3b852e11bd85bed3",
+    "allBodiesEqual": true,
+    "fieldCount": 52,
+    "anonStatus": 401,
+    "role": "service_role",
+    "mode": "auto",
+    "prepared": [
+      {
+        "relation": "view",
+        "keyset": false,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 5,
+        "custom": 5,
+        "actualCountRowWrapper": true
+      },
+      {
+        "relation": "raw",
+        "keyset": true,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "uuid",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 0,
+        "custom": 30,
+        "actualCountRowWrapper": true
+      },
+      {
+        "relation": "raw",
+        "keyset": false,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 5,
+        "custom": 5,
+        "actualCountRowWrapper": true
+      },
+      {
+        "relation": "view",
+        "keyset": true,
+        "parameters": [
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "timestamp with time zone",
+          "public.listing_condition[]",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "text",
+          "boolean",
+          "timestamp with time zone",
+          "timestamp with time zone",
+          "character[]",
+          "text[]",
+          "uuid",
+          "bigint",
+          "bigint"
+        ],
+        "generic": 0,
+        "custom": 30,
+        "actualCountRowWrapper": true
+      }
+    ],
+    "pairs": [
+      {
+        "round": 0,
+        "rawMs": 91.43150700000001,
+        "viewMs": 93.70923199999993
+      },
+      {
+        "round": 1,
+        "rawMs": 92.02744000000007,
+        "viewMs": 84.457225
+      },
+      {
+        "round": 2,
+        "rawMs": 84.67933800000014,
+        "viewMs": 89.53050300000018
+      },
+      {
+        "round": 3,
+        "rawMs": 82.55192199999988,
+        "viewMs": 82.63272600000005
+      },
+      {
+        "round": 4,
+        "rawMs": 85.51858500000003,
+        "viewMs": 82.98394500000018
+      },
+      {
+        "round": 5,
+        "rawMs": 83.55807599999957,
+        "viewMs": 79.37844799999971
+      },
+      {
+        "round": 6,
+        "rawMs": 93.94874600000003,
+        "viewMs": 86.57924099999946
+      },
+      {
+        "round": 7,
+        "rawMs": 83.93479599999955,
+        "viewMs": 86.6674480000006
+      }
+    ]
+  },
+  "productionWork": {
+    "rawHits": 4424,
+    "viewHits": 3449,
+    "reads": 0,
+    "fewerHitsPct": 22.03887884267631,
+    "latencyCaveat": "Extreme variance; no causal latency claim"
+  },
+  "workerProductionABBA": [
+    {
+      "timing": "on",
+      "ordinal": 1,
+      "kind": "wrapper",
+      "executionMs": 75.305,
+      "planningMs": 17.462,
+      "cliWallMs": 7506.5193,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-1-wrapper.json"
+    },
+    {
+      "timing": "on",
+      "ordinal": 2,
+      "kind": "simple",
+      "executionMs": 41.375,
+      "planningMs": 7.985,
+      "cliWallMs": 7572.2917,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-2-simple.json"
+    },
+    {
+      "timing": "on",
+      "ordinal": 3,
+      "kind": "simple",
+      "executionMs": 41.849,
+      "planningMs": 7.978,
+      "cliWallMs": 7658.9685,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-3-simple.json"
+    },
+    {
+      "timing": "on",
+      "ordinal": 4,
+      "kind": "wrapper",
+      "executionMs": 42.522,
+      "planningMs": 8.471,
+      "cliWallMs": 7036.1355,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-on-4-wrapper.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 1,
+      "kind": "wrapper",
+      "executionMs": 42.293,
+      "planningMs": 9.35,
+      "cliWallMs": 8353.8017,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-1-wrapper.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 2,
+      "kind": "simple",
+      "executionMs": 41.389,
+      "planningMs": 7.925,
+      "cliWallMs": 7650.0289,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-2-simple.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 3,
+      "kind": "simple",
+      "executionMs": 40.91,
+      "planningMs": 7.989,
+      "cliWallMs": 7640.4602,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-3-simple.json"
+    },
+    {
+      "timing": "off",
+      "ordinal": 4,
+      "kind": "wrapper",
+      "executionMs": 42.33,
+      "planningMs": 9.006,
+      "cliWallMs": 7605.7613,
+      "sharedHits": 4424,
+      "sharedReads": 0,
+      "file": "test-results/market-plan-cache/abba-off-4-wrapper.json"
+    }
+  ],
+  "repairRegex": {
+    "exactByteEqual": true,
+    "prefixCodes": [92, 121],
+    "fixtures": 18,
+    "allMatch": true
+  },
+  "historicalStressControl": {
+    "classification": "16KB synthetic roots, not representative production",
+    "summary": {
+      "rows": {
+        "rawMs": 24.067,
+        "viewMs": 23.744999999999997,
+        "improvementPct": 1.337931607595474,
+        "viewWinsOf8": 5
+      },
+      "serialized": {
+        "rawMs": 36.180499999999995,
+        "viewMs": 33.6335,
+        "improvementPct": 7.039703707798393,
+        "viewWinsOf8": 8
+      },
+      "fullSerializedScan": {
+        "rawMs": 104.40549999999999,
+        "viewMs": 97.474,
+        "improvementPct": 6.639018059393409,
+        "viewWinsOf12": 9
+      }
+    }
+  },
+  "failedStrongHypotheses": [
+    "COUNT ROW alone does not explain latency; raw wrapper ABBA also runs ~42ms",
+    "No JIT section; no JIT cause established",
+    "Normalized generic/text[] cast was not faithful production bpchar[]/bind proof",
+    "Local/native body parity does not establish under-10-second SLA"
+  ],
+  "rollout": "Parent production migration and schema-cache visibility before app merge; parent cold acceptance; no worker production DDL/deploy/role/index changes"
+}

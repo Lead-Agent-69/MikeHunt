@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { MARKET_CANDIDATE_FIELDS } from "./candidate-projection";
 
 const migration = readFileSync(
-  "supabase/migrations/20261105094153_market_candidate_projection.sql",
+  "supabase/migrations/20261105155012_market_candidate_evidence_gates.sql",
   "utf8",
 );
 const legacy = readFileSync(
@@ -13,9 +13,7 @@ const legacy = readFileSync(
 describe("Market candidate projection contract", () => {
   it("keeps every original response field without returning the source blobs", () => {
     const fields = MARKET_CANDIDATE_FIELDS.split(",");
-    expect(
-      fields.filter((field) => !field.startsWith("evidence_gates:")).sort(),
-    ).toEqual(
+    expect(fields.filter((field) => field !== "evidence_gates").sort()).toEqual(
       legacy
         .split(",")
         .map((field) => field.trim().split(":")[0])
@@ -23,9 +21,15 @@ describe("Market candidate projection contract", () => {
     );
     expect(MARKET_CANDIDATE_FIELDS.split(",")).not.toContain("options");
     expect(MARKET_CANDIDATE_FIELDS.split(",")).not.toContain("deal_analysis");
-    expect(fields.filter((field) => field.includes("->"))).toEqual([
-      "evidence_gates:deal_analysis->evidenceGates",
-    ]);
+    expect(fields.filter((field) => field.includes("->"))).toEqual([]);
+    expect(fields).toContain("evidence_gates");
+    expect(migration).toContain('a."evidenceGates" as evidence_gates');
+    expect(migration).toMatch(
+      /a\.roi as analysis_roi,\s+a\."evidenceGates" as evidence_gates\s+from/,
+    );
+    expect(migration).toContain(
+      "create or replace view public.market_candidate_projection",
+    );
   });
   it("expands each guarded JSON root once and preserves evidence JSON types", () => {
     expect(migration.match(/jsonb_to_record\(/g)).toHaveLength(2);
@@ -39,6 +43,7 @@ describe("Market candidate projection contract", () => {
       '"acquisitionPriceMissing"',
       '"priceImplausible"',
       "roi",
+      '"evidenceGates"',
     ])
       expect(migration).toContain(`${field} jsonb`);
     expect(migration).toContain("d.*,");
@@ -52,7 +57,7 @@ describe("Market candidate projection contract", () => {
       "grant select on public.market_candidate_projection to service_role;",
     );
     expect(migration).not.toMatch(
-      /create\s+(materialized|index)|security\s+definer/i,
+      /create\s+(materialized|index|table)|security\s+definer/i,
     );
   });
 });

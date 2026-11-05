@@ -3,6 +3,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { benchmarkEvidenceGates } from "./market-evidence-gates-benchmark.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 process.chdir(root);
@@ -14,11 +15,15 @@ const port = Number(process.env.MARKET_PROJECTION_LOCAL_PORT || 55442);
 if (!Number.isSafeInteger(port) || port < 1024 || port > 65535)
   throw Error("Invalid local port");
 const secret = "local-market-projection-verification-secret-only";
+const evidenceBenchmark = process.argv.includes("--evidence-gates");
+const nativeGates = process.argv.includes("--native-gates");
 // Opt-in batching mode reuses the isolated schema/view without production access.
 const batchCap = Number(process.env.MARKET_BATCH_TEST_CAP || 0);
 if (![0, 500, 1000].includes(batchCap)) throw Error("Invalid batch test cap");
 const normalizedCache = process.env.MARKET_NORMALIZED_CACHE_TEST === "1";
 if (normalizedCache && batchCap) throw Error("Choose one verification mode");
+if (nativeGates && (evidenceBenchmark || normalizedCache || batchCap))
+  throw Error("Choose the standalone native gate verification mode");
 if (normalizedCache) {
   fs.mkdirSync("artifacts/market-normalized-cache", { recursive: true });
   fs.writeFileSync(
@@ -36,7 +41,7 @@ if (normalizedCache) {
 const run = (args, options = {}) =>
   execFileSync("docker", args, {
     encoding: "utf8",
-    maxBuffer: 32 * 1024 * 1024,
+    maxBuffer: (evidenceBenchmark ? 128 : 32) * 1024 * 1024,
     ...options,
   });
 const sql = (text) =>
@@ -83,17 +88,21 @@ const schema = fs
     const sqlType =
       column === "id"
         ? "uuid primary key"
-        : type.includes("Json")
-          ? "jsonb"
-          : type.includes("string[]")
-            ? "text[]"
-            : type.includes("number")
-              ? "double precision"
-              : type.includes("boolean")
-                ? "boolean"
-                : column.endsWith("_at")
-                  ? "timestamptz"
-                  : "text";
+        : nativeGates && column === "location_state"
+          ? "character(2)"
+          : nativeGates && column === "condition"
+            ? "public.listing_condition"
+            : type.includes("Json")
+              ? "jsonb"
+              : type.includes("string[]")
+                ? "text[]"
+                : type.includes("number")
+                  ? "double precision"
+                  : type.includes("boolean")
+                    ? "boolean"
+                    : column.endsWith("_at")
+                      ? "timestamptz"
+                      : "text";
     return column + " " + sqlType;
   })
   .join(",");
@@ -194,7 +203,7 @@ const rows = Array.from({ length: 520 }, (_, offset) => {
               placeholderUrls: ["https://dealer.test/logo.png"],
             },
             privateNotes: "private-options-sentinel",
-            padding,
+            padding: nativeGates ? "" : padding,
           },
     deal_analysis:
       i > 500
@@ -222,10 +231,24 @@ const rows = Array.from({ length: 520 }, (_, offset) => {
             priceImplausible: i % 79 === 0 ? true : false,
             roi: i % 83 === 0 ? "20" : 20,
             privateNotes: "private-analysis-sentinel",
-            padding,
+            padding: nativeGates ? padding.slice(0, 768) : padding,
           },
   };
 });
+if (nativeGates) {
+  rows[0].title = "2020 Ford Ranger mechanic special";
+  rows[6].title = "2020 Ford Ranger parts only";
+}
+if (evidenceBenchmark || nativeGates) {
+  const originals = rows.slice();
+  for (let copy = 1; copy < 4; copy++)
+    rows.push(
+      ...originals.map((row, i) => ({
+        ...row,
+        id: uuid(copy * originals.length + i + 1),
+      })),
+    );
+}
 const wait = async (check) => {
   for (let attempt = 0; attempt < 100; attempt++) {
     try {
@@ -286,6 +309,10 @@ try {
   await wait(() =>
     run(["exec", db, "pg_isready", "-U", "postgres"]).includes("accepting"),
   );
+  if (nativeGates)
+    sql(
+      "create type public.listing_condition as enum ('run_drive','repairable','parts_only','clean_title','rebuilt_title','salvage_title','flood','fire','hail');",
+    );
   sql(
     "create role anon; create role authenticated; create role service_role bypassrls; create role authenticator login noinherit; grant anon,authenticated,service_role to authenticator;" +
       "create table public.deals (" +
@@ -322,10 +349,58 @@ try {
     "-f",
     "/workspace/supabase/migrations/20261105094153_market_candidate_projection.sql",
   ]);
+  const evidenceGates = evidenceBenchmark
+    ? benchmarkEvidenceGates({ sql, stamp })
+    : null;
+  if (!evidenceBenchmark)
+    sql(
+      fs
+        .readFileSync(
+          "supabase/migrations/20261105155012_market_candidate_evidence_gates.sql",
+          "utf8",
+        )
+        .replace(/^\uFEFF/, ""),
+    );
+  sql(
+    fs.readFileSync(
+      "supabase/tests/market_candidate_evidence_gates.sql",
+      "utf8",
+    ),
+  );
+  if (evidenceBenchmark) {
+    // Restore the existing REST regression's original fixture size after the
+    // larger disposable benchmark; this never runs against a hosted database.
+    rows.length /= 4;
+    sql(`delete from public.deals where id > '${uuid(rows.length)}'::uuid;`);
+  }
   if (!batchCap)
     sql(
       fs.readFileSync("supabase/tests/market_candidate_projection.sql", "utf8"),
     );
+  let nativeFixtureStats = null;
+  if (nativeGates) {
+    sql(
+      fs
+        .readFileSync(
+          "supabase/migrations/20261105094153_market_candidate_projection.sql",
+          "utf8",
+        )
+        .replace(/^\uFEFF/, "")
+        .replaceAll(
+          "public.market_candidate_projection",
+          "public.market_candidate_projection_raw_gates",
+        ),
+    );
+    sql(`create function public.market_projection_native_diag() returns jsonb language sql stable security invoker set search_path=pg_catalog as $$
+      select jsonb_build_object('role',current_user,'mode',current_setting('plan_cache_mode'),'backend_pid',pg_backend_pid(),'prepared',coalesce((select jsonb_agg(jsonb_build_object('statement',statement,'parameter_types',array(select t::text from unnest(parameter_types)t),'generic_plans',generic_plans,'custom_plans',custom_plans)) from pg_prepared_statements where statement like '%"market_candidate_projection%'), '[]'::jsonb)); $$;
+      revoke all on function public.market_projection_native_diag() from public;
+      grant execute on function public.market_projection_native_diag() to service_role;`);
+    nativeFixtureStats = JSON.parse(
+      sql(
+        "select json_build_object('rows',count(*),'optionsDecodedBytes',avg(case when jsonb_typeof(options)='object' then octet_length(options::text) end),'analysisDecodedBytes',avg(case when jsonb_typeof(deal_analysis)='object' then octet_length(deal_analysis::text) end),'stateType',(select format_type(atttypid,atttypmod) from pg_attribute where attrelid='public.deals'::regclass and attname='location_state')) from public.deals;",
+      ),
+    );
+  }
   const where =
     " where active and location_state in ('MO','FL') and last_seen_at between now()-interval '30 days' and now() order by id asc limit 500";
   const variants = {
@@ -370,6 +445,9 @@ try {
     "PGRST_DB_SCHEMAS=public",
     "-e",
     "PGRST_DB_ANON_ROLE=anon",
+    ...(nativeGates
+      ? ["-e", "PGRST_DB_POOL=1", "-e", "PGRST_DB_PREPARED_STATEMENTS=true"]
+      : []),
     "-e",
     "PGRST_JWT_SECRET=" + secret,
     ...(batchCap
@@ -380,7 +458,9 @@ try {
           "PGRST_DB_PLAN_ENABLED=true",
         ]
       : []),
-    "public.ecr.aws/supabase/postgrest:v16.2",
+    nativeGates
+      ? "ghcr.io/supabase/postgrest:v14.5"
+      : "public.ecr.aws/supabase/postgrest:v16.2",
   ]);
   // Docker Desktop loopback forwarding is unavailable on some Windows runners.
   // Keep REST traffic inside this disposable network rather than expose a host port.
@@ -408,6 +488,34 @@ try {
         internalUrl + "/",
       ]).trim() === "200",
   );
+  if (nativeGates) {
+    const native = spawnSync(
+      process.execPath,
+      [
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "app/api/market/explore/gate-native.integration.test.ts",
+      ],
+      {
+        cwd: root,
+        stdio: "inherit",
+        env: {
+          ...process.env,
+          MARKET_NATIVE_GATE_URL: "http://127.0.0.1:" + port,
+          MARKET_NATIVE_GATE_RELAY: relay,
+          MARKET_NATIVE_GATE_INTERNAL_URL: internalUrl,
+          MARKET_NATIVE_GATE_STAMP: stamp,
+          MARKET_NATIVE_GATE_STATS: JSON.stringify(nativeFixtureStats),
+        },
+      },
+    );
+    if (native.status !== 0)
+      throw Error(
+        "Native 14.5 gate parity/benchmark failed; hold the candidate",
+      );
+    rows.length /= 4;
+    sql(`delete from public.deals where id > '${uuid(rows.length)}'::uuid;`);
+  }
   const test = spawnSync(
     process.execPath,
     [
@@ -439,8 +547,12 @@ try {
   const report = {
     database: "isolated PostgreSQL 17",
     fixtureRows: rows.length,
-    source: "synthetic toasted JSON, not production data",
+    source: nativeGates
+      ? "small-root synthetic profile, native PostgREST 14.5, not production timings"
+      : "synthetic toasted JSON, not production data",
+    nativeFixtureStats,
     sqlRecordMismatches: 0,
+    evidenceGates,
     plans,
   };
   fs.mkdirSync("artifacts/market-candidate-projection", { recursive: true });

@@ -187,9 +187,8 @@ describe("Market inventory filtering and pagination", () => {
     const fields = MARKET_CANDIDATE_FIELDS.split(",");
     expect(fields).not.toContain("options");
     expect(fields).not.toContain("deal_analysis");
-    expect(fields.filter((field) => field.includes("->"))).toEqual([
-      "evidence_gates:deal_analysis->evidenceGates",
-    ]);
+    expect(fields.filter((field) => field.includes("->"))).toEqual([]);
+    expect(fields).toContain("evidence_gates");
     expect(MARKET_CANDIDATE_FIELDS).not.toContain("*");
   });
   it("returns a bounded recent batch and resumes after its last eligible listing", async () => {
