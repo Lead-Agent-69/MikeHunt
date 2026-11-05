@@ -47,7 +47,7 @@ test.describe("focused deal workspace", () => {
 
     const research = page
       .locator("details")
-      .filter({ hasText: "Open one focused tool" });
+      .filter({ hasText: "Vehicle data and research" });
     await research.locator("summary").click();
     await expect(
       page.getByRole("region", { name: "Focused vehicle research" }),

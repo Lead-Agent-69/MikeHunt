@@ -1,0 +1,472 @@
+{
+  "scope": "Sanitized QA-maintenance release register and metadata receipt; companion change corrects one stale E2E selector. No product behavior changes, secrets, account identities, raw logs, browser state or production rows included.",
+  "currentApplicationCommit": "777982fc3d9c5058072881a82a76590a69102df9",
+  "sources": {
+    "release": "https://github.com/Lead-Agent-69/MikeHunt/pull/646#issuecomment-6669108914",
+    "domain": "https://github.com/Lead-Agent-69/MikeHunt/pull/646#issuecomment-6669817092",
+    "boundedProduction": "https://github.com/Lead-Agent-69/MikeHunt/pull/646#issuecomment-6665848316",
+    "normalizedCache": "https://github.com/Lead-Agent-69/MikeHunt/pull/645#issuecomment-6663408836",
+    "runtime": "Parent sanitized market-runtime-stage-summary.json; historical logs recovered with pinned Vercel CLI65.11.0",
+    "isolatedQA": "Reviewed final-bounded-report.md/final-bounded-receipt.json and targeted-rerun/final-report.md/final-receipt.json; whitelisted metadata only, private raw evidence excluded"
+  },
+  "releases": [
+    {
+      "pr": 645,
+      "merge": "bc5e34f8bac56a90882a42b03d309c753866e68d",
+      "testedHead": "dc48fad596c6b3d3684b53dc659b01456b5dfd18",
+      "ci": {
+        "run": 42062014274,
+        "conclusion": "success"
+      },
+      "gate": {
+        "passed": 6011,
+        "skipped": 27,
+        "typecheck": "pass",
+        "lint": "pass",
+        "build": "pass"
+      },
+      "deployment": {
+        "id": "dpl_BcJiY1MdKXvB22uczqwbL8SSSstb",
+        "ready": true
+      },
+      "cache": {
+        "normalizedRows": true,
+        "ttlMs": 30000,
+        "maxScopes": 2,
+        "derivedExpiryCapped": true,
+        "outerSortCopy": true,
+        "unknownQueryParamsPreserved": true
+      },
+      "localSynthetic": {
+        "inputRows": 15000,
+        "payloads": 3,
+        "baselineNormalizations": 45000,
+        "normalizedNormalizations": 15000,
+        "baselineCpuMs": 4626,
+        "normalizedCpuMs": 2031,
+        "productionSlaProof": false
+      },
+      "liveSameKeySample": {
+        "firstAscendingMs": 28363,
+        "descendingMs": 596,
+        "insightsMs": 835,
+        "freshKeyAcceptance": false
+      }
+    },
+    {
+      "pr": 646,
+      "merge": "777982fc3d9c5058072881a82a76590a69102df9",
+      "testedHead": "3b041262275bcf36b5c016206a1847f5af1eff76",
+      "ci": {
+        "reviewedHeadRun": 42075392996,
+        "postMergeRun": 42083268309,
+        "conclusion": "success"
+      },
+      "gate": {
+        "passed": 6011,
+        "skipped": 28,
+        "typecheck": "pass",
+        "lint": "pass",
+        "build": "pass",
+        "dependencyAudit": "pass"
+      },
+      "deployment": {
+        "id": "dpl_3eqrVyowpwSJYvGFeWBiZgMEQtdY",
+        "url": "https://dealerhunt-b3u26twul-dealerhunt.vercel.app",
+        "ready": true,
+        "alias": "https://dealerhunt.vercel.app",
+        "aliasVerifiedBeforeAndAfter": true
+      },
+      "projection": {
+        "originalColumnsPreserved": 88,
+        "appendedColumn": {
+          "name": "evidence_gates",
+          "position": 89,
+          "type": "jsonb"
+        },
+        "securityInvokerPreserved": true,
+        "roleGrantsPreserved": true,
+        "productionReadComparison": {
+          "rows": 500,
+          "selectedFields": 52,
+          "mismatches": 0
+        },
+        "nativeRest": {
+          "sameOneRowFingerprint": true,
+          "anonymousStatus": 401
+        },
+        "productionInventoryOrPrivateRecordWrites": 0
+      }
+    }
+  ],
+  "production646": {
+    "query": {
+      "priceBasis": "cash",
+      "states": "MO,FL",
+      "browse": "1",
+      "hasPhotos": "yes",
+      "includeRepairable": "0",
+      "mode": "all",
+      "page": 0,
+      "pageSize": 50
+    },
+    "timingScope": "Nine distinct application nonce keys, no retries. Neither nonce nor platformMISS establishes physically cold database reads.",
+    "startedAt": "2026-11-05T18:33:49.010Z",
+    "timingsMs": {
+      "ascending": [23270, 15641, 6225],
+      "descending": [7969, 7454, 6132],
+      "insights": [8840, 7904, 6313]
+    },
+    "http200": 9,
+    "total": 14924,
+    "capped": false,
+    "targetMs": 10000,
+    "targetFailures": 2,
+    "targetPassed": false,
+    "guest": {
+      "passed": 20,
+      "intentionallySkipped": 22,
+      "failed": 0,
+      "flaky": 0
+    },
+    "smoke": {
+      "covered": 6,
+      "duplicateRequestsAvoided": true,
+      "passed": true
+    },
+    "paging": {
+      "pages": 3,
+      "unique": 150,
+      "globallyOrderedBy": "price.cashPrice",
+      "pageMs": [6027, 263, 304],
+      "sharedSeparateNonce": true,
+      "allSampledCashPricesNumeric": true,
+      "newestRerun": false,
+      "liveUnknownNullExercised": false
+    },
+    "health": {
+      "buyerReady": true,
+      "decisionReady": false,
+      "activeDeals": 48688
+    },
+    "guestEconomics": {
+      "purchaseFieldsAbsent": true,
+      "profitEvidence": 0
+    }
+  },
+  "runtime": {
+    "initialCliCapture": {
+      "version": "48.9.0",
+      "timingRecords": 0
+    },
+    "recoveredByParent": {
+      "version": "65.11.0",
+      "recordCount": 10,
+      "rows": [
+        {
+          "at": "2026-11-05T18:34:13.303Z",
+          "readMs": 19791.282150999978,
+          "processingMs": 1748,
+          "totalMs": 21680.774403999996,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:34:21.267Z",
+          "readMs": 5760.184852999984,
+          "processingMs": 1717,
+          "totalMs": 7601.103255999988,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:34:30.122Z",
+          "readMs": 6717.466278000022,
+          "processingMs": 1595,
+          "totalMs": 8421.595692999996,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:34:45.743Z",
+          "readMs": 11987.058835,
+          "processingMs": 1818,
+          "totalMs": 13943.296161,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:34:53.219Z",
+          "readMs": 5205.718895000004,
+          "processingMs": 1792,
+          "totalMs": 7132.942968000001,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:35:01.130Z",
+          "readMs": 5965.260579000005,
+          "processingMs": 1504,
+          "totalMs": 7573.188524000001,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:35:07.350Z",
+          "readMs": 4240.0474130000075,
+          "processingMs": 1550,
+          "totalMs": 5907.352851000003,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:35:13.485Z",
+          "readMs": 4179.333287999994,
+          "processingMs": 1529,
+          "totalMs": 5824.110063,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:35:19.801Z",
+          "readMs": 4386.657608000009,
+          "processingMs": 1498,
+          "totalMs": 5988.6633010000005,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        },
+        {
+          "at": "2026-11-05T18:35:25.823Z",
+          "readMs": 3859.6634629999826,
+          "processingMs": 1736,
+          "totalMs": 5711.696459999999,
+          "candidates": 14928,
+          "matches": 14924,
+          "decodedBytesEstimate": 28594510
+        }
+      ]
+    },
+    "caveats": [
+      "Database-client wait includes transport and decoding, not pure SQL execution.",
+      "Candidate size is a sampled decoded-JSON estimate, not wire bytes.",
+      "Production load, physical database cache state and request routing were not controlled."
+    ]
+  },
+  "legacyDomain": {
+    "host": "mikehunt-69.vercel.app",
+    "redirectHost": "dealerhunt.vercel.app",
+    "status": 308,
+    "pathsAndQueriesPreserved": true,
+    "getChecks": ["login", "MO/FL Market query", "inert callback path"],
+    "dealerhuntLoginStatus": 200,
+    "appSourceChanged": false,
+    "liveOAuthCallbackAccepted": false
+  },
+  "isolatedPG17": {
+    "schemaEquivalence": {
+      "status": "passed",
+      "relations": 59,
+      "routines": 45,
+      "grants": 1784,
+      "source": "Reviewed Ampere schema-equivalence.json metadata",
+      "enumMatch": true,
+      "extensionVersionsMatch": true,
+      "grantsMatch": true,
+      "qaMigrationLedgerFabricated": false
+    },
+    "productionRowsCopied": 0,
+    "accounts": {
+      "count": 3,
+      "desks": ["personal", "reseller", "dealer"],
+      "nonAdmin": true,
+      "onboardedSessionsVerified": true,
+      "personalSetup": {
+        "firstColdAttempt": "failed: layout chunk timeout",
+        "warmTargetedRerun": {
+          "passed": 1,
+          "durationSeconds": 11.3
+        }
+      },
+      "firstSetupPass": {
+        "passed": 2,
+        "failed": 1,
+        "retries": 0
+      }
+    },
+    "persistedFirstPass": {
+      "startedAt": "2026-11-05T21:19:15.120Z",
+      "passed": 5,
+      "failed": 1,
+      "flaky": 0,
+      "skipped": 0,
+      "durationMs": 132160.08,
+      "failedCase": "purchase retry / lost acknowledgement",
+      "alertWaitMs": 15000,
+      "routeFetchStillPendingAtTestEnd": true,
+      "productBugEstablished": false,
+      "developmentCompileDelaySeconds": 15.7,
+      "requestCompletedAfterTestMs": 171,
+      "postServerWorkMs": 2595,
+      "applicationWorkMs": 263.527
+    },
+    "finalReceiptStatus": "reviewed: bounded receipts complete; acceptance limited to recorded scopes",
+    "investigationStatus": "Final original and targeted receipts reviewed: initial5/1 retained, unchanged purchase-only pass, original Market/detail failures retained, corrected-selector three-desktop follow-up passed; bounded cleanup/shutdown passed; no persistent product defect reproduced",
+    "historicalSuitesRerun": false,
+    "purchaseTargetedRetry": {
+      "passed": 1,
+      "durationSeconds": 19.4,
+      "applicationChanged": false,
+      "checks": [
+        "lost acknowledgement retry",
+        "cents/date/photos readback",
+        "linked outcome"
+      ],
+      "source": "Reviewed final bounded receipt: 19.4s test time, approximately20.8s run wall time; no automatic retry",
+      "retries": 0,
+      "caseDurationMs": 19400,
+      "runWallSeconds": 20.8
+    },
+    "productionCredentialsInherited": false,
+    "traceFingerprintComparison": {
+      "value": null,
+      "status": "unavailable: response body was not captured",
+      "notAFailedComparison": true
+    },
+    "cleanup": {
+      "status": "passed: reviewed cleanup-receipt metadata",
+      "designatedLocalFixtureDealsDeleted": 24,
+      "lateCheck": {
+        "fixtureDeals": 0,
+        "fixturePriceHistory": 0,
+        "fixtureSaved": 0,
+        "inventory": 0,
+        "outcomes": 0,
+        "ownedUsersPreserved": 3,
+        "ownedSessions": 0,
+        "activeOwnedRefreshTokens": 0
+      },
+      "productionRowsCopied": 0,
+      "otherPG15StackUntouched": true,
+      "statelessAccessTokenImmediateExpiryNotClaimed": true,
+      "generatedImageFilesRemoved": 24,
+      "globalLogoutAccounts": 3,
+      "ownedPG17RuntimeStopped": true,
+      "containersAndDataRetained": true,
+      "scope": "Original bounded run cleanup"
+    },
+    "finalReceiptCompletedAt": "2026-11-05T21:39:31.398Z",
+    "persistedCasesWithRecordedPasses": 6,
+    "freshSixOfSixRun": false,
+    "firstMarketDetailAttempt": {
+      "scheduled": 3,
+      "passed": 0,
+      "failed": 1,
+      "interrupted": 1,
+      "notRun": 1,
+      "detailFailure": "Obsolete text selector: Open one focused tool",
+      "filterStatus": "Interrupted after development-server memory-threshold restart",
+      "backStatus": "Not run",
+      "accepted": false
+    },
+    "selectorFixedDesktopFollowup": {
+      "productRevision": "777982fc3d9c5058072881a82a76590a69102df9",
+      "completedAt": "2026-11-05T21:52:01.221Z",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 0,
+      "workers": 1,
+      "retries": 0,
+      "caseSeconds": {
+        "research": 12.3,
+        "filterApplyCancel": 19.2,
+        "backRestoration": 7.7
+      },
+      "suiteDurationMs": 40735.155,
+      "exactOneLineSelectorPatchVerified": true,
+      "productChanged": false,
+      "stackReset": false,
+      "sameDesignatedFixtureSet": true,
+      "authentication": {
+        "freshUiGoTrueLogins": 3,
+        "existingOwnersVerified": 3,
+        "newAccounts": 0,
+        "manualCookies": false
+      },
+      "prewarm": {
+        "authenticatedPagesAndAssetsVerified": true,
+        "authenticatedApis": 7,
+        "unauthenticatedRedirectsExcluded": true,
+        "coldLatencyProof": false
+      },
+      "cleanup": {
+        "accepted": true,
+        "exactFixtureRowsRemoved": 24,
+        "generatedImagesRemoved": 24,
+        "zeroOwnedFixtureHistorySavedInventoryOutcomesAtTwoChecks": true,
+        "globalLogout204": 3,
+        "sessions": 0,
+        "activeRefreshTokens": 0,
+        "usersPreserved": 3,
+        "ownedAppRelayAndFiveContainersStopped": true,
+        "containersAndDataRetained": true,
+        "pg15PilotAndCollectorUntouched": true
+      },
+      "fullMatrixAcceptance": false,
+      "productionAuthAcceptance": false,
+      "physicalDeviceAcceptance": false,
+      "oauthOrRecoveryAcceptance": false,
+      "productionLatencyAcceptance": false
+    }
+  },
+  "historicalBoundedAcceptance": {
+    "persisted": 21,
+    "marketBack": 9,
+    "firefox": 7,
+    "webkit": 7,
+    "rerunForThisRegister": false
+  },
+  "rejectedUnshipped": {
+    "fullScopeSnapshot": {
+      "candidate": {
+        "seconds": 2.45,
+        "processMiB": 251
+      },
+      "baseline": {
+        "seconds": 1.3,
+        "processMiB": 59
+      },
+      "accepted": false
+    },
+    "photoScopeProjection": {
+      "automaticAndGenericImproved": true,
+      "customPlanRegression": true,
+      "accepted": false
+    }
+  },
+  "remainingGates": [
+    "Fresh-key10second acceptance failed2/9.",
+    "Authenticated/physical-device/full-matrix acceptance beyond the recorded persisted cases and three corrected-selector desktop checks remains open.",
+    "Production authenticated journeys, physical devices and live unknown/null cases not certified by guest evidence.",
+    "Inventory-source observations/publication and independent recovery remain separate gates."
+  ],
+  "qaMaintenance": {
+    "test": "e2e/deal-workspace.spec.ts",
+    "oldDisclosureText": "Open one focused tool",
+    "currentDisclosureTitle": "Vehicle data and research",
+    "currentActionLabel": "Choose a research tool",
+    "productUiChanged": false,
+    "exactPatchSentToAmpere": true,
+    "originalFailedInterruptedAndUnrunResultsPreserved": true,
+    "boundedRerunRecorded": true,
+    "testOnlyChangeVerifiedAgainstCurrentProduct": true
+  }
+}
