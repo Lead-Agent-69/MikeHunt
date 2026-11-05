@@ -4,6 +4,13 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ## Released foundation
 
+### November 5 PR #637 production receipt
+
+- PR #637 is live at [dealerhunt.vercel.app](https://dealerhunt.vercel.app): merge `2f4cc021`, Vercel deployment `dpl_5LyWmfgxrfbykkbD1WprAWqw1Uoi`. CI passed with **5,921 full tests**.
+- Production guest verification: **20 passed, 22 safely skipped**. Skips remain outside the accepted coverage.
+- Newest-first Missouri/Florida cash-price inventory with photos returned three batches in **1.846 s, 0.506 s, and 0.589 s**, with **150 unique vehicles**.
+- **Current cold alternate-search acceptance is pending.** These newest-feed timings do not close the genuinely cold price-sort/Insights performance gate.
+
 ### November 5 interaction and search follow-up — acceptance in progress
 
 - Working branch `codex/pilot-interaction-completion` shares complete candidate scans for equivalent set-valued filters, opposite price directions, and independent Insights within a bounded 30-second, per-instance cache. Identical concurrent reads coalesce. Eligibility, full-result ordering, unknown-value handling and desk scope remain unchanged. This is not a distributed cache or proof of cold-search acceptance.
