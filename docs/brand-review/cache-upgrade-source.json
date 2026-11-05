@@ -1,0 +1,19 @@
+{
+  "productionChangesLimitedTo": [
+    "static cache version v3 to v4-dh",
+    "current precache lookup before retained global/dynamic matches"
+  ],
+  "staticCache": "DealerHunt-static-v4-dh",
+  "dynamicCacheUnchanged": "DealerHunt-dynamic-v1",
+  "staticPrecacheListUnchanged": true,
+  "precacheFileCount": 17,
+  "allPrecacheFilesPresent": true,
+  "installActivateAndDeletePolicyUnchanged": true,
+  "privateDatabaseHelpersAndFetchWritePolicyUnchanged": true,
+  "pwaRegistrationUnchanged": true,
+  "unrelatedLibHooksAndApiUntouched": true,
+  "sourceGitBlobIds": {
+    "public/sw.js": "56f0705f186a049a09aacbf4623865f210f671d0",
+    "app/service-worker-fallback.test.ts": "1c347b734a0be1fa5d2f5e05ddf9a67dfeeb342f"
+  }
+}
