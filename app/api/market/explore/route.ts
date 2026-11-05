@@ -21,10 +21,11 @@ import {
 import { cached } from "@/lib/cache";
 import { applyBuyableInventory } from "@/lib/search/customer-inventory";
 import { photoEvidence } from "@/lib/images/photo-evidence";
+import { sourcePriceContext } from "@/lib/deals/source-price-context";
 import {
-  SOURCE_PRICE_FIELDS,
-  sourcePriceContext,
-} from "@/lib/deals/source-price-context";
+  MARKET_CANDIDATE_RELATION,
+  MARKET_CANDIDATE_FIELDS,
+} from "@/lib/market/candidate-projection";
 import {
   parseMarketLocation,
   marketDistance,
@@ -418,10 +419,8 @@ export async function GET(req: NextRequest) {
         const build = () => {
           let q = applyBuyableInventory(
             supabase
-              .from("deals")
-              .select(
-                `id, year, make, model, trim, body_class, fuel_type, transmission, drivetrain, reported_fuel:options->>fuelType, reported_transmission:options->>transmission, reported_drivetrain:options->>drivetrain, color, assembly_country, availability_status, vin, sell_estimate, profit_score, true_net_profit, recommended_max_bid, deal_verdict, valuation:deal_analysis->valuation, acquisition_price_missing:deal_analysis->acquisitionPriceMissing, price_implausible:deal_analysis->priceImplausible, analysis_roi:deal_analysis->roi, is_arbitrage_opportunity, images, photo_state:options->photoAudit->>state, placeholder_urls:options->photoAudit->placeholderUrls, title_source:options->>titleSource, location_city, location_state, location_zip, lat, lng, first_seen_at, ${SOURCE_PRICE_FIELDS}`,
-              ),
+              .from(MARKET_CANDIDATE_RELATION)
+              .select(MARKET_CANDIDATE_FIELDS),
             Date.now(),
             {
               includeWithoutPhotos: true,

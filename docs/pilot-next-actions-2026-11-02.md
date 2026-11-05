@@ -6,12 +6,19 @@ This register reconciles inspected code, the six-wave single-owner pilot plan an
 
 ### November 5 Firefox keyboard follow-up — isolated browser receipts
 
-- Isolated branch `codex/nav-keyboard-followup` starts at `origin/main` merge `2f4cc021`. Its base tree is identical to the original browser snapshot at `45e3ee3b`; the shared integration checkout and its edits remain intact. Performance PR #638 is independent.
+- Isolated branch `codex/nav-keyboard-followup` starts at `origin/main` merge `2f4cc021`. Its base tree is identical to the original browser snapshot at `45e3ee3b`; the shared integration checkout and its edits remain intact. Main through performance PR #638 (`dcf78dad`) is integrated before the independent follow-up gate.
 - Reproduced Firefox blocking Enter activation after a navigation scrub: its keyboard-generated click has `detail=1`, so the old pointer-click suppression intercepted it. Enter now clears that stale suppression. The regression failed against the old hook and all 10 navigation-hook tests passed with the fix.
 - Official Playwright 1.63.0 installed Firefox 155.0 and WebKit 26.6 plus their dependencies only inside the disposable local Docker harness. With `E2E_CROSS_BROWSER=1`, latest bounded results after fixes and targeted reruns are 7/7 per engine: Market draft Apply/Cancel, Back, dealer source/radius persistence, cursor ZIP/distance sorting, isolated bid labels/table, real local map selection plus pointer/keyboard navigation, and 200% CSS header reflow. Auth and listing reads use the actual isolated local stack; only the auction photo response is mocked.
 - WebKit's apparent 4,936px Back drift was an offscreen pre-click measurement: the product restored the actual saved marker within about 0.75px. The test now centers and verifies the clicked link before measuring, retaining its 16px threshold. Final return offsets were 0.75px WebKit and 0.48px Firefox. Reflow waits for loaded inventory and a painted downward scroll before reversing; its DOM scrolling checks layout, because Playwright mobile WebKit does not support `mouse.wheel`.
 - Cleanup verified zero owned cross-browser map and auction rows. No production data writes, credentials in receipts, ADB, or changes to other Docker services. The harness remains available for reruns. Linux WebKit/iPhone emulation does not establish physical Safari/iOS or installed-app feel; CSS scaling is not native browser zoom. Map marker/selection behavior passed, but external basemap tile delivery was not asserted and the WebKit basemap capture is blank.
 - Machine-readable results and scope limits: [`receipts/nav-keyboard-cross-browser-2026-11-05.json`](receipts/nav-keyboard-cross-browser-2026-11-05.json). Local screenshot/JSON bundle `dealerhunt-market-pilot-9gpye4si` retains `cross-browser-final-results`, `cross-browser-reflow-final-results`, their reports, and initial diagnostic failures. Full release gate, exact-head CI and deployment are separate acceptance receipts; these browser results alone do not declare release completion.
+
+### November 5 PR #637 production receipt
+
+- PR #637 is live at [dealerhunt.vercel.app](https://dealerhunt.vercel.app): merge `2f4cc021`, Vercel deployment `dpl_5LyWmfgxrfbykkbD1WprAWqw1Uoi`. CI passed with **5,921 full tests**.
+- Production guest verification: **20 passed, 22 safely skipped**. Skips remain outside the accepted coverage.
+- Newest-first Missouri/Florida cash-price inventory with photos returned three batches in **1.846 s, 0.506 s, and 0.589 s**, with **150 unique vehicles**.
+- **Current cold alternate-search acceptance is pending.** These newest-feed timings do not close the genuinely cold price-sort/Insights performance gate.
 
 ### November 5 interaction and search follow-up — acceptance in progress
 
