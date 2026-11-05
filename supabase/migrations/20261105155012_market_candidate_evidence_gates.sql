@@ -1,7 +1,7 @@
 -- Append evidence gates to the existing guarded analysis expansion. Existing columns stay in order.
 -- Server-only, non-materialized projection. Keep the original columns so shared
 -- inventory predicates retain their exact PostgREST/SQL semantics and pushdown.
--- Expanding each large JSON root once avoids repeated TOAST reads per alias.
+-- Reuse the existing guarded analysis expansion for the gate projection.
 begin;
 
 create or replace view public.market_candidate_projection
