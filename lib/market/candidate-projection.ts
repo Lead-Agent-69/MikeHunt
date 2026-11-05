@@ -23,6 +23,8 @@ export const MARKET_CANDIDATE_FIELDS = [
   "recommended_max_bid",
   "deal_verdict",
   "valuation",
+  // Keep JSON booleans intact for the shared economics gate; no raw analysis payload.
+  "evidence_gates:deal_analysis->evidenceGates",
   "acquisition_price_missing",
   "price_implausible",
   "analysis_roi",
