@@ -14,6 +14,9 @@ const port = Number(process.env.MARKET_PROJECTION_LOCAL_PORT || 55442);
 if (!Number.isSafeInteger(port) || port < 1024 || port > 65535)
   throw Error("Invalid local port");
 const secret = "local-market-projection-verification-secret-only";
+// Opt-in batching mode reuses the isolated schema/view without production access.
+const batchCap = Number(process.env.MARKET_BATCH_TEST_CAP || 0);
+if (![0, 500, 1000].includes(batchCap)) throw Error("Invalid batch test cap");
 const run = (args, options = {}) =>
   execFileSync("docker", args, {
     encoding: "utf8",
@@ -210,6 +213,36 @@ const plan = (query) =>
   JSON.parse(sql("explain(analyze,buffers,verbose,format json) " + query))[0];
 let success = false;
 try {
+  if (batchCap) {
+    const template = rows[0];
+    rows.splice(
+      0,
+      rows.length,
+      ...Array.from({ length: 2305 }, (_, offset) => {
+        const i = offset + 1;
+        const make = i <= 2000 ? "Ford" : "Honda";
+        return {
+          ...template,
+          id: uuid(i),
+          make,
+          title: `2020 ${make} Ranger`,
+          location_state: i % 2 ? "MO" : "FL",
+          ask_price: 10000 + i,
+          options: {
+            ...template.options,
+            listingTitle: `2020 ${make} Ranger`,
+            priceEvidence: { kind: "asking", askingPrice: 10000 + i },
+            // Keep independently toasted roots rather than compressible repeated text.
+            padding: crypto.randomBytes(8192).toString("hex"),
+          },
+          deal_analysis: {
+            ...template.deal_analysis,
+            padding: crypto.randomBytes(8192).toString("hex"),
+          },
+        };
+      }),
+    );
+  }
   run(["network", "create", name]);
   run([
     "run",
@@ -263,9 +296,10 @@ try {
     "-f",
     "/workspace/supabase/migrations/20261105094153_market_candidate_projection.sql",
   ]);
-  sql(
-    fs.readFileSync("supabase/tests/market_candidate_projection.sql", "utf8"),
-  );
+  if (!batchCap)
+    sql(
+      fs.readFileSync("supabase/tests/market_candidate_projection.sql", "utf8"),
+    );
   const where =
     " where active and location_state in ('MO','FL') and last_seen_at between now()-interval '30 days' and now() order by id asc limit 500";
   const variants = {
@@ -312,6 +346,14 @@ try {
     "PGRST_DB_ANON_ROLE=anon",
     "-e",
     "PGRST_JWT_SECRET=" + secret,
+    ...(batchCap
+      ? [
+          "-e",
+          "PGRST_DB_MAX_ROWS=" + batchCap,
+          "-e",
+          "PGRST_DB_PLAN_ENABLED=true",
+        ]
+      : []),
     "public.ecr.aws/supabase/postgrest:v16.2",
   ]);
   // Docker Desktop loopback forwarding is unavailable on some Windows runners.
@@ -345,7 +387,9 @@ try {
     [
       "node_modules/vitest/vitest.mjs",
       "run",
-      "app/api/market/explore/projection.integration.test.ts",
+      batchCap
+        ? "app/api/market/explore/batching.integration.test.ts"
+        : "app/api/market/explore/projection.integration.test.ts",
       "lib/market/candidate-projection.test.ts",
     ],
     {
