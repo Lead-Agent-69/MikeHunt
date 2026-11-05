@@ -1,0 +1,121 @@
+{
+  "playwright": "1.63.0",
+  "browsers": {
+    "firefox-desktop": "Firefox 155.0 / Linux",
+    "webkit-390": "WebKit 26.6 / Linux with iPhone emulation"
+  },
+  "latestResults": [
+    {
+      "project": "webkit-390",
+      "test": "mapped fixture remains readable and mobile scrub/native links navigate",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "mapped fixture remains readable and mobile scrub/native links navigate",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "stages filter changes until Apply and discards them on Cancel",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "Back restores a vehicle farther down the results without losing filters",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "finds independent dealers by name or website and preserves source plus radius",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "runs a ZIP radius search, sorts by distance and restores its shareable URL",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "keeps table view reachable and separates bids from cash asks",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "stages filter changes until Apply and discards them on Cancel",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "Back restores a vehicle farther down the results without losing filters",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "finds independent dealers by name or website and preserves source plus radius",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "runs a ZIP radius search, sorts by distance and restores its shareable URL",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "keeps table view reachable and separates bids from cash asks",
+      "status": "expected",
+      "evidence": "cross-browser-final-results/e2e-results.json"
+    },
+    {
+      "project": "webkit-390",
+      "test": "keeps header targets reachable at 200% CSS scaling without clipping",
+      "status": "expected",
+      "evidence": "cross-browser-reflow-final-results/e2e-results.json"
+    },
+    {
+      "project": "firefox-desktop",
+      "test": "keeps header targets reachable at 200% CSS scaling without clipping",
+      "status": "expected",
+      "evidence": "cross-browser-reflow-final-results/e2e-results.json"
+    }
+  ],
+  "passed": 14,
+  "failed": 0,
+  "backOffsetsPx": {
+    "webkit-390": 0.75,
+    "firefox-desktop": 0.48333740234375
+  },
+  "cleanupOwnedRows": 0,
+  "limits": [
+    "Not physical Safari/iOS or physical-device feel",
+    "200% reflow uses CSS zoom, not native browser zoom",
+    "Reflow scroll is programmatic because mobile WebKit does not support Playwright mouse.wheel",
+    "Market data/auth are real local; auction photo alone is a mocked image fixture",
+    "Map marker/selection behavior verified; external basemap tile delivery was not asserted and the captured WebKit basemap is blank."
+  ],
+  "sourceSnapshot": {
+    "baseCommit": "2f4cc021fd418062f717e4cb945744d60f17493f",
+    "testedOriginalCommit": "45e3ee3b9393c8f5616ccb0040d7b3ff3c9a42d3",
+    "identicalBaseTree": "6c320e62520ab575b0e1cde7d15a6f4bc32240e6",
+    "changes": [
+      "hooks/useNavigationScrub.ts",
+      "app/navigation-scrub.test.tsx",
+      "e2e/market-explorer.spec.ts",
+      "e2e/topnav-reflow.spec.ts"
+    ]
+  },
+  "artifactBundle": "dealerhunt-market-pilot-9gpye4si",
+  "productionWrites": 0,
+  "releaseAcceptance": "Browser receipts only; full gate, PR CI, merge and deployment tracked independently."
+}
