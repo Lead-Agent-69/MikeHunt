@@ -63,6 +63,13 @@ export function PhotoPreview({
           }}
           className="fixed left-0 top-0 z-[1001] h-[100dvh] max-h-[100dvh] w-[100dvw] max-w-[100dvw] overflow-hidden px-4 pt-[max(5rem,env(safe-area-inset-top))] pb-[max(5rem,env(safe-area-inset-bottom))] outline-none"
           onKeyDown={(event) => {
+            if (
+              event.altKey ||
+              event.ctrlKey ||
+              event.metaKey ||
+              event.shiftKey
+            )
+              return;
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
               move(event.key === "ArrowLeft" ? -1 : 1);

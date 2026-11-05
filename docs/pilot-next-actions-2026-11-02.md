@@ -2,6 +2,10 @@
 
 This register reconciles inspected code, the six-wave single-owner pilot plan and private release receipts. Checked means the stated bounded acceptance passed, not whole-app completion. The product remains a private independent-resale pilot: Market Explorer first, Discover second. Existing accounts, ownership and history stay protected.
 
+## Reference-app usability follow-up — November 5
+
+The next bounded interaction slice is documented in [Reference-app interaction value](reference-interaction-value-2026-11-05.md). It addresses abandoned navigation drags, departing Swipe focus, scrolling search focus/header measurements, Feed photo gestures, gallery keyboard modifiers and pending Market Source controls. Eleven focused files passed 72 tests; integration type checking and independent code review passed. Release gate, responsive matrix, exact-head CI and deployment are separate PR receipts. This entry is not a whole-pilot completion claim and does not supersede the unresolved performance, provider, owner/device or recovery gates below.
+
 ## Current acceptance — November 5
 
 The latest verified application release is **`777982fc3d9c5058072881a82a76590a69102df9` (#646)**. Historical bounded local suites remain accepted only at their recorded snapshots; they were not rerun on this release. Current real-GoTrue/PostgreSQL 17 receipts retain **the original 5 passed / 1 failed persisted run**, a separate unchanged purchase-case pass, and a subsequent **3/3 desktop research/filter/Back pass after the test-only selector correction and authenticated prewarm**. Earlier failures remain recorded. Cleanup and owned-runtime shutdown passed. These bounded results do not establish a complete matrix, production authenticated, physical-device or whole-app acceptance. Current statements below supersede earlier pending statements only within their stated scope.

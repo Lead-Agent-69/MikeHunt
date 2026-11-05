@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Heart, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { useListingPhotos } from "@/hooks/useListingPhotos";
+import { usePhotoNavigation } from "@/hooks/usePhotoNavigation";
 import { useDiscoverySave } from "@/components/discovery/DiscoverySaveProvider";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { proxiedImage } from "@/lib/image-url";
@@ -73,6 +74,14 @@ export function FeedVehicleCard({
     if (gallery.exhausted) onPhotoUnavailable?.(item.id);
   }, [gallery.exhausted, onPhotoUnavailable, item.id]);
   const [review, setReview] = useState(false);
+  const photoNavigation = usePhotoNavigation(
+    (direction) =>
+      gallery.select(
+        (gallery.index + direction + gallery.images.length) %
+          gallery.images.length,
+      ),
+    { enabled: gallery.images.length > 1, swipe: true, tap: false },
+  );
   const location = vehicleLocation(item.locationCity, item.locationState);
   if (gallery.exhausted) return null;
   return (
@@ -89,10 +98,13 @@ export function FeedVehicleCard({
         {gallery.image && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            {...photoNavigation}
             src={proxiedImage(gallery.image)}
             alt={item.title}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
+            draggable={false}
+            style={{ touchAction: "pan-y pinch-zoom" }}
             onError={gallery.reject}
             className="absolute inset-0 h-full w-full object-contain"
           />

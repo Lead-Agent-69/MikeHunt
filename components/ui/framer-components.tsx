@@ -642,6 +642,7 @@ function SwipeCardFace({
 
       {/* Stamps fade in proportionally to the drag, so the outcome reads before you commit. */}
       <motion.span
+        aria-hidden="true"
         className="pointer-events-none absolute left-4 top-4 rounded-full border px-3 py-1 text-xs font-black"
         style={{
           opacity: saveOpacity,
@@ -653,6 +654,7 @@ function SwipeCardFace({
         SAVE ✓
       </motion.span>
       <motion.span
+        aria-hidden="true"
         className="pointer-events-none absolute right-4 top-4 rounded-full border px-3 py-1 text-xs font-black"
         style={{
           opacity: passOpacity,
@@ -744,6 +746,9 @@ export function SwipeCardStack({
 
         {leaving && (
           <motion.div
+            ref={(node) => {
+              if (node) node.inert = true;
+            }}
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 z-30 overflow-hidden rounded-[var(--r4)] border border-[var(--b2)] bg-[var(--s0)]"
             initial={{ x: 0, opacity: 1, rotate: 0 }}

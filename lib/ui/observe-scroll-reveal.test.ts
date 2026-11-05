@@ -4,6 +4,7 @@ import { observeScrollReveal } from "./observe-scroll-reveal";
 afterEach(() => {
   vi.unstubAllGlobals();
   document.body.scrollTop = 0;
+  document.documentElement.style.removeProperty("--top-nav-height");
 });
 function setup(initialVisible = false, initialBottom = -100) {
   const frames = new Map<number, FrameRequestCallback>();
@@ -53,6 +54,31 @@ function setup(initialVisible = false, initialBottom = -100) {
   };
 }
 describe("scroll-revealed search access", () => {
+  it("keeps search available while the original controls are covered by a taller header", () => {
+    document.documentElement.style.setProperty("--top-nav-height", "96px");
+    const f = setup(true, 80);
+    try {
+      expect(f.publish).not.toHaveBeenCalled();
+      f.showOriginal();
+      f.move(1170);
+      expect(f.publish).toHaveBeenLastCalledWith(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+  it("uses the updated header height when the viewport changes", () => {
+    document.documentElement.style.setProperty("--top-nav-height", "96px");
+    const f = setup(true, 80);
+    try {
+      expect(f.publish).not.toHaveBeenCalled();
+      document.documentElement.style.setProperty("--top-nav-height", "64px");
+      window.dispatchEvent(new Event("resize"));
+      f.flush();
+      expect(f.publish).toHaveBeenLastCalledWith(false);
+    } finally {
+      f.cleanup();
+    }
+  });
   it("yields to visible original controls when reattaching after a filter shrinks the results", () => {
     const f = setup(true, 200);
     expect(f.publish).toHaveBeenLastCalledWith(false);

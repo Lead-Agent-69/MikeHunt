@@ -1046,7 +1046,6 @@ export default function MarketPage() {
                       (source) => source.id === f.sources[0],
                     )?.name || (f.sources.length ? "Selected" : "All"),
               inputLabel: "Quick source or dealer",
-              disabled: busy,
             },
           ]}
         >
@@ -1097,7 +1096,7 @@ export default function MarketPage() {
               Source or dealer
               <select
                 aria-label="Quick source or dealer"
-                disabled={!ready || busy}
+                disabled={!ready}
                 value={f.sources.length > 1 ? "__selected" : f.sources[0] || ""}
                 onChange={(event) =>
                   set({

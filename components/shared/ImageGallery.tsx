@@ -89,7 +89,15 @@ function ListingGallery({
   currentSelection.current = { currentIndex, select: setCurrentIndex };
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (!isLightboxOpen || !hasImages) return;
+      if (
+        !isLightboxOpen ||
+        !hasImages ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.metaKey ||
+        e.shiftKey
+      )
+        return;
 
       if (e.key === "ArrowLeft") {
         e.preventDefault();

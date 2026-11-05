@@ -22,13 +22,24 @@ export function observeScrollReveal(
   const update = () => {
     frame = null;
     const y = position();
+    // TopNav publishes its measured pixel height, including wrapped/zoomed layouts.
+    const measuredHeader = Number.parseFloat(
+      document.documentElement.style.getPropertyValue("--top-nav-height"),
+    );
+    const headerHeight =
+      Number.isFinite(measuredHeader) && measuredHeader >= 0
+        ? measuredHeader
+        : 56;
     const delta = y - previousY;
     previousY = y;
     let next = visible;
     if (interacting()) {
       direction = 0;
       travel = 0;
-    } else if (anchor.getBoundingClientRect().bottom > 56 || y <= 56) {
+    } else if (
+      anchor.getBoundingClientRect().bottom > headerHeight ||
+      y <= headerHeight
+    ) {
       next = false;
       travel = 0;
       direction = 0;
