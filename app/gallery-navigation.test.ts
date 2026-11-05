@@ -32,6 +32,47 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("listing photo navigation", () => {
+  it.each(["altKey", "ctrlKey", "metaKey", "shiftKey"] as const)(
+    "preserves modified arrows in the native detail gallery: %s",
+    (modifier) => {
+      act(() =>
+        root.render(
+          React.createElement(ImageGallery, {
+            title: "Honda Civic",
+            images: ["https://example.com/1.jpg", "https://example.com/2.jpg"],
+          }),
+        ),
+      );
+      act(() =>
+        host
+          .querySelector<HTMLButtonElement>(
+            'button[aria-label="Open photo 1 of 2: Honda Civic"]',
+          )!
+          .click(),
+      );
+      const dialog = document.querySelector("dialog")!;
+      const close = dialog.querySelector("button")!;
+      for (const key of ["ArrowLeft", "ArrowRight"]) {
+        const event = new KeyboardEvent("keydown", {
+          key,
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        act(() => close.dispatchEvent(event));
+        expect(event.defaultPrevented).toBe(false);
+        expect(dialog.textContent).toContain("1 / 2");
+      }
+      const plain = new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => close.dispatchEvent(plain));
+      expect(plain.defaultPrevented).toBe(true);
+      expect(dialog.textContent).toContain("2 / 2");
+    },
+  );
   it("keeps remembered offsets and the viewer count aligned after placeholder photos are excluded", () => {
     const src = "https://dealer.test/actual-vehicle.jpg";
     act(() =>

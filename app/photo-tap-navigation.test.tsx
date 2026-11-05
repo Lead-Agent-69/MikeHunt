@@ -84,6 +84,34 @@ const visiblePhoto = () =>
   document.querySelector('[role="dialog"] img')?.getAttribute("alt");
 
 describe("photo browsing gestures", () => {
+  it.each(["altKey", "ctrlKey", "metaKey", "shiftKey"] as const)(
+    "leaves %s plus horizontal arrows to browser/system shortcuts",
+    (modifier) => {
+      open();
+      const close = document.querySelector<HTMLButtonElement>(
+        '[aria-label="Close photo preview"]',
+      )!;
+      for (const key of ["ArrowLeft", "ArrowRight"]) {
+        const event = new KeyboardEvent("keydown", {
+          key,
+          [modifier]: true,
+          bubbles: true,
+          cancelable: true,
+        });
+        act(() => close.dispatchEvent(event));
+        expect(event.defaultPrevented).toBe(false);
+        expect(visiblePhoto()).toBe("Front");
+      }
+      const plain = new KeyboardEvent("keydown", {
+        key: "ArrowRight",
+        bubbles: true,
+        cancelable: true,
+      });
+      act(() => close.dispatchEvent(plain));
+      expect(plain.defaultPrevented).toBe(true);
+      expect(visiblePhoto()).toBe("Rear");
+    },
+  );
   it("keeps normal link taps with tap disabled while suppressing navigation after swipes and scrolling", () => {
     const move = vi.fn();
     function Harness() {
