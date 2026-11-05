@@ -378,7 +378,10 @@ test.describe("Market Explorer home", () => {
     const card = page.locator("article").nth(8);
     const link = card.locator("h3 a");
     await expect(link).toBeVisible();
-    await link.scrollIntoViewIfNeeded();
+    await link.evaluate((element) =>
+      element.scrollIntoView({ block: "center", behavior: "instant" }),
+    );
+    await expect(link).toBeInViewport({ ratio: 1 });
     const before = await card.boundingBox();
     const origin = page.url();
     const destination = await link.getAttribute("href");

@@ -198,6 +198,9 @@ export function useNavigationScrub(
         if (event.key === "Escape") {
           suppressClick.current = true;
           reset();
+        } else if (event.key === "Enter") {
+          // Firefox gives keyboard-generated clicks detail=1, just like mouse clicks.
+          suppressClick.current = false;
         }
       },
       onClickCapture(event: MouseEvent<HTMLElement>) {

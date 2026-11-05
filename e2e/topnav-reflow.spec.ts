@@ -13,6 +13,7 @@ test.describe("TopNav reflow", () => {
     await page.goto("/market?scope=explicit&browse=1");
     const header = page.locator("header").first();
     await expect(header.getByRole("link", { name: "All tools" })).toBeVisible();
+    await expect(page.locator("[data-market-vehicle]").first()).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     // CSS zoom deliberately retains the desktop media query. Native browser zoom
     // instead reduces the CSS viewport, so this exercises a different failure mode.
@@ -45,9 +46,36 @@ test.describe("TopNav reflow", () => {
         target.headerBottom,
       );
     }
-    await page.mouse.wheel(0, 900);
-    await page.waitForTimeout(100);
-    await page.mouse.wheel(0, -100);
+    const scrollPosition = () =>
+      page.evaluate(() =>
+        Math.max(
+          window.scrollY,
+          document.documentElement.scrollTop,
+          document.body.scrollTop,
+        ),
+      );
+    const scrollTo = (top: number) =>
+      page.evaluate((value) => {
+        const bodyScrolls =
+          document.body.scrollTop > 0 ||
+          /auto|scroll/.test(getComputedStyle(document.body).overflowY);
+        const root = bodyScrolls ? document.body : document.scrollingElement!;
+        root.scrollTo({ top: value, behavior: "instant" });
+      }, top);
+    // This checks scroll-driven layout, not wheel/touch input. Mobile WebKit
+    // cannot dispatch Playwright wheel events; wait for actual scroll positions.
+    await scrollTo(1200);
+    await expect.poll(scrollPosition).toBeGreaterThanOrEqual(1000);
+    // Let scroll observers paint the downward state before reversing direction.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    const down = await scrollPosition();
+    await scrollTo(down - 100);
+    await expect.poll(scrollPosition).toBeLessThanOrEqual(down - 24);
     const floating = page.getByRole("region", {
       name: "Search and filters while browsing",
     });
