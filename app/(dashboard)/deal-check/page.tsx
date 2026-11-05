@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from "react";
 import { Ico } from "@/components/shared/Ico";
 import { Mono } from "@/components/shared/Mono";
 import { MikeHuntLoader } from "@/components/brand/MikeHuntLoader";
-import { useDelayedLoading } from "@/hooks/useDelayedLoading";
 import { userFacingErrorMessage } from "@/lib/user-facing-error";
 import Link from "next/link";
 import { Calculator, FileText } from "lucide-react";
@@ -40,7 +39,6 @@ export default function DealCheckPage() {
   const fileInput = useRef<HTMLInputElement | null>(null);
   const fileReader = useRef<FileReader | null>(null);
   const lastPayload = useRef<{ image?: string; text?: string } | null>(null);
-  const showLoader = useDelayedLoading(loading);
   const resultFocus = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -343,13 +341,11 @@ export default function DealCheckPage() {
 
       {loading && (
         <div className="flex flex-col items-center gap-3 py-6 text-center text-[var(--t3)]">
-          {showLoader && (
-            <MikeHuntLoader
-              state="loading"
-              size={64}
-              label="Analyzing deal details"
-            />
-          )}
+          <MikeHuntLoader
+            state="loading"
+            size={64}
+            label="Analyzing deal details"
+          />
           <span>Reading the document and checking market evidence…</span>
         </div>
       )}

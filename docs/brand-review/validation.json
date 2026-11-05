@@ -1,0 +1,55 @@
+{
+  "scope": "Review-only branding branch. No merge or deployment.",
+  "branch": "codex/dh-brand-review",
+  "baseCommit": "1543f5451e4d742ce671aca104436ea2a36815b5",
+  "cleanDefaultBuild": {
+    "command": "npm run build",
+    "exitCode": 0,
+    "nextVersion": "16.4.2",
+    "legacyAppTypeFixturesPresent": false,
+    "generatedValidator": "validator.ts"
+  },
+  "fullGate": {
+    "command": "npm run verify",
+    "exitCode": 0,
+    "typecheck": "passed",
+    "lint": {
+      "errors": 0,
+      "warnings": 193
+    },
+    "testFilesPassed": 776,
+    "testsPassed": 5887,
+    "build": "passed",
+    "durationSeconds": 772.5
+  },
+  "targetedTestsPassed": 30,
+  "browser": {
+    "stateSizeThemeCases": 16,
+    "hiddenAt199ms": true,
+    "compactAt200ms": true,
+    "requestedSizeAt1000ms": true,
+    "visualBeatsVerified": ["scan", "discover", "evaluate", "reveal"],
+    "neutralTaskTextPreserved": true,
+    "settlementInterruptsEveryBeat": true,
+    "reducedMotionAnimationCount": 0
+  },
+  "pixelExtraction": {
+    "retainedPixels": 153064,
+    "changedColorSamples": 0,
+    "cropEdgeArtworkPixels": 0
+  },
+  "productionAudit": {
+    "exitCode": 0,
+    "high": 0,
+    "critical": 0,
+    "moderate": 6,
+    "low": 6
+  },
+  "limitations": [
+    "Raster embedded in SVG; not vector artwork",
+    "Legacy Safari pinned-tab mask unchanged",
+    "Safari/iOS installation not manually tested",
+    "Captures use an isolated shared-component harness",
+    "Screen-reader speech output not manually tested"
+  ]
+}
