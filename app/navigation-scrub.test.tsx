@@ -178,6 +178,30 @@ describe("mobile navigation scrub", () => {
     expect(navigate).not.toHaveBeenCalled();
     expect(captured).toBe(false);
   });
+  it.each([-17, 81])(
+    "keeps a claimed scrub cancelled after a vertical exit at y=%s and re-entry",
+    (y) => {
+      pointer("pointerdown", 44);
+      pointer("pointermove", 284);
+      expect(captured).toBe(true);
+      pointer("pointermove", 284, y);
+      expect(captured).toBe(false);
+      expect(host.firstElementChild?.getAttribute("data-preview")).toBeNull();
+      pointer("pointermove", 284);
+      pointer("pointerup", 284);
+      expect(navigate).not.toHaveBeenCalled();
+      const cancelledClick = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+      });
+      act(() => host.querySelector("a")!.dispatchEvent(cancelledClick));
+      expect(cancelledClick.defaultPrevented).toBe(true);
+      pointer("pointerdown", 44);
+      pointer("pointerup", 44);
+      expect(click()).toBe(false);
+    },
+  );
   it("cancels multi-touch, pointer loss, Escape and browser pointer cancellation", () => {
     for (const cancellation of [
       "pointercancel",

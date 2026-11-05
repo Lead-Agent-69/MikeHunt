@@ -93,17 +93,22 @@ export function useNavigationScrub(
     const bounds = event.currentTarget.getBoundingClientRect();
     const width = (bounds.width - 8) / count;
     if (width <= 0) return null;
+    const withinVertical =
+      event.clientY >= bounds.top - 16 && event.clientY <= bounds.bottom + 16;
     const inside =
       event.clientX >= bounds.left &&
       event.clientX <= bounds.right &&
-      event.clientY >= bounds.top - 16 &&
-      event.clientY <= bounds.bottom + 16;
+      withinVertical;
     const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
     const offset = rtl
       ? bounds.right - event.clientX
       : event.clientX - bounds.left;
     const raw = (offset - 4) / width - 0.5;
-    return { inside, value: Math.max(0, Math.min(count - 1, raw)) };
+    return {
+      inside,
+      withinVertical,
+      value: Math.max(0, Math.min(count - 1, raw)),
+    };
   }
 
   return {
@@ -158,6 +163,13 @@ export function useNavigationScrub(
         }
         const target = point(event);
         if (!target) return;
+        // Leaving vertically cancels even after horizontal capture; re-entry
+        // must not turn an abandoned gesture into a navigation.
+        if (!target.withinVertical) {
+          suppressClick.current = true;
+          reset();
+          return;
+        }
         position.set(target.value);
         setPreview(Math.round(target.value));
       },
