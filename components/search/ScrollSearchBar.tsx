@@ -45,10 +45,11 @@ export function ScrollSearchBar({
         currentVisible.current = next;
         setVisible(next);
       },
+      // Keep keyboard targets mounted without pinning a pointer-focused button.
       () =>
         !!root.current?.contains(document.activeElement) &&
         !!document.activeElement?.matches(
-          'input, textarea, select, [contenteditable="true"]',
+          'input, textarea, select, [contenteditable="true"], :focus-visible',
         ),
       currentVisible.current,
     );
