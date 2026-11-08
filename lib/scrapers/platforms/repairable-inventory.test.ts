@@ -7,6 +7,37 @@ const vin = "1FTEX1EP0LFC26831";
 const fordPhoto = `https://s3.amazonaws.com/gtPics/${vin}_19.jpeg`;
 
 describe("direct repairable inventory", () => {
+  it("uses Connect Auto's matching paid-in-full amount instead of its financed price", async () => {
+    const site = dealerCmsSiteFor("https://www.connectautosales.com")!;
+    const photo =
+      "https://jqsxtcudh1yt2y2i.public.blob.vercel-storage.com/vehicles/1/main-photos/f150.jpg";
+    const card = `<div class="CarCard_card__abc">
+      <a class="CarCard_imageWrap__abc" href="/inventory/123"><img src="/_next/image?url=${encodeURIComponent(photo)}"></a>
+      <span class="CarCard_price__abc">$18,800</span>
+      <span class="CarCard_mileage__abc">10,929 miles</span>
+    </div>`;
+    const detail = `<div><h1>2020 Ford F150 XLT</h1><span>Rebuilt Title</span></div>
+      <span class="page_vinNum__abc">${vin}</span>
+      <div><p class="page_cashPrice__abc">$18,800*</p><p class="page_priceNote__abc">Price in full</p></div>
+      <p>$19,800 with financing</p>`;
+    const crawl = (body: string) =>
+      crawlDealerCms(site, {
+        load,
+        fetchHtml: async (url) =>
+          response(url === site.inventoryUrl ? card : body),
+      });
+    expect(await crawl(detail)).toMatchObject([
+      {
+        vin,
+        ask_price: 18800,
+        condition: "rebuilt_title",
+        images: [photo],
+      },
+    ]);
+    expect(
+      await crawl(detail.replace("Price in full", "With qualifying financing")),
+    ).toEqual([]);
+  });
   it("keeps 117 Auto's available rebuilt stock and drops the same VIN's stock-photo or sold row", async () => {
     const site = dealerCmsSiteFor("https://117autosales.com")!;
     const row = (

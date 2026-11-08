@@ -49,10 +49,21 @@ export interface DealerCmsSite {
     | "danda"
     | "philips"
     | "117-auto"
-    | "ridgeline";
+    | "ridgeline"
+    | "connect-auto";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
+  {
+    sourceId: "connect-auto-sales",
+    name: "Connect Auto Sales",
+    baseUrl: "https://www.connectautosales.com",
+    inventoryUrl: "https://www.connectautosales.com/inventory",
+    city: "Dearborn Heights",
+    state: "MI",
+    defaultCondition: "unknown",
+    layout: "connect-auto",
+  },
   {
     sourceId: "117-auto-sales",
     name: "117 Auto Sales",
@@ -1112,6 +1123,7 @@ async function crawlRepairableInventory(
 
 /** Walk every inventory page of one site and return deals (does not save). */
 export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
+  if (site.layout === "connect-auto") return crawlConnectAuto(site, deps);
   if (site.layout === "117-auto" || site.layout === "ridgeline")
     return crawlRebuiltRetail(site, deps);
   if (site.layout === "danda" || site.layout === "philips")
@@ -1191,6 +1203,84 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
+}
+
+async function crawlConnectAuto(site: DealerCmsSite, deps: DealerCmsDeps) {
+  const result = await deps.fetchHtml(site.inventoryUrl);
+  if (!result.ok)
+    throw new Error(
+      `${site.name} inventory ${result.skipped ?? result.status}`,
+    );
+  const $ = deps.load(result.body);
+  const cards = $("[class^='CarCard_card__']");
+  if (!cards.length)
+    throw new Error(`${site.name} inventory layout unavailable`);
+  const deals = new Map<string, Partial<Deal>>();
+  for (const element of cards.toArray()) {
+    const card = $(element);
+    const href = card.find("a[class^='CarCard_imageWrap__']").attr("href");
+    if (!href || !/^\/inventory\/\d+$/.test(href)) continue;
+    const url = new URL(href, site.baseUrl).href;
+    const offered = parsePrice(card.find("[class^='CarCard_price__']").text());
+    const photo = card.find("img").attr("src");
+    const optimizer = photo && abs(photo, url);
+    if (!offered || !optimizer || !isSameSiteHref(optimizer, url)) continue;
+    const image = abs(new URL(optimizer).searchParams.get("url") ?? "", url);
+    if (
+      !image ||
+      !/^https:\/\/jqsxtcudh1yt2y2i\.public\.blob\.vercel-storage\.com\/vehicles\/\d+\/main-photos\//.test(
+        image,
+      )
+    )
+      continue;
+    const detail = await deps.fetchHtml(url);
+    if (!detail.ok)
+      throw new Error(
+        `${site.name} incomplete inventory: detail ${detail.skipped ?? detail.status}`,
+      );
+    const page = deps.load(detail.body);
+    const cash = page("[class^='page_cashPrice__']").first();
+    const note = cash.siblings("[class^='page_priceNote__']").text();
+    if (!/\bin full\b/i.test(note) || parsePrice(cash.text()) !== offered)
+      continue;
+    const vin = page("[class^='page_vinNum__']").first().text().trim();
+    const title = clean(page("h1").first().text());
+    const identity = splitTitle(title);
+    if (!vin || !isValidVin(vin) || !identity.year || !identity.model) continue;
+    const header = page("h1").first().parent();
+    const condition = titleBrand(spacedText(page, header));
+    const deal = cardToDeal(
+      {
+        id: normalizeVin(vin),
+        url,
+        title,
+        ...identity,
+        price: offered,
+        condition,
+        image,
+        vin: normalizeVin(vin),
+        sold: false,
+        mileage: parseMiles(card.find("[class^='CarCard_mileage__']").text()),
+      },
+      site,
+      detail.observedAt,
+    );
+    if (deal) {
+      deal.options = {
+        priceEvidence: {
+          kind: "asking",
+          askingPrice: offered,
+          evidenceText: `Connect Auto Sales paid-in-full asking price $${offered}`,
+          ...(detail.observedAt ? { checkedAt: detail.observedAt } : {}),
+        },
+      };
+      deals.set(normalizeVin(vin), deal);
+    }
+  }
+  deps.log?.(
+    `[DealerCMS] ${site.name}: observed ${cards.length}, eligible ${deals.size}`,
+  );
+  return Array.from(deals.values());
 }
 
 async function crawlRebuiltRetail(site: DealerCmsSite, deps: DealerCmsDeps) {
