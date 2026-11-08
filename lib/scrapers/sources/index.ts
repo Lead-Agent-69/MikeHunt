@@ -2112,7 +2112,7 @@ export async function scrapeDealerCms(
   );
   let enriched = 0;
   let attemptedDetails = 0;
-  if (enrichLimit && site.layout !== "danda" && site.layout !== "philips")
+  if (enrichLimit && !["danda", "philips", "117-auto", "ridgeline"].includes(site.layout ?? ""))
     await withDealerDetailRotation(
       site.baseUrl,
       deals,

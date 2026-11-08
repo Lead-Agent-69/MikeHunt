@@ -77,6 +77,8 @@ export const SITE_TYPE_META: Record<
 // Keep the source registry compact; city values come from the seller's published location.
 // prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
+  { url: "https://117autosales.com", name: "117 Auto Sales", city: "Dunn", state: "NC", type: "independent_dealer", inventoryUrl: "/inventory/?v_title=rebuilt" },
+  { url: "https://ridgelineautomotivellc.com", name: "Ridgeline Automotive", city: "Asheville", state: "NC", type: "independent_dealer", inventoryUrl: "/inventory/" },
   { url: "https://www.dandaauto.com", name: "D & A Auto Body", city: "Portage", state: "MI", type: "rebuilder_dealer", inventoryUrl: "/repairable-vehicles-for-sale/" },
   { url: "https://philipsrepairables.com", name: "Philips Repairables", city: "Long Prairie", state: "MN", type: "rebuilder_dealer", inventoryUrl: "/vehicles-list/" },
   // ── National salvage/rebuilder networks (multi-state inventory) ──

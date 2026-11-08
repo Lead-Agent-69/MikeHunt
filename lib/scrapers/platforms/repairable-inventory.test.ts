@@ -7,6 +7,68 @@ const vin = "1FTEX1EP0LFC26831";
 const fordPhoto = `https://s3.amazonaws.com/gtPics/${vin}_19.jpeg`;
 
 describe("direct repairable inventory", () => {
+  it("keeps 117 Auto's available rebuilt stock and drops the same VIN's stock-photo or sold row", async () => {
+    const site = dealerCmsSiteFor("https://117autosales.com")!;
+    const row = (
+      status: string,
+      alt: string,
+      price: string,
+    ) => `<article class="aiv-card ${status}">
+      <div class="aiv-card-photo"><img alt="${alt}" src="/wp-content/uploads/car.jpg"></div>
+      <h2 class="aiv-card-title"><a href="/inventory/f150/">2020 Ford F150 XLT</a></h2>
+      <span class="aiv-title-badge">Rebuilt Title</span>
+      <div class="aiv-price">${price}</div>
+      <dl><dt>VIN</dt><dd>${vin}</dd><dt>Mileage</dt><dd>10,929 Miles</dd></dl>
+    </article>`;
+    const deals = await crawlDealerCms(site, {
+      load,
+      fetchHtml: async () =>
+        response(
+          row("", "Ford F150", "$18,800") +
+            row("", "Stock photo", "$3,000") +
+            row("is-sold", "Ford F150", "$2,000"),
+        ),
+    });
+    expect(deals).toHaveLength(1);
+    expect(deals[0]).toMatchObject({
+      vin,
+      condition: "rebuilt_title",
+      ask_price: 18800,
+      mileage: 10929,
+    });
+  });
+
+  it("reads Ridgeline title from the exact field and omits unavailable or mismatched photos", async () => {
+    const site = dealerCmsSiteFor("https://ridgelineautomotivellc.com")!;
+    const row = (
+      status: string,
+      photoVin: string,
+      price: string,
+    ) => `<article class="listing-item" data-status="${status}" data-vin="${vin}">
+      <a class="listing-link" href="/inventory/f150/">Details</a>
+      <span class="listing-title">2020 Ford F150 XLT</span>
+      <img class="listing-image" src="/media/${photoVin}/vehicle.jpg">
+      <span class="listing-price">${price}</span>
+      <div class="detail-text"><span class="label">Title</span><span class="value">clean</span></div>
+      <div class="detail-text"><span class="label">Mileage</span><span class="value">10,929 MI</span></div>
+    </article>`;
+    const deals = await crawlDealerCms(site, {
+      load,
+      fetchHtml: async () =>
+        response(
+          row("available", vin, "$18,800") +
+            row("sold", vin, "$3,000") +
+            row("available", "other", "$2,000"),
+        ),
+    });
+    expect(deals).toHaveLength(1);
+    expect(deals[0]).toMatchObject({
+      vin,
+      condition: "clean_title",
+      ask_price: 18800,
+      mileage: 10929,
+    });
+  });
   it("reads D&A's stock rows without promoting sold or upcoming vehicles", async () => {
     const site = dealerCmsSiteFor("https://www.dandaauto.com")!;
     const row = (slug: string, sold = false) => `<tr>

@@ -29,6 +29,13 @@ First repairable checks are D & A, Philips, and iPull-uPull. Run these separatel
 
 ## Leads requiring more evidence and existing-source findings
 
+### Second collector verification
+
+- 117 Auto Sales returned six live-site candidates with actual vehicle photos, VINs, rebuilt titles and advertised prices. The parser excludes sold rows and stock-photo placeholders.
+- Ridgeline returned 16 live-site candidates with VIN-matched photos and advertised prices. Fourteen carry dealer-reported rebuilt titles and two carry dealer-reported clean titles.
+- Hold iPull-uPull for yard-level location and price handling. Universal Salvage still needs current identifiable stock. Connect Auto Sales and State Line Auto need listing-level title confirmation. Houston Auto World needs an access review of its dealer platform. HRM needs a readable current inventory feed and Car Point Utah needs proof of actual stock.
+- [Kami Motors in Metairie, Louisiana](https://www.kamimotorsgroup.com/inventory/cmmo7gkl4000cmstg48tror5d) has a dealer detail page with rebuilt-title disclosure, VIN and a gallery. The public inventory view returned zero in the text read. Reconcile its current stock before enabling it, and separate dealer price from estimated clean-title price and savings.
+
 - **OK — ReAutos, Tulsa.** [Member page](https://www.prosalvage.com/membersDetail.php?742=) links to a dealer-specific marketplace view. The linked [dealer domain](https://www.reautos.com/) serves a coming-soon page. Check whether the marketplace has current, nonduplicate lots through a permitted route before counting this as supply.
 - **OR — PDX Fast Auto Sales, Portland.** The [dealer site](https://www.pdxfastautosale.com/) advertises clean and rebuilt vehicles in its indexed page. Direct fetch timed out in this pass. Rebuilt Deals also surfaced in third-party results, with no first-party inventory verified.
 - **ND — Ken's Auto, Strasburg.** [Public dealer site](https://www.rebuildablevehicles.com/) shows this hostname belongs to the North Dakota dealer already curated via repairableautos.com. The discovery cache currently labels the alias TX. Treat it as an existing identity and resolve the state before any future intake.
