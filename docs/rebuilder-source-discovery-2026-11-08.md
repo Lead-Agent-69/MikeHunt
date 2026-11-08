@@ -46,6 +46,15 @@ First repairable checks are D & A, Philips, and iPull-uPull. Run these separatel
 
 ## State-by-state disposition
 
+### November 8 follow-up
+
+- **HRM Auto, Georgia.** The public inventory page uses a [dealer stock feed](https://hrmautollc.com/service/inventory/website). It returned 58 rows, including 17 sold. The read-only adapter accepted 40 listings with matching stock-photo paths and advertised prices. The dealer disclosed 32 rebuilt and five clean titles, with three left unknown. The feed's boolean brand flag was false even for explicitly rebuilt vehicles. The adapter uses the dealer's written disclosure and the storefront's special-price-over-base-price logic. The [sample Acura](https://hrmautollc.com/inventory/19410/view/P-550080) is advertised at $7,450 before applicable fees.
+- **Universal Salvage, Indiana.** The [whole-vehicle page](https://www.universalsalvageco.com/rebuilt-vehicles) directs buyers to call for availability. It lacks a current, identifiable stock list suitable for collection.
+- **State Line Auto, Ohio.** Its [live inventory](https://www.statelineauto.co/cars-for-sale) is separate from its rebuilt-title homepage description. Sample listing title evidence and the storefront platform's access terms still need confirmation.
+- **Houston Auto World, Texas.** The [branded-title landing page](https://houstonautoworld.com/branded-title) links to general inventory. Verify vehicle-specific title and sale prices and obtain a permitted Dealer Car Search route before enabling.
+- **iPull-uPull and Car Point Utah.** iPull-uPull needs authorized reuse. Car Point Utah continues to label the displayed vehicles as samples.
+- **Missouri leads.** Key Auto's dealer page surfaced in the search index, but direct robots access returned a Cloudflare challenge. Keep the dealer as a source link while seeking a permitted feed. [Buddy's U-Pull](https://buddysupull.com/) is a parts yard, and [Pick-n-Pull's vehicle sales site](https://www.picknpull.com/cars-for-sale/44) needs a confirmed Missouri whole-car inventory route before it qualifies.
+
 “Existing” means a matching source is already represented in the code or master research registry. Its production status may differ. “Open” means this pass did not find a new direct inventory with enough evidence to add. Buyer radius may cross state lines, but shipping destinations and broker state filters are not local stock.
 
 | State | Disposition                                                                                                                                                                                                   |

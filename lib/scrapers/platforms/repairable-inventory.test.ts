@@ -7,6 +7,48 @@ const vin = "1FTEX1EP0LFC26831";
 const fordPhoto = `https://s3.amazonaws.com/gtPics/${vin}_19.jpeg`;
 
 describe("direct repairable inventory", () => {
+  it("uses HRM's advertised special price and vehicle-specific title and photos", async () => {
+    const site = dealerCmsSiteFor("https://hrmautollc.com")!;
+    const photo = "https://hrmautollc.com/service/picture/19410/P-1/abc";
+    const active = {
+      forWeb: true,
+      accountNo: "19410",
+      stockNo: "P-1",
+      vin,
+      year: 2020,
+      make: "Ford",
+      model: "F150",
+      mileage: 10929,
+      price: "19900.00",
+      specialPrice: "18800.00",
+      downPayment: "1200.00",
+      titleBranded: false,
+      description: "<strong>Rebuilt Georgia Title</strong>",
+      pictures: [
+        { url: photo },
+        { url: "https://hrmautollc.com/service/picture/19410/P-2/abc" },
+      ],
+    };
+    const rows = [
+      active,
+      { ...active, soldOn: "2026-11-01", specialPrice: "123.00" },
+      { ...active, forWeb: false, specialPrice: "456.00" },
+    ];
+    const deals = await crawlDealerCms(site, {
+      load,
+      fetchHtml: async () => response(JSON.stringify(rows)),
+    });
+    expect(deals).toMatchObject([
+      {
+        vin,
+        condition: "rebuilt_title",
+        title_source: "listing",
+        ask_price: 18800,
+        images: [photo],
+        source_url: "https://hrmautollc.com/inventory/19410/view/P-1",
+      },
+    ]);
+  });
   it("uses Connect Auto's matching paid-in-full amount instead of its financed price", async () => {
     const site = dealerCmsSiteFor("https://www.connectautosales.com")!;
     const photo =

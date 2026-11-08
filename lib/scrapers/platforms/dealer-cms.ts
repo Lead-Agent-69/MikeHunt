@@ -50,10 +50,21 @@ export interface DealerCmsSite {
     | "philips"
     | "117-auto"
     | "ridgeline"
-    | "connect-auto";
+    | "connect-auto"
+    | "hrm";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
+  {
+    sourceId: "hrm-auto",
+    name: "HRM Auto",
+    baseUrl: "https://hrmautollc.com",
+    inventoryUrl: "https://hrmautollc.com/service/inventory/website",
+    city: "Macon",
+    state: "GA",
+    defaultCondition: "unknown",
+    layout: "hrm",
+  },
   {
     sourceId: "connect-auto-sales",
     name: "Connect Auto Sales",
@@ -1123,6 +1134,7 @@ async function crawlRepairableInventory(
 
 /** Walk every inventory page of one site and return deals (does not save). */
 export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
+  if (site.layout === "hrm") return crawlHrmAuto(site, deps);
   if (site.layout === "connect-auto") return crawlConnectAuto(site, deps);
   if (site.layout === "117-auto" || site.layout === "ridgeline")
     return crawlRebuiltRetail(site, deps);
@@ -1203,6 +1215,130 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
+}
+
+type HrmVehicle = {
+  forWeb?: boolean;
+  soldOn?: string;
+  deletedAt?: string;
+  accountNo?: string;
+  stockNo?: string;
+  vin?: string;
+  year?: number;
+  make?: string;
+  model?: string;
+  mileage?: number;
+  price?: string;
+  specialPrice?: string;
+  description?: string;
+  pictures?: { url?: string }[];
+};
+
+async function crawlHrmAuto(site: DealerCmsSite, deps: DealerCmsDeps) {
+  const response = await deps.fetchHtml(site.inventoryUrl);
+  if (!response.ok)
+    throw new Error(
+      `${site.name} inventory ${response.skipped ?? response.status}`,
+    );
+  const rows: unknown = JSON.parse(response.body);
+  if (
+    !Array.isArray(rows) ||
+    rows.some((row) => typeof row?.forWeb !== "boolean")
+  )
+    throw new Error(`${site.name} unexpected inventory schema`);
+  const deals = new Map<string, Partial<Deal>>();
+  for (const row of rows as HrmVehicle[]) {
+    const { accountNo, stockNo, vin, year, make, model } = row;
+    if (
+      !row.forWeb ||
+      row.soldOn ||
+      row.deletedAt ||
+      !accountNo ||
+      !/^\d+$/.test(accountNo) ||
+      !stockNo ||
+      !/^[\w-]+$/.test(stockNo) ||
+      !vin ||
+      !isValidVin(vin) ||
+      !Number.isInteger(year) ||
+      !make ||
+      !model
+    )
+      continue;
+    const url = new URL(`/inventory/${accountNo}/view/${stockNo}`, site.baseUrl)
+      .href;
+    const description = clean(
+      deps
+        .load(row.description || "")
+        .root()
+        .text(),
+    );
+    const price = parsePrice(
+      `$${Number(row.specialPrice) > 0 ? row.specialPrice : row.price}`,
+    );
+    if (!price) continue;
+    const disclosed = disclosedPriceEvidence(description, price);
+    if (
+      disclosed &&
+      (disclosed.kind !== "asking" ||
+        disclosed.askingPrice !== Math.round(price))
+    )
+      continue;
+    const photoPrefix = new URL(
+      `/service/picture/${accountNo}/${stockNo}/`,
+      site.baseUrl,
+    ).href;
+    const images = (Array.isArray(row.pictures) ? row.pictures : []).flatMap(
+      (picture) =>
+        typeof picture?.url === "string" && picture.url.startsWith(photoPrefix)
+          ? [picture.url]
+          : [],
+    );
+    if (!images.length) continue;
+    const claims =
+      description.match(
+        /\b(?:rebuilt|salvage|clean|clear)\s+(?:Georgia\s+)?title\b/gi,
+      ) || [];
+    const brands = new Set(
+      claims.map((claim) => titleBrand(claim.replace(/\s+Georgia\s+/i, " "))),
+    );
+    const condition = brands.size === 1 ? Array.from(brands)[0] : undefined;
+    const normalizedVin = normalizeVin(vin);
+    const deal = cardToDeal(
+      {
+        id: normalizedVin,
+        url,
+        title: `${year} ${make} ${model}`,
+        year,
+        make,
+        model,
+        vin: normalizedVin,
+        condition,
+        price,
+        mileage: parseMiles(`Mileage: ${row.mileage ?? ""}`),
+        sold: false,
+      },
+      site,
+      response.observedAt,
+    );
+    if (deal)
+      deals.set(normalizedVin, {
+        ...deal,
+        images: Array.from(new Set(images)),
+        description: stripContactInfo(description),
+        options: {
+          priceEvidence: {
+            kind: "asking",
+            askingPrice: price,
+            evidenceText: `HRM Auto public inventory price $${price}`,
+            checkedAt: response.observedAt,
+          },
+        },
+      });
+  }
+  deps.log?.(
+    `[DealerCMS] ${site.name}: observed ${rows.length}, eligible ${deals.size}`,
+  );
+  return Array.from(deals.values());
 }
 
 async function crawlConnectAuto(site: DealerCmsSite, deps: DealerCmsDeps) {
