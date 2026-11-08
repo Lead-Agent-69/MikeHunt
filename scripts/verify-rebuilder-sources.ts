@@ -10,11 +10,13 @@ import { partitionVehicleScope } from "../lib/vehicle/vehicle-scope";
 // Read-only: no pipeline, database client, queue, or collector-cache writer is imported.
 async function main() {
   const observations = [];
-  for (const host of [
-    "https://x2builders.com",
-    "https://www.billsmithauto.com",
-    "https://www.riverbendrebuildables.com",
-  ]) {
+  for (const host of process.argv.slice(2).length
+    ? process.argv.slice(2)
+    : [
+        "https://x2builders.com",
+        "https://www.billsmithauto.com",
+        "https://www.riverbendrebuildables.com",
+      ]) {
     const site = dealerCmsSiteFor(host)!;
     const block = policyBlockFor(host);
     if (block)

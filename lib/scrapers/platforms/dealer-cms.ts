@@ -42,10 +42,59 @@ export interface DealerCmsSite {
    * "cards" (default): one linked card per vehicle. "text-lines": the inventory is plain text lines
    * like "2021 Kia Forte LXS Salvage Title 47k / Front / $5,450" (Gary's Google Site).
    */
-  layout?: "cards" | "text-lines" | "dg-native";
+  layout?:
+    | "cards"
+    | "text-lines"
+    | "dg-native"
+    | "danda"
+    | "philips"
+    | "117-auto"
+    | "ridgeline";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
+  {
+    sourceId: "117-auto-sales",
+    name: "117 Auto Sales",
+    baseUrl: "https://117autosales.com",
+    inventoryUrl: "https://117autosales.com/inventory/?v_title=rebuilt",
+    city: "Dunn",
+    state: "NC",
+    defaultCondition: "unknown",
+    layout: "117-auto",
+  },
+  {
+    sourceId: "ridgeline-automotive",
+    name: "Ridgeline Automotive",
+    baseUrl: "https://ridgelineautomotivellc.com",
+    inventoryUrl: "https://ridgelineautomotivellc.com/inventory/",
+    city: "Asheville",
+    state: "NC",
+    defaultCondition: "unknown",
+    layout: "ridgeline",
+  },
+  {
+    sourceId: "danda-auto",
+    name: "D & A Auto Body",
+    baseUrl: "https://www.dandaauto.com",
+    inventoryUrl: "https://www.dandaauto.com/repairable-vehicles-for-sale/",
+    city: "Portage",
+    state: "MI",
+    defaultCondition: "unknown",
+    defaultDamage: "repairable",
+    layout: "danda",
+  },
+  {
+    sourceId: "philips-repairables",
+    name: "Philips Repairables",
+    baseUrl: "https://philipsrepairables.com",
+    inventoryUrl: "https://philipsrepairables.com/vehicles-list/",
+    city: "Long Prairie",
+    state: "MN",
+    defaultCondition: "unknown",
+    defaultDamage: "repairable",
+    layout: "philips",
+  },
   {
     sourceId: "dealer-billsmithauto-com",
     name: "Bill Smith Auto",
@@ -760,7 +809,9 @@ export function cardToDeal(
     make: card.make,
     model: card.model,
     ask_price: card.price,
-    ...(site.layout === "dg-native"
+    ...(["dg-native", "danda", "philips", "117-auto", "ridgeline"].includes(
+      site.layout ?? "",
+    )
       ? {
           options: {
             priceEvidence: {
@@ -915,8 +966,156 @@ export function isSameSiteHref(href: string, baseUrl: string): boolean {
   return !!h && h === bareHost(baseUrl);
 }
 
+async function crawlRepairableInventory(
+  site: DealerCmsSite,
+  deps: DealerCmsDeps,
+) {
+  const result = await deps.fetchHtml(site.inventoryUrl);
+  if (!result.ok)
+    throw new Error(
+      `${site.name} inventory ${result.skipped ?? result.status}`,
+    );
+  const $ = deps.load(result.body);
+  const isDanda = site.layout === "danda";
+  const rows = $(
+    isDanda ? ".vehicles-archive tr:has(td.title)" : ".fl-post-feed-post",
+  );
+  if (!rows.length)
+    throw new Error(`${site.name} inventory layout unavailable`);
+  const deals = new Map<string, Partial<Deal>>();
+  let unavailable = 0;
+  for (const row of rows.toArray()) {
+    const card = $(row);
+    if (card.is(".tag-sold, .tag-on-hold") || card.find(".sold-ribbon").length)
+      continue;
+    const link = card.find(isDanda ? "td.photo a" : ".fl-post-title a").first();
+    const href = link.attr("href");
+    const url = href ? abs(href, site.inventoryUrl) : undefined;
+    if (!url || !isSameSiteHref(url, site.baseUrl)) continue;
+    const titleCell = card.find("td.title").clone();
+    titleCell.find(".price").remove();
+    const title = clean(isDanda ? titleCell.text() : link.text());
+    const identity = splitTitle(title);
+    if (!identity.year || !identity.model) continue;
+    let description = spacedText($, card.find("td.description"));
+    let price = parsePrice(card.find("td.title .price").text());
+    let mileage = parseMiles(description);
+    let observedAt = result.observedAt;
+    let vin: string | undefined;
+    let images: string[] = [];
+    let id = new URL(url).pathname.split("/").filter(Boolean).at(-1);
+    if (isDanda) {
+      if (!/^\/vehicle\/[^/]+\/$/.test(new URL(url).pathname)) continue;
+      const photo = abs(
+        card.find("td.photo a img.attachment-tb_grid").attr("src") ?? "",
+        url,
+      );
+      if (
+        photo &&
+        photo !== url &&
+        isSameSiteHref(photo, url) &&
+        new URL(photo).pathname.startsWith("/wp-content/uploads/")
+      )
+        images = [photo];
+    } else {
+      // The base and repaired prices are frequently higher than the price for the vehicle as it sits.
+      const amount = /\$([\d,]+(?:\.\d{2})?)\s+as[ -]is\b/i;
+      const offered = spacedText($, card).match(amount)?.[1];
+      const cardVin = spacedText($, card).match(
+        /\bVIN:\s*([A-HJ-NPR-Z0-9]{17})\b/i,
+      )?.[1];
+      if (!offered || !cardVin || !isValidVin(cardVin)) continue;
+      vin = normalizeVin(cardVin);
+      const detail = await deps.fetchHtml(url);
+      if (!detail.ok) {
+        unavailable++;
+        continue;
+      }
+      const page = deps.load(detail.body);
+      const content = page("#fl-main-content");
+      const facts = spacedText(page, content);
+      if (
+        !facts.includes(vin) ||
+        /\b(?:sold|on hold|coming soon)\b/i.test(page("h1").text())
+      )
+        continue;
+      if (
+        facts.match(amount)?.[1]?.replace(/,/g, "") !==
+        offered.replace(/,/g, "")
+      )
+        continue;
+      price = parsePrice(`$${offered}`);
+      mileage = parseMiles(facts) ?? parseMiles(spacedText($, card));
+      description = clean(
+        content
+          .find(".s3-raw-gallery")
+          .closest(".fl-row")
+          .next(".fl-row")
+          .find(".fl-module-rich-text")
+          .text(),
+      );
+      images = page(".s3-raw-gallery img")
+        .toArray()
+        .flatMap((img) => {
+          const src = abs(page(img).attr("src") ?? "", url);
+          if (!src) return [];
+          const photo = new URL(src);
+          return photo.hostname === "s3.amazonaws.com" &&
+            photo.pathname.startsWith(`/gtPics/${vin}`)
+            ? [src]
+            : [];
+        });
+      id = vin;
+      observedAt = detail.observedAt;
+    }
+    if (!id || !price || !images.length) continue;
+    // A rebuilt engine or a mention of a salvage auction does not disclose a title brand.
+    const titleClaims = description.match(
+      /\b(?:(?:clean|clear|rebuilt|salvage|junk|reconstructed|prior salvage)\s+title|title\s*:\s*(?:clean|clear|rebuilt|salvage|junk|reconstructed)|certificate of destruction|parts[ -]only)\b/gi,
+    );
+    const brands = Array.from(new Set(titleClaims?.map(titleBrand)));
+    const condition =
+      brands.length === 1 && titleBrand(description) !== "unknown"
+        ? brands[0]
+        : undefined;
+    const deal = cardToDeal(
+      {
+        id,
+        url,
+        title,
+        ...identity,
+        condition,
+        price,
+        mileage,
+        vin,
+        sold: false,
+      },
+      site,
+      observedAt,
+    );
+    if (deal)
+      deals.set(id, {
+        ...deal,
+        images: Array.from(new Set(images)),
+        description: stripContactInfo(description),
+      });
+  }
+  deps.log?.(
+    `[DealerCMS] ${site.name}: observed ${rows.length}, eligible ${deals.size}, detail fetch failures ${unavailable}`,
+  );
+  if (unavailable)
+    throw new Error(
+      `${site.name} incomplete inventory: ${unavailable} vehicle pages unavailable`,
+    );
+  return Array.from(deals.values());
+}
+
 /** Walk every inventory page of one site and return deals (does not save). */
 export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
+  if (site.layout === "117-auto" || site.layout === "ridgeline")
+    return crawlRebuiltRetail(site, deps);
+  if (site.layout === "danda" || site.layout === "philips")
+    return crawlRepairableInventory(site, deps);
   const log = deps.log ?? (() => {});
   const byId = new Map<string, Partial<Deal>>();
   let sold = 0;
@@ -992,4 +1191,93 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
+}
+
+async function crawlRebuiltRetail(site: DealerCmsSite, deps: DealerCmsDeps) {
+  const result = await deps.fetchHtml(site.inventoryUrl);
+  if (!result.ok)
+    throw new Error(
+      `${site.name} inventory ${result.skipped ?? result.status}`,
+    );
+  const $ = deps.load(result.body);
+  const is117 = site.layout === "117-auto";
+  const rows = $(is117 ? "article.aiv-card" : "article.listing-item");
+  if (!rows.length)
+    throw new Error(`${site.name} inventory layout unavailable`);
+  const deals = new Map<string, Partial<Deal>>();
+  for (const row of rows.toArray()) {
+    const card = $(row);
+    if (is117 ? card.is(".is-sold") : card.attr("data-status") !== "available")
+      continue;
+    const href = card
+      .find(is117 ? ".aiv-card-title a" : ".listing-link")
+      .attr("href");
+    const url = href ? abs(href, site.inventoryUrl) : undefined;
+    if (!url || !isSameSiteHref(url, site.baseUrl)) continue;
+    const photo = card
+      .find(is117 ? ".aiv-card-photo img" : ".listing-image")
+      .first();
+    const src = photo.attr("src");
+    const image = src ? abs(src, url) : undefined;
+    if (
+      !image ||
+      /stock photo|placeholder/i.test(`${photo.attr("alt") ?? ""} ${image}`)
+    )
+      continue;
+    const title = clean(
+      card.find(is117 ? ".aiv-card-title" : ".listing-title").text(),
+    );
+    const identity = splitTitle(title);
+    const field = (label: string) => {
+      const element = card
+        .find(is117 ? "dt" : ".detail-text .label")
+        .filter((_, entry) => $(entry).text().trim() === label)
+        .first();
+      return element
+        .next(is117 ? "dd" : ".value")
+        .text()
+        .trim();
+    };
+    const rawVin = is117 ? field("VIN") : card.attr("data-vin");
+    if (!rawVin || !isValidVin(rawVin)) continue;
+    const vin = normalizeVin(rawVin);
+    if (
+      is117
+        ? !/^https:\/\/i\d\.wp\.com\/117autosales\.com\/wp-content\/uploads\//.test(
+            image,
+          ) &&
+          !/^https:\/\/117autosales\.com\/wp-content\/uploads\//.test(image)
+        : !isSameSiteHref(image, url) ||
+          !new URL(image).pathname.includes(`/${vin}/`)
+    )
+      continue;
+    const price = parsePrice(
+      card.find(is117 ? ".aiv-price" : ".listing-price").text(),
+    );
+    if (!identity.year || !identity.model || !price) continue;
+    const condition = titleBrand(
+      is117 ? card.find(".aiv-title-badge").text() : field("Title"),
+    );
+    const deal = cardToDeal(
+      {
+        id: vin,
+        url,
+        title,
+        ...identity,
+        price,
+        condition,
+        image,
+        vin,
+        mileage: parseMiles(`${field("Mileage")} miles`),
+        sold: false,
+      },
+      site,
+      result.observedAt,
+    );
+    if (deal) deals.set(vin, deal);
+  }
+  deps.log?.(
+    `[DealerCMS] ${site.name}: observed ${rows.length}, eligible ${deals.size}`,
+  );
+  return Array.from(deals.values());
 }
