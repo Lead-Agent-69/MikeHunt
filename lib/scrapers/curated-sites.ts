@@ -77,6 +77,8 @@ export const SITE_TYPE_META: Record<
 // Keep the source registry compact; city values come from the seller's published location.
 // prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
+  { url: "https://www.dandaauto.com", name: "D & A Auto Body", city: "Portage", state: "MI", type: "rebuilder_dealer", inventoryUrl: "/repairable-vehicles-for-sale/" },
+  { url: "https://philipsrepairables.com", name: "Philips Repairables", city: "Long Prairie", state: "MN", type: "rebuilder_dealer", inventoryUrl: "/vehicles-list/" },
   // ── National salvage/rebuilder networks (multi-state inventory) ──
   { url: "https://www.damage.com", name: "Damage.com (74 Auto)", state: "MO", city: "Sikeston", type: "salvage_yard", inventoryUrl: "https://www.damage.com/vehiclesList.php" }, // inventory path verified 2026-10-06 (homepage /inventory 404)
   { url: "https://www.x2builders.com", name: "X2 Builders", state: "IL", city: "Pontoon Beach", type: "rebuilder_dealer", inventoryUrl: "https://x2builders.com/vehicles.asp?main=Repairables" },

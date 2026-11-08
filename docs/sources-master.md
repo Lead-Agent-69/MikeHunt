@@ -1,5 +1,7 @@
 # MikeHunt sources: master list
 
+See the [November 8 nationwide rebuilder discovery register](rebuilder-source-discovery-2026-11-08.md) for additional inventory candidates and state-by-state research gaps. Its candidates are tracked separately from configured sources.
+
 Every vehicle data source MikeHunt has worked on, researched or discussed in the last ~48h (2026-10-08 to 2026-10-10 CT), one row each. Built 2026-10-10 from: the code registries on `main` (`lib/scrapers/runner.ts`, `sources-registry.ts`, `curated-sites.ts`, `lib/multisite`), every open and recently closed source PR (#214/#259, #221/#258, #231, #247, #249, #250, #252, #217's `docs/source-access-matrix.md`), the box audits (`salvage_sources.md`, `competitor_parity.md`, `open_gov_vehicle_data.md`, `dealer_network.json`, `sources.csv`, the platform sweep in `salvage-hunt/`), and the robots/terms evidence saved with them.
 
 **Rule: never remove a source.** Sources whose terms ban automation stay registered as opt-in or deep links. Nothing in this PR runs on Zeus until an operator wires it (section 7).

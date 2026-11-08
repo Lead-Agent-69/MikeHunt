@@ -2112,7 +2112,7 @@ export async function scrapeDealerCms(
   );
   let enriched = 0;
   let attemptedDetails = 0;
-  if (enrichLimit)
+  if (enrichLimit && site.layout !== "danda" && site.layout !== "philips")
     await withDealerDetailRotation(
       site.baseUrl,
       deals,
@@ -2143,7 +2143,7 @@ export async function scrapeDealerCms(
         }
       },
     );
-  if (enrichLimit)
+  if (attemptedDetails)
     console.log(
       `[CuratedSites] ${site.name} detail enriched ${enriched}/${attemptedDetails}; ${enrichLimit - attemptedDetails} deferred`,
     );
