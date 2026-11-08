@@ -1,10 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MISSOURI_SEARCH_ZIPS } from "@/lib/geo/missouri-markets";
 import {
   listingStateCode,
   parseAutotraderNextData,
   autotraderSearchZips,
+  scrapeAutoTrader,
 } from "./autotrader";
+
+vi.mock("../smart-fetch", () => ({ smartFetch: vi.fn() }));
+vi.mock("../pipeline", () => ({ upsertDeals: vi.fn() }));
+import { smartFetch } from "../smart-fetch";
+import { upsertDeals } from "../pipeline";
 
 function page(inventory: Record<string, unknown>): string {
   const nd = { props: { pageProps: { __eggsState: { inventory } } } };
@@ -61,7 +67,7 @@ describe("parseAutotraderNextData", () => {
         year: 2020,
         make: { name: "Toyota" },
         model: { name: "Tacoma" },
-        trim: { id: 5 }, // object, not a string — must not crash
+        trim: { id: 5 }, // object, not a string â€” must not crash
         mileage: { value: "30000" },
         pricingDetail: { displayPrice: 31000 },
       },
@@ -85,7 +91,7 @@ describe("parseAutotraderNextData", () => {
         owner: { city: "Austin", state: "TX" },
       },
     });
-    const d = parseAutotraderNextData(html, "30301")!; // seed is GA — explicit TX must win
+    const d = parseAutotraderNextData(html, "30301")!; // seed is GA â€” explicit TX must win
     expect(d[0].location_city).toBe("Austin");
     expect(d[0].location_state).toBe("TX");
   });
@@ -183,4 +189,28 @@ describe("autotraderSearchZips", () => {
     expect(zips).toHaveLength(1);
     expect(zips[0]).toMatch(/^\d{5}$/);
   });
+});
+
+it("accepts verified empty inventory without treating an app shell as empty", async () => {
+  vi.mocked(smartFetch).mockImplementationOnce(async (_url, options) => {
+    const html = page({});
+    expect(options?.validate?.(html)).toBe(true);
+    expect(options?.validate?.("<html></html>")).toBe(false);
+    return { html, tier: "static", blocked: false };
+  });
+  await expect(scrapeAutoTrader("", "63101", 1)).resolves.toBe(0);
+  expect(upsertDeals).not.toHaveBeenCalled();
+});
+
+it("reports unverified inventory as an incomplete check", async () => {
+  vi.mocked(smartFetch).mockResolvedValueOnce({
+    html: "<html></html>",
+    tier: "static",
+    blocked: false,
+    unverified: true,
+  });
+  await expect(scrapeAutoTrader("", "63101", 1)).rejects.toThrow(
+    "could not be verified",
+  );
+  expect(upsertDeals).not.toHaveBeenCalled();
 });

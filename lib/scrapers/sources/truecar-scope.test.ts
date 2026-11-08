@@ -16,20 +16,21 @@ describe("TrueCar scoped requests", () => {
       html: "",
       blocked: true,
     } as Awaited<ReturnType<typeof smartFetch>>);
-    const count = await withScrapeRunScope(
-      { state: "MO", q: "SUVs Ford", model: "Explorer" },
-      () => scrapeTrueCar(),
-    );
+    await expect(
+      withScrapeRunScope(
+        { state: "MO", q: "SUVs Ford", model: "Explorer" },
+        () => scrapeTrueCar(),
+      ),
+    ).rejects.toThrow("inventory could not be verified");
     const urls = vi.mocked(smartFetch).mock.calls.map(([url]) => new URL(url));
     expect(urls.map((url) => url.searchParams.get("zip"))).toEqual(
-      MISSOURI_SEARCH_ZIPS,
+      MISSOURI_SEARCH_ZIPS.slice(0, 1),
     );
     expect(
       urls.every(
         (url) => url.searchParams.get("searchText") === "Ford Explorer",
       ),
     ).toBe(true);
-    expect(count).toBe(0);
     expect(upsertDeals).not.toHaveBeenCalled();
   });
 });
