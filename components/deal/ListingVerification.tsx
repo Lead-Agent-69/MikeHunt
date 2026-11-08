@@ -1,5 +1,6 @@
 import { fieldLabel, type DataQualityField } from "@/lib/data-quality";
 import type { DecisionEvidence } from "@/lib/intelligence/decision-guard";
+import type { Deal } from "@/lib/data/deals-service";
 import type { PriceEvidence } from "@/lib/deals/acquisition-price";
 import { VehicleSourceAction } from "./VehicleSourceAction";
 import { isAuctionSource } from "@/lib/deal-terms";
@@ -11,6 +12,7 @@ type Props = {
   missing: DataQualityField[];
   evidence?: DecisionEvidence;
   priceKind?: PriceEvidence["kind"];
+  auctionEvidence?: Deal["auctionEvidence"];
   sourceUrl?: string | null;
   source?: string | null;
   observationLabel?: string;
@@ -24,6 +26,7 @@ export function ListingVerification({
   missing,
   evidence,
   priceKind,
+  auctionEvidence,
   sourceUrl,
   source,
   observationLabel,
@@ -193,6 +196,57 @@ export function ListingVerification({
           Damage reported does not establish its severity or repair cost. A
           reported amount does not confirm the full purchase price.
         </p>
+        {auctionEvidence && (
+          <div className="mt-3 space-y-2 text-sm text-[var(--t2)]">
+            <p className="font-semibold">Auction source disclosures</p>
+            {auctionEvidence.observedAt && (
+              <p>Observed {auctionEvidence.observedAt.slice(0, 10)} UTC</p>
+            )}
+            {auctionEvidence.openingBid !== undefined && (
+              <p>
+                Opening bid{" "}
+                {auctionEvidence.openingBid.toLocaleString("en-US", {
+                  style: "currency",
+                  currency: "USD",
+                  maximumFractionDigits: 0,
+                })}
+              </p>
+            )}
+            {auctionEvidence.title && (
+              <p>Reported title - {auctionEvidence.title}</p>
+            )}
+            {auctionEvidence.odometer && (
+              <p>
+                Reported odometer �{" "}
+                {auctionEvidence.odometer.value.toLocaleString("en-US")}{" "}
+                {auctionEvidence.odometer.unit || "units unspecified"} �
+                accuracy {auctionEvidence.odometer.accuracy || "not reported"}
+              </p>
+            )}
+            {auctionEvidence.reserveStatus && (
+              <p>
+                {auctionEvidence.reserveStatus === "not_met"
+                  ? "Reserve not met when observed."
+                  : auctionEvidence.reserveStatus === "no_reserve"
+                    ? "No reserve reported."
+                    : "Reserve reported. Confirm its current status."}
+              </p>
+            )}
+            {auctionEvidence.feeDisclosures.length ? (
+              auctionEvidence.feeDisclosures.map((line) => (
+                <p key={line}>{line}</p>
+              ))
+            ) : (
+              <p>
+                Buyer premium and processing fees need confirmation at the
+                source.
+              </p>
+            )}
+            {auctionEvidence.removalRequirements.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        )}
         {missing.length > 0 && (
           <p className="mt-2 text-sm text-[var(--t2)]">
             Missing or unusable: {missing.map(fieldLabel).join(", ")}.

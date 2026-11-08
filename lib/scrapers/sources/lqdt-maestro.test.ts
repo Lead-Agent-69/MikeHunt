@@ -223,3 +223,48 @@ describe("maestroAssetToDeal — requireUS filter (AllSurplus is international)"
     ).toBeNull();
   });
 });
+
+it("keeps an opening bid out of current bid and cash price presentation", () => {
+  const deal = maestroAssetToDeal(
+    {
+      ...BASE,
+      bidCount: 0,
+      assetBidPrice: 750,
+      currentBid: 750,
+      assetLongDesc: "Sale price: $750",
+    },
+    AD,
+  )!;
+  expect(deal.options?.auction.openingBid).toBe(750);
+  expect(listingPriceEvidence(deal)).toMatchObject({
+    kind: "current_bid",
+    currentBid: undefined,
+    askingPrice: undefined,
+  });
+});
+
+it("retains a kilometer odometer disclosure without treating it as miles", () => {
+  const deal = maestroAssetToDeal({ ...DETAIL, meter: "Kilometers" }, GD)!;
+  expect(deal.mileage).toBeUndefined();
+  expect(deal.options?.reportedOdometer).toEqual({
+    value: 65000,
+    unit: "Kilometers",
+    accuracy: "Yes",
+  });
+});
+
+it("keeps a reported meter count separate when accuracy is missing", () => {
+  const deal = maestroAssetToDeal(
+    {
+      ...DETAIL,
+      meterAccurate: undefined,
+      assetAttributeGroups: undefined,
+    },
+    GD,
+  )!;
+  expect(deal.mileage).toBeUndefined();
+  expect(deal.options?.reportedOdometer).toMatchObject({
+    value: 65000,
+    accuracy: "Not reported",
+  });
+});

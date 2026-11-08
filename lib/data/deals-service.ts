@@ -9,6 +9,7 @@ import { withholdConflictingEconomics } from "@/lib/vehicle/listing-identity";
 import {
   listingPriceEvidence,
   reportedAcquisitionPrice,
+  positivePrice,
   type PriceEvidence,
 } from "@/lib/deals/acquisition-price";
 import {
@@ -73,6 +74,15 @@ export const DEALS_LIST_SELECT = [
 ].join(",");
 
 export type Deal = {
+  auctionEvidence?: {
+    observedAt?: string;
+    openingBid?: number;
+    reserveStatus?: "not_met" | "no_reserve" | "reported";
+    feeDisclosures: string[];
+    removalRequirements: string[];
+    title?: string;
+    odometer?: { value: number; unit?: string; accuracy?: string };
+  };
   dealMargin?: number;
   id: string;
   source: string;
@@ -524,7 +534,65 @@ export class DealsService {
       throw new Error(`Failed to fetch deal: ${error.message}`);
     }
 
-    return this.mapDbToDeal(data);
+    const deal = this.mapDbToDeal(data);
+    if (data.source === "gov_auction") {
+      const options = this.rowOptions(data);
+      const auction = options.auction;
+      if (
+        auction?.marketplace === "govdeals" ||
+        auction?.marketplace === "allsurplus"
+      ) {
+        const textList = (value: unknown) =>
+          Array.isArray(value)
+            ? value
+                .filter(
+                  (line): line is string =>
+                    typeof line === "string" && line.length <= 300,
+                )
+                .slice(0, 4)
+            : [];
+        const odometer = options.reportedOdometer;
+        return {
+          ...deal,
+          auctionEvidence: {
+            observedAt:
+              typeof options.priceEvidence?.checkedAt === "string"
+                ? options.priceEvidence.checkedAt
+                : undefined,
+            openingBid: positivePrice(auction.openingBid),
+            reserveStatus:
+              auction.reserveStatus === "not_met" ||
+              auction.reserveStatus === "no_reserve" ||
+              auction.reserveStatus === "reported"
+                ? auction.reserveStatus
+                : undefined,
+            feeDisclosures: textList(auction.feeDisclosures),
+            removalRequirements: textList(auction.removalRequirements),
+            title:
+              typeof options.titleType === "string"
+                ? options.titleType.slice(0, 160)
+                : undefined,
+            odometer:
+              typeof odometer?.value === "number" &&
+              Number.isFinite(odometer.value) &&
+              odometer.value >= 0
+                ? {
+                    value: odometer.value,
+                    unit:
+                      typeof odometer.unit === "string"
+                        ? odometer.unit.slice(0, 32)
+                        : undefined,
+                    accuracy:
+                      typeof odometer.accuracy === "string"
+                        ? odometer.accuracy.slice(0, 64)
+                        : undefined,
+                  }
+                : undefined,
+          },
+        };
+      }
+    }
+    return deal;
   }
 
   // Collect the DISTINCT non-null values of one column across ALL active deals. PostgREST caps a single
