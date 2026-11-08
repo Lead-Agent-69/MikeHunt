@@ -114,7 +114,7 @@ describe("direct repairable inventory", () => {
       <div class="fl-row"><div class="s3-raw-gallery">
         <img src="${fordPhoto}"><img src="https://s3.amazonaws.com/gtPics/other.jpeg">
       </div></div>
-      <div class="fl-row"><div class="fl-module-rich-text">Right side damage</div></div>
+      <div class="fl-row"><div class="fl-module-rich-text">Right side damage. Rebuilt transmission.</div></div>
       VIN: ${vin} Odometer: 10,929 $24,995 Repaired Price $18,800 as is
     </main>`;
     const fetchHtml = vi.fn(async (url: string) =>
@@ -129,7 +129,7 @@ describe("direct repairable inventory", () => {
       mileage: 10929,
       condition: "unknown",
       images: [fordPhoto],
-      description: "Right side damage",
+      description: "Right side damage. Rebuilt transmission.",
     });
   });
 });

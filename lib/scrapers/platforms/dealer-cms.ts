@@ -1069,7 +1069,15 @@ async function crawlRepairableInventory(
       observedAt = detail.observedAt;
     }
     if (!id || !price || !images.length) continue;
-    const condition = titleBrand(description);
+    // A rebuilt engine or a mention of a salvage auction does not disclose a title brand.
+    const titleClaims = description.match(
+      /\b(?:(?:clean|clear|rebuilt|salvage|junk|reconstructed|prior salvage)\s+title|title\s*:\s*(?:clean|clear|rebuilt|salvage|junk|reconstructed)|certificate of destruction|parts[ -]only)\b/gi,
+    );
+    const brands = Array.from(new Set(titleClaims?.map(titleBrand)));
+    const condition =
+      brands.length === 1 && titleBrand(description) !== "unknown"
+        ? brands[0]
+        : undefined;
     const deal = cardToDeal(
       {
         id,
