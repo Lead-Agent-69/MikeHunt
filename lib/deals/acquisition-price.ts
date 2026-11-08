@@ -196,10 +196,14 @@ export function listingPriceEvidence(row: PriceRow): PriceEvidence | undefined {
       : typeof stored.checkedAt === "string"
         ? stored.checkedAt
         : "";
-  const disclosed = disclosedPriceEvidence(
-    `${row.title || ""} ${row.options?.listingTitle || ""} ${row.description || ""} ${row.options?.description || ""}`,
-    amount,
-  );
+  const structuredAuctionBid =
+    row.source === "gov_auction" && stored?.kind === "current_bid";
+  const disclosed = structuredAuctionBid
+    ? undefined
+    : disclosedPriceEvidence(
+        `${row.title || ""} ${row.options?.listingTitle || ""} ${row.description || ""} ${row.options?.description || ""}`,
+        amount,
+      );
   if (disclosed) return { ...disclosed, checkedAt };
   if (
     stored &&

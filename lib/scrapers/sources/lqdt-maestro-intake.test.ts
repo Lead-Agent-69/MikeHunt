@@ -32,6 +32,12 @@ it("persists auction disclosures and gallery through the real pipeline without i
       meterCount: 105637,
       meterAccurate: "Unknown",
       currentBid: 5000,
+      assetBidPrice: 1000,
+      hasReservePrice: true,
+      isReserveNotMet: true,
+      paymentInstructions:
+        "<p>Buyer's premium is 12%.</p><p>Processing fee: $25.</p>",
+      removalInstructions: "<p>Pickup by appointment only.</p>",
       locationCity: "Jacksonville",
       locationState: "FL",
       locationZip: "32218",
@@ -55,6 +61,20 @@ it("persists auction disclosures and gallery through the real pipeline without i
     titleType: "Buyback (seller-reported)",
     description: expect.stringContaining("must be towed"),
     reportedOdometer: { value: 105637, accuracy: "Unknown" },
-    priceEvidence: { kind: "current_bid", listedAmount: 5000 },
+    auction: {
+      openingBid: 1000,
+      reserveStatus: "not_met",
+      feeDisclosures: ["Buyer's premium is 12%.", "Processing fee: $25."],
+      removalRequirements: [
+        "Pickup by appointment required.",
+        "Towing required.",
+      ],
+    },
+    priceEvidence: {
+      kind: "current_bid",
+      listedAmount: 5000,
+      currentBid: 5000,
+      checkedAt: expect.any(String),
+    },
   });
 });

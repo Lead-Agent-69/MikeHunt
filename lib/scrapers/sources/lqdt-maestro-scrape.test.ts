@@ -53,48 +53,52 @@ it("does not stop pagination when the next page starts with another seller's sam
   expect(rows.at(-1)).toEqual({ assetId: 7, accountId: 200 });
 });
 
-it("does not merge a detail response belonging to another lot into the search vehicle", async () => {
-  vi.stubEnv("MAESTRO_DETAIL_LIMIT", "1");
-  const asset = {
-    assetId: 7,
-    accountId: 31897,
-    modelYear: "2000",
-    makebrand: "Toyota",
-    model: "Avalon",
-    assetShortDescription: "2000 Toyota Avalon",
-    currentBid: 9000,
-    photo: "31897_7_cover.jpg",
-  };
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ assetSearchResults: [asset] }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          ...asset,
-          assetId: 8,
-          assetLongDesc: "Wrong vehicle",
-          vinserial: "WRONG",
+it.each([{ assetId: 8 }, { accountId: 31898 }, { auctionId: 2 }])(
+  "does not merge detail for another lot or auction (%j)",
+  async (mismatch) => {
+    vi.stubEnv("MAESTRO_DETAIL_LIMIT", "1");
+    const asset = {
+      assetId: 7,
+      accountId: 31897,
+      auctionId: 1,
+      modelYear: "2000",
+      makebrand: "Toyota",
+      model: "Avalon",
+      assetShortDescription: "2000 Toyota Avalon",
+      currentBid: 9000,
+      photo: "31897_7_cover.jpg",
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ assetSearchResults: [asset] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            ...asset,
+            ...mismatch,
+            assetLongDesc: "Wrong vehicle",
+            vinserial: "WRONG",
+          }),
         }),
-      }),
-  );
-  await scrapeMaestro({
-    businessId: "GD",
-    categoryCodes: ["94A"],
-    source: "gov_auction",
-    idPrefix: "gd",
-    defaultSeller: "GovDeals",
-    label: "GovDeals",
-    maxPages: 1,
-  });
-  expect(upsertDeals).toHaveBeenCalledOnce();
-  const row = vi.mocked(upsertDeals).mock.calls[0][0][0];
-  expect(row.source_deal_id).toBe("gd-7-31897");
-  expect(row.vin).toBeUndefined();
-  expect(row.options?.description).toBe("");
-});
+    );
+    await scrapeMaestro({
+      businessId: "GD",
+      categoryCodes: ["94A"],
+      source: "gov_auction",
+      idPrefix: "gd",
+      defaultSeller: "GovDeals",
+      label: "GovDeals",
+      maxPages: 1,
+    });
+    expect(upsertDeals).toHaveBeenCalledOnce();
+    const row = vi.mocked(upsertDeals).mock.calls[0][0][0];
+    expect(row.source_deal_id).toBe("gd-7-31897");
+    expect(row.vin).toBeUndefined();
+    expect(row.options?.description).toBe("");
+  },
+);

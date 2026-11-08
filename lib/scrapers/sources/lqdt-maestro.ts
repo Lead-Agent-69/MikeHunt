@@ -12,6 +12,8 @@
 
 import type { Deal } from "@/types";
 import { load } from "cheerio";
+import { positivePrice } from "@/lib/deals/acquisition-price";
+import { scrubContact } from "@/lib/security/scrub-contact";
 import { isCarOrTruck } from "../vehicle-class";
 import { upsertDeals } from "../pipeline";
 
@@ -52,6 +54,12 @@ export interface MaestroAsset {
   currentBid?: number;
   assetBidPrice?: number;
   bidCount?: number;
+  hasReservePrice?: boolean;
+  isReserveNotMet?: boolean;
+  salesTerms?: string | null;
+  termsAndConditions?: string | null;
+  paymentInstructions?: string | null;
+  removalInstructions?: string | null;
   locationAddress1?: string;
   locationAddress2?: string;
   locationCity?: string;
@@ -187,17 +195,22 @@ function parseMileage(raw: unknown): number | undefined {
 }
 
 function detailMileage(a: MaestroAsset): number | undefined {
-  if (
-    /^(unknown|no|not actual|exempt)$/i.test(
-      String(a.meterAccurate || "").trim(),
-    )
-  )
-    return undefined;
-  if (/mile/i.test(String(a.meter || ""))) {
-    const fromMeter = parseMileage(a.meterCount);
-    if (fromMeter) return fromMeter;
-  }
-  return parseMileage(attrValue(a, /odometer|mileage|miles/i));
+  const accuracy = String(a.meterAccurate || "").trim();
+  const meter = String(a.meter || "").trim();
+  const milesUnit = /^(mi|miles?)$/i.test(meter);
+  const mileage = attrValue(a, /odometer|mileage|miles/i);
+  const accurate = /^(yes|accurate|actual)$/i.test(accuracy);
+  const explicitlyAccurateMileage =
+    !accuracy && /\bmiles?\s*\(accurate\)\s*$/i.test(mileage || "");
+
+  if (!accurate && !explicitlyAccurateMileage) return undefined;
+  if (meter && !milesUnit) return undefined;
+  const fromMeter =
+    milesUnit && accurate ? parseMileage(a.meterCount) : undefined;
+  if (fromMeter !== undefined) return fromMeter;
+  return /\b(?:km|kilomet(?:ers?|res?)|hours?)\b/i.test(mileage || "")
+    ? undefined
+    : parseMileage(mileage);
 }
 
 function detailVin(a: MaestroAsset): string | undefined {
@@ -214,10 +227,10 @@ function detailTitleType(a: MaestroAsset): string | undefined {
     .find(Boolean);
 }
 
-function descriptionText(a: MaestroAsset): string {
+function plainText(value: unknown): string {
   const $ = load(
-    String(a.assetLongDesc || a.assetLongDescription || "").replace(
-      /<br\s*\/?>/gi,
+    (typeof value === "string" ? value : "").replace(
+      /<(?:br\s*\/?|\/p|\/div|\/li)>/gi,
       "\n",
     ),
   );
@@ -268,6 +281,7 @@ async function fetchMaestroDetail(a: MaestroAsset, businessId: string) {
         "x-api-correlation-id": correlationId(Number(a.assetId) + 1000),
       },
       body: JSON.stringify({ businessId, siteId: "2" }),
+      signal: AbortSignal.timeout(10000),
     },
   );
   if (!res.ok) return null;
@@ -290,9 +304,12 @@ export function maestroAssetToDeal(
   const year = a.modelYear ? parseInt(a.modelYear, 10) : undefined;
   if (!year || year < 1950 || year > 2030) return null; // model year => a real titled vehicle
 
-  // currentBid is the live high bid (acquisition cost). Fall back to the opening bid price.
-  const price = Math.round(Number(a.currentBid ?? a.assetBidPrice ?? 0));
-  if (!Number.isFinite(price) || price < 1) return null; // no live bid value => not a usable lead yet
+  const currentBid = a.bidCount === 0 ? undefined : positivePrice(a.currentBid);
+  const openingBid = positivePrice(
+    a.assetBidPrice ?? (a.bidCount === 0 ? a.currentBid : undefined),
+  );
+  const price = currentBid ?? openingBid;
+  if (!price) return null;
 
   const title =
     (a.assetShortDesc || a.assetShortDescription || "").trim() ||
@@ -301,7 +318,45 @@ export function maestroAssetToDeal(
   if (!isCarOrTruck(`${title} ${a.makebrand || ""} ${a.model || ""}`))
     return null;
 
-  const description = descriptionText(a);
+  const description = plainText(a.assetLongDesc || a.assetLongDescription);
+  const observedAt = new Date().toISOString();
+  const removal = plainText(a.removalInstructions);
+  const feeDisclosures = Array.from(
+    new Set(
+      [a.salesTerms, a.termsAndConditions, a.paymentInstructions]
+        .flatMap((value) =>
+          plainText(value).split(/\n+|(?<=[.!?])\s+(?=[A-Z])/),
+        )
+        .filter((line) =>
+          /\bbuyer[\u2019']?s?\s+premium\b|\bprocessing fees?\b/i.test(line),
+        )
+        .map(scrubContact)
+        .filter((line) => line.length > 0 && line.length <= 300),
+    ),
+  ).slice(0, 4);
+  const reserveStatus =
+    a.hasReservePrice === false
+      ? "no_reserve"
+      : a.isReserveNotMet === true
+        ? "not_met"
+        : a.hasReservePrice === true && a.isReserveNotMet === false
+          ? "reported"
+          : undefined;
+  const removalRequirements = [
+    /\b(?:by appointment only|appointments? (?:is|are) required)\b/i.test(
+      removal,
+    )
+      ? "Pickup by appointment required."
+      : undefined,
+    /\bshipping is not available\b/i.test(removal)
+      ? "Shipping unavailable."
+      : undefined,
+    /\b(?:must be towed|towing (?:is )?required)\b/i.test(
+      removal + "\n" + description,
+    )
+      ? "Towing required."
+      : undefined,
+  ].filter(Boolean);
   const buyback = /\btitle\s+(?:is\s+)?branded\s+buyback\b/i.test(description);
   const titleType = buyback ? "Buyback (seller-reported)" : detailTitleType(a);
   const condition = statedTitleCondition(titleType);
@@ -343,11 +398,22 @@ export function maestroAssetToDeal(
     options: {
       ...metadata,
       description,
-      auction: { marketplace: metadata.marketplace, lotNumber: a.lotNumber },
+      auction: {
+        marketplace: metadata.marketplace,
+        lotNumber: a.lotNumber,
+        openingBid,
+        reserveStatus,
+        feeDisclosures,
+        removalRequirements,
+      },
       priceEvidence: {
         kind: "current_bid",
-        listedAmount: price,
-        evidenceText: "Source-reported auction bid; not a cash asking price.",
+        listedAmount: currentBid,
+        currentBid,
+        checkedAt: observedAt,
+        evidenceText: currentBid
+          ? "Source-reported current auction bid."
+          : "Source reports an opening bid only.",
       },
       ...(a.meterCount != null
         ? {
@@ -359,7 +425,7 @@ export function maestroAssetToDeal(
           }
         : {}),
     },
-    scraped_at: new Date().toISOString(),
+    scraped_at: observedAt,
   };
 }
 
@@ -388,6 +454,7 @@ async function fetchMaestroPage(
   const res = await fetch(API, {
     method: "POST",
     headers: { ...HEADERS, "x-api-correlation-id": correlationId(page + 1) },
+    signal: AbortSignal.timeout(15000),
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -465,9 +532,23 @@ export async function scrapeMaestro(opts: MaestroSourceOpts): Promise<number> {
         if (
           detail &&
           detail.assetId === r.assetId &&
-          detail.accountId === r.accountId
+          detail.accountId === r.accountId &&
+          (detail.auctionId == null ||
+            r.auctionId == null ||
+            detail.auctionId === r.auctionId)
         ) {
-          row = { ...r, ...detail };
+          row = {
+            ...r,
+            ...Object.fromEntries(
+              Object.entries(detail).filter(([, value]) => value != null),
+            ),
+            // Price and reserve are reported by the search feed.
+            currentBid: r.currentBid,
+            assetBidPrice: r.assetBidPrice,
+            bidCount: r.bidCount,
+            hasReservePrice: r.hasReservePrice,
+            isReserveNotMet: r.isReserveNotMet,
+          };
           enriched++;
           await new Promise((resolve) => setTimeout(resolve, 150));
         }

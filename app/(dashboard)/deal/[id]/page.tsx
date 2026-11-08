@@ -1012,6 +1012,7 @@ export default function DealPage({
               missing={detailQuality.missing}
               evidence={serverDeal.decisionEvidence}
               priceKind={serverDeal.priceEvidence?.kind}
+              auctionEvidence={serverDeal.auctionEvidence}
               source={serverDeal.source}
               sourceUrl={serverDeal.sourceUrl}
               availabilityWarning={listingAvailabilityWarning({
