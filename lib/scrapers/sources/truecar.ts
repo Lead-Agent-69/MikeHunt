@@ -1,16 +1,17 @@
 // lib/scrapers/sources/truecar.ts
-// ─── TrueCar scraper - Certified pre-owned with market value data ─────────────
+// â”€â”€â”€ TrueCar scraper - Certified pre-owned with market value data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 import type { Deal } from "@/types";
 import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
+import { SourceFetchError } from "../source-fetch-error";
 import { getScrapeRunScope } from "../run-scope-context";
 import { buyerListingSearchText } from "../buyer-scope";
 import { buyerSearchCenters } from "../search-centers";
 import { retailMileage, retailMoney } from "./retail-evidence";
 
-// TrueCar is a Next.js + Apollo SPA — the DOM selectors rot, but every listing sits in the
+// TrueCar is a Next.js + Apollo SPA â€” the DOM selectors rot, but every listing sits in the
 // __NEXT_DATA__ Apollo cache as a `ConsumerSummaryListing:` entry with normalized refs to the vehicle,
 // pricing, and dealership. We parse THAT (resolving refs), which is stable across UI churn.
 export function parseTrueCarHtml(html: string): Partial<Deal>[] {
@@ -25,7 +26,7 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
     return [];
   }
 
-  // The Apollo map's path varies between renders — find the object that holds the listing entries.
+  // The Apollo map's path varies between renders â€” find the object that holds the listing entries.
   let apollo: any = null;
   (function walk(o: any) {
     if (!o || typeof o !== "object" || apollo) return;
@@ -62,7 +63,7 @@ export function parseTrueCarHtml(html: string): Partial<Deal>[] {
       : [];
     const make = nameOf(veh.make);
     const model = nameOf(veh.model);
-    // TrueCar's price rating (its "deal indicator") lives as marketAnalysis.priceQuality — a label, not a
+    // TrueCar's price rating (its "deal indicator") lives as marketAnalysis.priceQuality â€” a label, not a
     // dollar value (captured in docs/findings/value-schemas.md). Normalize its scale to AutoTrader's
     // vocabulary so options.priceRating means the same thing across sources for the UI + Deal IQ.
     const ma = deref(L.marketAnalysis) || deref(pr?.marketAnalysis) || {};
@@ -138,8 +139,9 @@ export async function scrapeTrueCar(
   const allDeals = new Map<string, Partial<Deal>>();
   const pagesPerCenter = centers.length > 1 ? Math.min(maxPages, 3) : maxPages;
 
-  // PerimeterX-walled — smartFetch escalates to the headed real-Chrome tier (detects headless).
-  for (const center of centers) {
+  // PerimeterX-walled â€” smartFetch escalates to the headed real-Chrome tier (detects headless).
+  let fetchError: SourceFetchError | undefined;
+  centersLoop: for (const center of centers) {
     for (let page = 1; page <= pagesPerCenter; page++) {
       const params = new URLSearchParams({
         zip: center,
@@ -148,12 +150,14 @@ export async function scrapeTrueCar(
         page: String(page),
       });
       const url = `https://www.truecar.com/used-cars-for-sale/listings?${params.toString()}`;
-      const { html, blocked } = await smartFetch(url, {
+      const { html, blocked, unverified } = await smartFetch(url, {
         validate: (h) => parseTrueCarHtml(h).length > 0,
       });
-      if (blocked) {
-        console.warn(`[TrueCar] blocked near ${center} (no tier passed)`);
-        break;
+      if (blocked || unverified) {
+        fetchError = new SourceFetchError(
+          "TrueCar inventory could not be verified. The source check was incomplete.",
+        );
+        break centersLoop;
       }
       const items = parseTrueCarHtml(html);
       if (!items.length) break;
@@ -165,5 +169,9 @@ export async function scrapeTrueCar(
   }
 
   console.log(`[TrueCar] Found ${allDeals.size} deals`);
-  return allDeals.size ? await upsertDeals(Array.from(allDeals.values())) : 0;
+  const saved = allDeals.size
+    ? await upsertDeals(Array.from(allDeals.values()))
+    : 0;
+  if (fetchError) throw fetchError;
+  return saved;
 }

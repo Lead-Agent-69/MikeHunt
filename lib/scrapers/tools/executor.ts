@@ -2,6 +2,7 @@
 // Executes a single scraper with retry, error handling, and result normalization.
 
 import { Deal } from "@/types";
+import { SourceFetchError } from "../source-fetch-error";
 import type { ScrapeIntakeCounts } from "../intake-counts";
 import { RegisteredScraper } from "./registry";
 import { CostGuard, CostGuardOptions } from "./cost-guard";
@@ -146,6 +147,7 @@ export class ScraperExecutor {
         if (
           abortSignal?.aborted ||
           partialReceipt.calls > 0 ||
+          lastError instanceof SourceFetchError ||
           lastError.message.startsWith(`Scraper ${scraper.id} timed out`)
         )
           break;

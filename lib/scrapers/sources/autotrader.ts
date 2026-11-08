@@ -1,5 +1,5 @@
 // lib/scrapers/sources/autotrader.ts
-// AutoTrader is a Next.js SPA — the old data-cmp/CSS selectors rotted. The full inventory is in the
+// AutoTrader is a Next.js SPA â€” the old data-cmp/CSS selectors rotted. The full inventory is in the
 // __NEXT_DATA__ JSON (props.pageProps.__eggsState.inventory), keyed by listing id, with clean
 // year/make/model/trim/vin/mileage/price/images. We parse THAT via FlareSolverr (renderMode static).
 
@@ -7,6 +7,7 @@ import type { Deal } from "@/types";
 import { type ScraperConfig } from "../engine";
 import { smartFetch } from "../smart-fetch";
 import { upsertDeals } from "../pipeline";
+import { SourceFetchError } from "../source-fetch-error";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { zipToState } from "@/lib/geo/zip-state";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
@@ -27,7 +28,7 @@ export function listingStateCode(value: unknown): string | undefined {
 export const AUTOTRADER_CONFIG: ScraperConfig = {
   name: "AutoTrader",
   baseUrl: "https://www.autotrader.com",
-  renderMode: "static", // direct → FlareSolverr escalation on Cloudflare block
+  renderMode: "static", // direct â†’ FlareSolverr escalation on Cloudflare block
   requestDelay: 2500,
   concurrency: 1,
   useProxies: true,
@@ -40,31 +41,36 @@ export const AUTOTRADER_CONFIG: ScraperConfig = {
   },
 };
 
-/** Parse an AutoTrader SRP into listing rows from the embedded __NEXT_DATA__ inventory. */
-export function parseAutotraderNextData(
-  html: string,
-  seedZip = "",
-): Partial<Deal>[] {
-  // seedZip is the search center, not the car. A 100mi radius crosses state lines.
-  void seedZip;
+function readInventory(html: string): Record<string, any> | undefined {
   const m = html.match(
     /<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
   );
-  if (!m) return [];
+  if (!m) return undefined;
   let nd: any;
   try {
     nd = JSON.parse(m[1]);
   } catch {
-    return [];
+    return undefined;
   }
   const inv = nd?.props?.pageProps?.__eggsState?.inventory;
-  if (!inv || typeof inv !== "object") return [];
+  return inv && typeof inv === "object" && !Array.isArray(inv)
+    ? (inv as Record<string, any>)
+    : undefined;
+}
 
+/** Parse listing rows from embedded inventory. */
+export function parseAutotraderNextData(
+  html: string,
+  seedZip = "",
+): Partial<Deal>[] {
+  void seedZip;
+  const inv = readInventory(html);
+  if (!inv) return [];
   const items: Partial<Deal>[] = [];
   for (const id of Object.keys(inv)) {
     const o = inv[id] || {};
     const listingType = String(o.listingType || "").toUpperCase();
-    if (listingType === "NEW") continue; // used/CPO only — resale comps
+    if (listingType === "NEW") continue; // used/CPO only â€” resale comps
     const price = retailMoney(
       o.pricingDetail?.displayPrice ??
         o.pricingDetail?.dealerDiscountedPrice ??
@@ -128,7 +134,7 @@ export function parseAutotraderNextData(
       location_state: locState,
       seller_type: "dealer",
       seller: o.ownerName || "AutoTrader",
-      // Free KBB market value — a Manheim-MMR-equivalent benchmark we already had in hand.
+      // Free KBB market value â€” a Manheim-MMR-equivalent benchmark we already had in hand.
       mmr_value: kbbFpp,
       options: {
         vehicleCondition: listingType === "CERTIFIED" ? "cpo" : "used",
@@ -136,7 +142,7 @@ export function parseAutotraderNextData(
         kbbFppLow: Number(pd.kbbFppLowAmount) || undefined,
         kbbFppHigh: Number(pd.kbbFppHighAmount) || undefined,
         daysOnSite: Number(o.daysOnSite) || undefined,
-        // Structured config — drivetrain/fuel are major value drivers (4WD/diesel trucks). Captured
+        // Structured config â€” drivetrain/fuel are major value drivers (4WD/diesel trucks). Captured
         // here so config-aware comp matching becomes possible as this data accumulates.
         driveType: o.driveType || undefined,
         fuelType: o.fuelType || undefined,
@@ -188,10 +194,11 @@ export async function scrapeAutoTrader(
   );
   const seen = new Set<string>();
   let total = 0;
+  let fetchError: SourceFetchError | undefined;
 
-  // Akamai-walled — smartFetch escalates to the headed real-Chrome tier (Akamai detects headless) and
+  // Akamai-walled â€” smartFetch escalates to the headed real-Chrome tier (Akamai detects headless) and
   // renders the full __NEXT_DATA__ inventory. Where no display exists (bare CI) smartFetch returns
-  // blocked and we degrade to 0 — AutoTempest backstops the listings until xvfb is wired.
+  // blocked and we degrade to 0 â€” AutoTempest backstops the listings until xvfb is wired.
   for (const center of zips) {
     const zipDeals: Partial<Deal>[] = [];
     for (let page = 1; page <= pagesPerZip; page++) {
@@ -204,11 +211,13 @@ export async function scrapeAutoTrader(
         firstRecord: String((page - 1) * 25),
       });
       const url = `https://www.autotrader.com/cars-for-sale/all-cars?${params.toString()}`;
-      const { html, blocked } = await smartFetch(url, {
-        validate: (h) => parseAutotraderNextData(h).length > 0,
+      const { html, blocked, unverified } = await smartFetch(url, {
+        validate: (h) => readInventory(h) !== undefined,
       });
-      if (blocked) {
-        console.warn(`[AutoTrader] blocked near ${center} (no tier passed)`);
+      if (blocked || unverified) {
+        fetchError = new SourceFetchError(
+          "AutoTrader inventory could not be verified. The source check was incomplete.",
+        );
         break;
       }
       const items = parseAutotraderNextData(html, center);
@@ -225,6 +234,7 @@ export async function scrapeAutoTrader(
     }
     // Save per search center so a later block does not lose earlier pages.
     if (zipDeals.length > 0) total += await upsertDeals(zipDeals);
+    if (fetchError) throw fetchError;
   }
 
   console.log(`[AutoTrader] Found ${total} deals`);

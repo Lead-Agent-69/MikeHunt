@@ -1,9 +1,9 @@
 // lib/scrapers/sources/autotempest.ts
-// Autotempest is a meta-search ENGINE — one query fans out to Cars.com, CarGurus, Carvana, eBay,
+// Autotempest is a meta-search ENGINE â€” one query fans out to Cars.com, CarGurus, Carvana, eBay,
 // AutoTrader, TrueCar, CarMax, Facebook Marketplace, Hemmings, AutoByTel and more, then returns a
 // single clean JSON feed (vin/year/make/model/trim/price/mileage/title/url + which site each came
 // from). Its public results API (no login, no FlareSolverr) lets us pull MANY car-selling sites
-// "under one roof" in one shot — including the ones whose own sites are bot-walled (CarMax, Cars.com,
+// "under one roof" in one shot â€” including the ones whose own sites are bot-walled (CarMax, Cars.com,
 // Facebook, TrueCar). Each listing is stored under its TRUE origin source (cars_com/cargurus/carvana/
 // ebay_motors/autotrader/truecar/facebook_marketplace) so it flows into retail comps correctly; the
 // origin is also kept in metadata.origin_site. A unique aggregator id keeps it from colliding with
@@ -11,6 +11,7 @@
 
 import type { Deal } from "@/types";
 import { upsertDeals } from "../pipeline";
+import { SourceFetchError } from "../source-fetch-error";
 import { STATE_SEED_ZIPS, US_STATES } from "@/lib/geo";
 import { getSweepPlan, sweepPlanZips, type SweepPlan } from "../sweep-plan";
 import { getScrapeRunScope } from "../run-scope-context";
@@ -41,7 +42,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_RESULTS_PER_RUN = 1_000;
 const MAX_RESULTS_PER_RUN = 2_000;
 
-// Broad market coverage — popular makes (model-less searches still return multiple sites). A handful
+// Broad market coverage â€” popular makes (model-less searches still return multiple sites). A handful
 // of make+model combos pull the slower walled sites (CarMax/Carvana/TrueCar) too.
 const QUERIES: Array<{ make: string; model?: string }> = [
   { make: "ford", model: "f150" },
@@ -117,7 +118,7 @@ function usdAmount(value: unknown): number | undefined {
 
 // Map an Autotempest origin (sourceName) to our deal_source enum. Substring match so "Cars.com",
 // "eBay Motors", etc. all resolve. Origins without a direct enum (CarMax, Hemmings, AutoByTel) fall to
-// 'independent_dealer' (they're dealer/retail) — the true name is still kept in metadata + seller.
+// 'independent_dealer' (they're dealer/retail) â€” the true name is still kept in metadata + seller.
 export function mapOriginToSource(sourceName: string): Deal["source"] {
   const n = sourceName.toLowerCase();
   if (n.includes("carvana")) return "carvana";
@@ -262,7 +263,11 @@ async function fetchPage(
   cursor: unknown[] | null,
   radius = 13000,
   signal?: AbortSignal,
-): Promise<{ items: Partial<Deal>[]; cursor: unknown[] | null }> {
+): Promise<{
+  items: Partial<Deal>[];
+  cursor: unknown[] | null;
+  fetched: number;
+}> {
   const params = new URLSearchParams({
     make: q.make,
     ...(q.model ? { model: q.model } : {}),
@@ -284,17 +289,25 @@ async function fetchPage(
       Referer: "https://www.autotempest.com/results",
     },
   });
-  if (!res.ok) {
-    console.warn(`[Autotempest] ${q.make} ${q.model || ""} HTTP ${res.status}`);
-    return { items: [], cursor: null };
-  }
+  if (!res.ok)
+    throw new SourceFetchError(
+      `AutoTempest inventory request failed (HTTP ${res.status}).`,
+    );
   const json = await res.json();
-  const next = Array.isArray(json?.searchAfter) ? json.searchAfter : null;
-  return { items: parseAutotempest(json), cursor: next };
+  if (!Array.isArray(json?.results))
+    throw new SourceFetchError(
+      "AutoTempest did not return a verifiable inventory response.",
+    );
+  const next = Array.isArray(json.searchAfter) ? json.searchAfter : null;
+  return {
+    items: parseAutotempest(json),
+    cursor: next,
+    fetched: json.results.length,
+  };
 }
 
 // Page through one query via searchAfter until it runs dry, the cursor stops advancing, or we hit
-// the page cap — this is what multiplies yield from the responsive sites (Cars.com/Carvana/CarGurus/
+// the page cap â€” this is what multiplies yield from the responsive sites (Cars.com/Carvana/CarGurus/
 // eBay). The slow live-fetch sites (TrueCar/Facebook/AutoTrader) still trickle in via the sites list.
 async function harvestQuery(
   q: { make: string; model?: string },
@@ -306,6 +319,9 @@ async function harvestQuery(
     signal?: AbortSignal;
     deadlineAt?: number;
     maxResults: number;
+    fetched: number;
+    pages: number;
+    parsed: number;
   },
 ): Promise<boolean> {
   let cursor: unknown[] | null = null;
@@ -335,17 +351,20 @@ async function harvestQuery(
     const requestSignal = control.signal
       ? AbortSignal.any([control.signal, requestTimeout])
       : requestTimeout;
-    const { items, cursor: next } = await fetchPage(
-      q,
-      zip,
-      cursor,
-      radius,
-      requestSignal,
-    );
-    if (!items.length) return true;
+    const {
+      items,
+      cursor: next,
+      fetched,
+    } = await fetchPage(q, zip, cursor, radius, requestSignal);
+    control.pages++;
+    control.fetched += fetched;
+    control.parsed += items.length;
+    if (!fetched) return true;
     for (const it of items) {
       const key = autotempestListingKey(it);
-      if (!byId.has(key)) byId.set(key, it);
+      const previous = byId.get(key);
+      if (!previous || (!previous.images?.length && it.images?.length))
+        byId.set(key, it);
     }
     if (byId.size >= control.maxResults) return false;
     const key = next ? JSON.stringify(next) : "";
@@ -368,9 +387,9 @@ async function harvestQuery(
   return true;
 }
 
-// Broad makes that exist in every state — used for the regional coverage pass.
+// Broad makes that exist in every state â€” used for the regional coverage pass.
 const REGIONAL_MAKES = ["ford", "chevrolet", "toyota"];
-const REGIONAL_RADIUS = 250; // miles — pulls state-local + neighboring inventory
+const REGIONAL_RADIUS = 250; // miles â€” pulls state-local + neighboring inventory
 const ZIPS_PER_RUN = 12; // rotate a window of state zips so all 50 are covered every ~4 runs
 
 /**
@@ -444,92 +463,86 @@ export async function scrapeAutotempest(
     signal: args.abortSignal,
     deadlineAt: args.deadlineAt,
     maxResults: resultLimit(),
+    fetched: 0,
+    pages: 0,
+    parsed: 0,
   };
   const scope = getScrapeRunScope();
-  if (scope?.state || scope?.states?.length) {
-    for (const zip of autotempestRegionalZips(undefined, Math.random, scope)) {
-      for (const query of autotempestBuyerQueries(scope)) {
-        try {
-          const complete = await harvestQuery(
-            query,
-            zip,
-            byId,
-            maxPagesPerQuery,
-            REGIONAL_RADIUS,
-            control,
-          );
-          if (!complete) break;
-        } catch (error) {
-          if (args.abortSignal?.aborted) throw error;
-          console.warn(
-            `[Autotempest] scoped ${query.make}@${zip} failed:`,
-            (error as Error).message,
-          );
+  let failure: SourceFetchError | undefined;
+  try {
+    if (scope?.state || scope?.states?.length) {
+      scoped: for (const zip of autotempestRegionalZips(
+        undefined,
+        Math.random,
+        scope,
+      )) {
+        for (const query of autotempestBuyerQueries(scope)) {
+          if (
+            !(await harvestQuery(
+              query,
+              zip,
+              byId,
+              maxPagesPerQuery,
+              REGIONAL_RADIUS,
+              control,
+            ))
+          )
+            break scoped;
         }
       }
-      if (
-        byId.size >= control.maxResults ||
-        (args.deadlineAt != null &&
-          Date.now() + PERSISTENCE_RESERVE_MS >= args.deadlineAt)
-      )
-        break;
-    }
-    const scopedDeals = Array.from(byId.values()).slice(0, control.maxResults);
-    return scopedDeals.length ? upsertDeals(scopedDeals) : 0;
-  }
-
-  // Pass 1 — REGIONAL: cover every planned market with one broad make before adding depth.
-  // This makes scarce hosted intake useful to the buyer instead of filling it with national comps.
-  regional: for (const make of REGIONAL_MAKES) {
-    for (const zip of autotempestRegionalZips()) {
-      try {
-        const complete = await harvestQuery(
-          { make },
-          zip,
-          byId,
-          1,
-          REGIONAL_RADIUS,
-          control,
-        );
-        if (!complete) break regional;
-      } catch (e) {
-        if (args.abortSignal?.aborted) throw e;
-        console.warn(
-          `[Autotempest] regional ${make}@${zip} failed:`,
-          (e as Error).message,
-        );
+    } else {
+      // Cover planned markets before adding depth with the national rotation.
+      regional: for (const make of REGIONAL_MAKES) {
+        for (const zip of autotempestRegionalZips()) {
+          if (
+            !(await harvestQuery(
+              { make },
+              zip,
+              byId,
+              1,
+              REGIONAL_RADIUS,
+              control,
+            ))
+          )
+            break regional;
+        }
+      }
+      for (const query of autotempestQueryOrder()) {
+        if (
+          !(await harvestQuery(
+            query,
+            nationalZip,
+            byId,
+            maxPagesPerQuery,
+            13000,
+            control,
+          ))
+        )
+          break;
       }
     }
+  } catch (error) {
+    if (args.abortSignal?.aborted) throw error;
+    failure =
+      error instanceof SourceFetchError
+        ? error
+        : new SourceFetchError(
+            "AutoTempest inventory request could not be completed.",
+          );
   }
-
-  // Pass 2 — NATIONAL: fill remaining capacity with rotating make/model coverage. Rotation keeps
-  // bounded runs broad even when the regional pass consumes most of the current source deadline.
-  if (byId.size < control.maxResults) {
-    for (const q of autotempestQueryOrder()) {
-      try {
-        const complete = await harvestQuery(
-          q,
-          nationalZip,
-          byId,
-          maxPagesPerQuery,
-          13000,
-          control,
-        );
-        if (!complete) break;
-      } catch (e) {
-        if (args.abortSignal?.aborted) throw e;
-        console.warn(
-          `[Autotempest] national ${q.make} ${q.model || ""} failed:`,
-          (e as Error).message,
-        );
-      }
-    }
-  }
-
   const deals = Array.from(byId.values()).slice(0, control.maxResults);
-  const withState = deals.filter((d) => d.location_state).length;
   console.log(
-    `[Autotempest] Found ${deals.length} listings (${withState} with state)`,
+    "[AutoTempest] fetch receipt",
+    JSON.stringify({
+      pages: control.pages,
+      fetched: control.fetched,
+      parsed: control.parsed,
+      uniqueCandidates: byId.size,
+      submitted: deals.length,
+      incomplete: Boolean(failure),
+    }),
   );
-  return deals.length > 0 ? upsertDeals(deals) : 0;
+  const saved = deals.length ? await upsertDeals(deals) : 0;
+  if (failure) throw failure;
+  return saved;
 }

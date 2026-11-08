@@ -8,6 +8,8 @@ import {
   autotempestRegionalZips,
   scrapeAutotempest,
 } from "./autotempest";
+import { ScraperExecutor } from "../tools/executor";
+import { recordScrapePersistence } from "../source-run-context";
 import { withScrapeRunScope } from "../run-scope-context";
 
 afterEach(() => {
@@ -72,10 +74,10 @@ describe("buyer-scoped aggregator searches", () => {
     vi.stubGlobal("fetch", fetcher);
     const startedAt = Date.now();
     expect(
-      await withScrapeRunScope({ state: "MO", make: "Ford" }, () =>
+      withScrapeRunScope({ state: "MO", make: "Ford" }, () =>
         scrapeAutotempest(3, { deadlineAt: Date.now() + 120_050 }),
       ),
-    ).toBe(0);
+    ).rejects.toThrow("could not be completed");
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(Date.now() - startedAt).toBeLessThan(2_000);
     expect(mocks.upsert).not.toHaveBeenCalled();
@@ -189,4 +191,66 @@ describe("buyer-scoped aggregator searches", () => {
     );
     expect(mocks.upsert.mock.calls[0]?.[0]).toHaveLength(2);
   });
+});
+
+it("keeps a confirmed partial receipt when AutoTempest blocks the next page", async () => {
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: "one",
+            price: 18000,
+            make: "Ford",
+            model: "Explorer",
+            year: 2020,
+            location: "St. Louis, MO",
+            url: "https://dealer.test/car",
+          },
+        ],
+        searchAfter: ["next"],
+      }),
+    })
+    .mockResolvedValueOnce({ ok: false, status: 403 });
+  vi.stubGlobal("fetch", fetcher);
+  mocks.upsert.mockImplementationOnce(async () => {
+    recordScrapePersistence(1, 1);
+    return 1;
+  });
+  const receipt = await withScrapeRunScope({ state: "MO", make: "Ford" }, () =>
+    new ScraperExecutor().execute({
+      id: "autotempest",
+      fn: () => scrapeAutotempest(),
+    } as Parameters<ScraperExecutor["execute"]>[0]),
+  );
+  expect(receipt).toMatchObject({
+    success: false,
+    dealsFound: 1,
+    dealsSaved: 1,
+    persistenceVerified: true,
+    error: expect.stringContaining("HTTP 403"),
+  });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(mocks.upsert).toHaveBeenCalledOnce();
+});
+
+it("does not retry an access barrier or turn it into an empty successful scan", async () => {
+  const fetcher = vi.fn().mockResolvedValue({ ok: false, status: 429 });
+  vi.stubGlobal("fetch", fetcher);
+  const receipt = await withScrapeRunScope({ state: "MO", make: "Ford" }, () =>
+    new ScraperExecutor().execute({
+      id: "autotempest",
+      fn: () => scrapeAutotempest(),
+    } as Parameters<ScraperExecutor["execute"]>[0]),
+  );
+  expect(receipt).toMatchObject({
+    success: false,
+    dealsFound: 0,
+    dealsSaved: 0,
+    error: expect.stringContaining("HTTP 429"),
+  });
+  expect(fetcher).toHaveBeenCalledOnce();
+  expect(mocks.upsert).not.toHaveBeenCalled();
 });
