@@ -44,16 +44,30 @@ First repairable checks are D & A, Philips, and iPull-uPull. Run these separatel
 - **MO and nearby.** The [ProSalvage member list](https://www.prosalvage.com/members.php) confirmed overlap with existing D&G, ReCar, St. James, 25 Auto, Cameron, Damage.com, Glen's, Rogers, Southside and X2 records. Keep this directory useful for discovering dealers and deduplicate against their own listings. D&G and St. James have separate [production receipts](https://github.com/Lead-Agent-69/MikeHunt/pull/650#issuecomment-6718515423).
 - **MO — Key Auto Sales, Springfield.** The [dealer-hosted Camaro listing](https://keyauto.mycarsonline.com/inventory/chevrolet/camaro/173351/) includes a VIN, photos, an advertised $8,745 asking price, and a prior-salvage/rebuilt title disclosure. Review DealerCenter access, current-stock status and duplication against the dealer's syndicated listings. The advertised amount does not establish an all-in total.
 
-## State-by-state disposition
-
-### November 8 follow-up
+## November 8 follow-up
 
 - **HRM Auto, Georgia.** The public inventory page uses a [dealer stock feed](https://hrmautollc.com/service/inventory/website). It returned 58 rows, including 17 sold. The read-only adapter accepted 40 listings with matching stock-photo paths and advertised prices. The dealer disclosed 32 rebuilt and five clean titles, with three left unknown. The feed's boolean brand flag was false even for explicitly rebuilt vehicles. The adapter uses the dealer's written disclosure and the storefront's special-price-over-base-price logic. The [sample Acura](https://hrmautollc.com/inventory/19410/view/P-550080) is advertised at $7,450 before applicable fees.
 - **Universal Salvage, Indiana.** The [whole-vehicle page](https://www.universalsalvageco.com/rebuilt-vehicles) directs buyers to call for availability. It lacks a current, identifiable stock list suitable for collection.
 - **State Line Auto, Ohio.** Its [live inventory](https://www.statelineauto.co/cars-for-sale) is separate from its rebuilt-title homepage description. Sample listing title evidence and the storefront platform's access terms still need confirmation.
-- **Houston Auto World, Texas.** The [branded-title landing page](https://houstonautoworld.com/branded-title) links to general inventory. Verify vehicle-specific title and sale prices and obtain a permitted Dealer Car Search route before enabling.
+- **Houston Auto World, Texas.** The [branded-title landing page](https://houstonautoworld.com/branded-title) links to general inventory. Its [LeadVenture terms](https://www.houstonautoworld.com/terms) restrict automated collection without consent. Keep it as a direct link pending a permitted feed.
 - **iPull-uPull and Car Point Utah.** iPull-uPull needs authorized reuse. Car Point Utah continues to label the displayed vehicles as samples.
 - **Missouri leads.** Key Auto's dealer page surfaced in the search index, but direct robots access returned a Cloudflare challenge. Keep the dealer as a source link while seeking a permitted feed. [Buddy's U-Pull](https://buddysupull.com/) is a parts yard, and [Pick-n-Pull's vehicle sales site](https://www.picknpull.com/cars-for-sale/44) needs a confirmed Missouri whole-car inventory route before it qualifies.
+- **Additional Missouri leads.** [Flip Side Auto's Marble Hill Cadillac](https://www.flipsideauto.com/Inventory/Details/274fe228-258d-486d-b261-a1407de17565) has VIN, gallery, a stated rebuilt title and a $34,900 advertised price. [Altay Auto's Springfield Kia](https://www.altayautosales.com/Inventory/Details/6325fddc-234b-488f-bea0-39166d9cb122) discloses rebuilt status and asks buyers to request a price. Both remain direct links pending permission under [Flip Side's terms](https://www.flipsideauto.com/terms-and-conditions) and [Altay's terms](https://www.altayautosales.com/terms-and-conditions).
+
+### Production publication after the November 9 UTC capacity rollover
+
+Connect Auto ([PR #652](https://github.com/Lead-Agent-69/MikeHunt/pull/652)) and HRM ([PR #653](https://github.com/Lead-Agent-69/MikeHunt/pull/653)) passed CI before merge. The production collector runs the image built from `ad8b4c2755fcb1206d11958a70ddaec9d5e9b40b`. The four earlier jobs and both new jobs ran under the existing write limits after daily capacity reopened. Market verification used the deployed buyer-facing results endpoint, scoped by state and dealer, with photos required, repairables included and cash-price evidence selected.
+
+| Source               | Production job                         | Submitted | Saved | Market rows with photos | Sample listing ID                      |
+| -------------------- | -------------------------------------- | --------: | ----: | ----------------------: | -------------------------------------- |
+| D & A Auto Body      | `f606d7f5-0d6d-43ca-9eff-248eba3b4b8b` |         5 |     5 |                       5 | `21ed2834-5cfd-4c6d-add6-deba49926c67` |
+| Philips Repairables  | `bea40e60-2d19-4539-a907-615df65b8923` |         5 |     5 |                       5 | `10958c1e-c5e4-45ae-b5c8-856851fb402f` |
+| 117 Auto Sales       | `e77c3182-2281-4f76-831b-e00de0260efd` |         6 |     6 |                       6 | `06b15184-9492-475f-a84a-349fede376a5` |
+| Ridgeline Automotive | `08d38928-7b75-4397-92a1-88a49e5ba458` |        16 |    16 |                      16 | `07a300b0-d035-4e76-8e3e-f2b5a4cd12f9` |
+| Connect Auto Sales   | `5d6b5797-93e5-4747-ab9a-42f6cb6ad33c` |        12 |    10 |                      10 | `1172d977-4451-4624-9f4c-e03655c16808` |
+| HRM Auto             | `372984d6-d0a5-4d96-90c3-c13a63374f48` |        40 |    40 |                      40 | `07ee5d29-4e8e-4ebf-b070-c27343c48ed5` |
+
+## State-by-state disposition
 
 “Existing” means a matching source is already represented in the code or master research registry. Its production status may differ. “Open” means this pass did not find a new direct inventory with enough evidence to add. Buyer radius may cross state lines, but shipping destinations and broker state filters are not local stock.
 
