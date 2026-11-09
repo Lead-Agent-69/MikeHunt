@@ -512,7 +512,7 @@ function buildOrchestratorOptions(
     dryRun: options.dryRun || false,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    perSourceTimeoutMs: sourceTimeoutMs(options.scope),
+    perSourceTimeoutMs: sourceTimeoutMs(options.scope, options.sourceIds),
     onProgress: (progress) => {
       options.onProgress?.({
         total: progress.total,
