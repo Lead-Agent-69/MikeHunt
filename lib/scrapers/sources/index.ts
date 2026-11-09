@@ -2121,6 +2121,7 @@ export async function scrapeDealerCms(
       "ridgeline",
       "connect-auto",
       "hrm",
+      "legacy-joplin",
     ].includes(site.layout ?? "")
   )
     await withDealerDetailRotation(

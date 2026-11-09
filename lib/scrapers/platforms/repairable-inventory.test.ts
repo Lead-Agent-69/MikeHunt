@@ -7,6 +7,45 @@ const vin = "1FTEX1EP0LFC26831";
 const fordPhoto = `https://s3.amazonaws.com/gtPics/${vin}_19.jpeg`;
 
 describe("direct repairable inventory", () => {
+  it("walks Legacy's inventory pages and keeps only photographed available stock", async () => {
+    const site = dealerCmsSiteFor("https://legacymotorsjoplin.com")!;
+    const photo = "https://legacymotorsjoplin.com/storage/1/vehicle.webp";
+    const available = {
+      status: "available",
+      stock_number: "P-1",
+      vin,
+      year: 2020,
+      make: "Ford",
+      model: "F150",
+      title: "2020 Ford F150 XLT",
+      price: "18800.00",
+      photos: [{ url: photo }],
+      description: "Rebuilt transmission. Title paperwork pending.",
+    };
+    const fetchHtml = vi.fn(async (url: string) => {
+      const page = Number(new URL(url).searchParams.get("page"));
+      return response(
+        JSON.stringify({
+          data:
+            page === 1
+              ? [{ ...available, status: "sold" }]
+              : [available, { ...available, price: "3000.00", photos: [] }],
+          meta: { current_page: page, last_page: 2 },
+        }),
+      );
+    });
+    const deals = await crawlDealerCms(site, { load, fetchHtml });
+    expect(fetchHtml).toHaveBeenCalledTimes(2);
+    expect(deals).toMatchObject([
+      {
+        vin,
+        condition: "unknown",
+        ask_price: 18800,
+        images: [photo],
+        source_url: "https://legacymotorsjoplin.com/vehicles/P-1",
+      },
+    ]);
+  });
   it("uses HRM's advertised special price and vehicle-specific title and photos", async () => {
     const site = dealerCmsSiteFor("https://hrmautollc.com")!;
     const photo = "https://hrmautollc.com/service/picture/19410/P-1/abc";
