@@ -47,6 +47,7 @@ export interface LocalCacheOptions {
   onQuota?: (quota: CacheFile["quota"], paused: boolean) => void;
   beforeWrite?: () => Promise<boolean>;
   allowInsert?: (client: SupabaseClient) => Promise<boolean>;
+  insertCapacity?: (client: SupabaseClient) => Promise<number>;
 }
 
 export interface PersistResult {
@@ -264,6 +265,7 @@ export class LocalScraperCache {
   private onQuota?: LocalCacheOptions["onQuota"];
   private beforeWrite?: LocalCacheOptions["beforeWrite"];
   private allowInsert?: LocalCacheOptions["allowInsert"];
+  private insertCapacity?: LocalCacheOptions["insertCapacity"];
   private state: CacheFile = {
     version: 1,
     entries: {},
@@ -304,6 +306,7 @@ export class LocalScraperCache {
     this.onQuota = options.onQuota;
     this.beforeWrite = options.beforeWrite;
     this.allowInsert = options.allowInsert;
+    this.insertCapacity = options.insertCapacity;
   }
 
   async load(): Promise<void> {
@@ -690,6 +693,11 @@ export class LocalScraperCache {
         0,
         insertThreshold - this.state.quota.inserts,
       );
+      if (insertsAvailable > 0 && this.insertCapacity)
+        insertsAvailable = Math.min(
+          insertsAvailable,
+          await this.insertCapacity(supabase),
+        );
       let updatesAvailable = Math.max(
         0,
         updateThreshold - this.state.quota.updates,

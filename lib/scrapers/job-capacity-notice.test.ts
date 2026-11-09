@@ -19,6 +19,7 @@ function query(result: unknown) {
     "eq",
     "is",
     "not",
+    "or",
     "order",
     "limit",
     "update",
@@ -68,7 +69,7 @@ describe("capacity notice publication", () => {
         Date.parse("2026-10-21T12:00:00Z"),
       ),
     ).toBe(0);
-    expect(read.select).toHaveBeenCalledWith("id");
+    expect(read.select).toHaveBeenCalledWith("id,result");
     expect(read.eq).toHaveBeenCalledWith("dry_run", false);
     expect(read.not).toHaveBeenCalledWith(
       "scope",
@@ -76,7 +77,7 @@ describe("capacity notice publication", () => {
       '{"refreshExisting":true}',
     );
     expect(read.limit).toHaveBeenCalledWith(10);
-    expect(write.in).toHaveBeenCalledWith("id", ["a"]);
+    expect(write.eq).toHaveBeenCalledWith("id", "a");
     expect(write.eq).toHaveBeenCalledWith("status", "pending");
     expect(write.is).toHaveBeenCalledWith("result", null);
     expect(write.update).toHaveBeenCalledWith({
@@ -86,6 +87,24 @@ describe("capacity notice publication", () => {
           observedAt: "2026-10-21T12:00:00.000Z",
           nextCheckAt: "2026-10-22T00:00:00.000Z",
         },
+      },
+    });
+  });
+
+  it("replaces an outdated blocker without losing other result fields", async () => {
+    const now = Date.parse("2026-10-21T12:00:00Z");
+    const result = { waiting: storageCapacityWait(now - 600_000), attempt: 1 };
+    const read = query({ data: [{ id: "a", result }], error: null });
+    const write = query({ data: [{ id: "a" }], error: null });
+    const from = vi.fn().mockReturnValueOnce(read).mockReturnValueOnce(write);
+    expect(await recordPendingCapacityWait({ from } as any, quota, now)).toBe(
+      1,
+    );
+    expect(write.eq).toHaveBeenCalledWith("result", JSON.stringify(result));
+    expect(write.update).toHaveBeenCalledWith({
+      result: {
+        attempt: 1,
+        waiting: expect.objectContaining({ reason: "daily_capacity" }),
       },
     });
   });

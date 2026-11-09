@@ -34,7 +34,7 @@ import { scrapeNorfolkSold } from "@/lib/sources/open-gov/norfolk-sold";
 import { ScraperRegistry } from "./tools/registry";
 import { getSkipSources } from "./health";
 import type { BuyerScope } from "./buyer-scope";
-import { withScrapeRunScope } from "./run-scope-context";
+import { targetsDealer, withScrapeRunScope } from "./run-scope-context";
 import { sourceTimeoutMs } from "./source-timeout";
 import {
   SequentialOrchestrator,
@@ -598,7 +598,14 @@ export async function runScrapers(options: RunScraperOptions = {}) {
       throw new Error(`Unknown orchestrator type: ${orchestratorType}`);
   }
 
-  const result = await withScrapeRunScope(options.scope, () =>
+  const scope = options.scope && {
+    ...options.scope,
+    dealerIntake:
+      options.sourceIds?.length === 1 &&
+      options.sourceIds[0] === "curated_dealers" &&
+      targetsDealer(options.scope),
+  };
+  const result = await withScrapeRunScope(scope, () =>
     orchestrator.run(sourceIds),
   );
   return result;

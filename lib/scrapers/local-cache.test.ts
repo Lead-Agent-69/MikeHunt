@@ -457,6 +457,21 @@ describe("LocalScraperCache", () => {
       );
     }
   });
+  it("applies the live insert allowance to the whole batch", async () => {
+    const insertCapacity = vi.fn(async () => 1);
+    const { cache } = await makeCache({ insertCapacity });
+    const db = fakeSupabase();
+    const result = await cache.persistRows(
+      [pendingDealer("first"), pendingDealer("second"), pendingDealer("third")],
+      db.client,
+      "*",
+    );
+    expect(insertCapacity).toHaveBeenCalledTimes(1);
+    expect(result.inserts).toBe(1);
+    expect(cache.getQuota().inserts).toBe(1);
+    const cached = await cache.records("independent_dealer");
+    expect(cached.filter((entry) => !entry.cacheSynced)).toHaveLength(2);
+  });
   const marketPlan = {
     states: ["MO", "IL"],
     demandStates: ["MO"],
