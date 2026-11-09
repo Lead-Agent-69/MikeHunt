@@ -18,21 +18,13 @@ export function MarketListingGrid({
   children?: React.ReactNode;
 }) {
   const [hidden, setHidden] = useState<Record<string, string>>({});
-  const unavailable = useCallback(
-    (id: string) => {
-      const row = rows.find((candidate) => candidate.id === id);
-      if (row)
-        setHidden((prior) =>
-          prior[id] === photoKey(row)
-            ? prior
-            : { ...prior, [id]: photoKey(row) },
-        );
-    },
-    [rows],
-  );
-  const hiddenCount = rows.filter(
-    (row) => hidden[row.id] === photoKey(row),
-  ).length;
+  const unavailable = useCallback((id: string, key: string) => {
+    setHidden((prior) => (prior[id] === key ? prior : { ...prior, [id]: key }));
+  }, []);
+  const visible = rows
+    .map((row) => ({ row, key: photoKey(row) }))
+    .filter(({ row, key }) => hidden[row.id] !== key);
+  const hiddenCount = rows.length - visible.length;
   return (
     <>
       {hiddenCount > 0 && (
@@ -73,16 +65,16 @@ export function MarketListingGrid({
         }}
       >
         {children}
-        {rows
-          .filter((row) => hidden[row.id] !== photoKey(row))
-          .map((row) => (
-            <MarketListingCard
-              key={photoKey(row)}
-              row={row}
-              flipDesk={flipDesk}
-              onPhotosUnavailable={unavailable}
-            />
-          ))}
+        {visible.map(({ row, key }, index) => (
+          <MarketListingCard
+            key={key}
+            photoKey={key}
+            prioritizePhoto={index === 0}
+            row={row}
+            flipDesk={flipDesk}
+            onPhotosUnavailable={unavailable}
+          />
+        ))}
       </div>
     </>
   );

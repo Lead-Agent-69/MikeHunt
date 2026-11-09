@@ -7,6 +7,34 @@ const vin = "1FTEX1EP0LFC26831";
 const fordPhoto = `https://s3.amazonaws.com/gtPics/${vin}_19.jpeg`;
 
 describe("direct repairable inventory", () => {
+  it("walks Highway 12 pagination and rejects a matching down-payment amount", async () => {
+    const site = dealerCmsSiteFor("https://highway12autosales.com")!;
+    const card = (id: string) =>
+      `<article><a href="/listings/${id}/"><h2>2020 Ford F-150</h2><img src="/stock/${id}.jpg"></a><p>$18,800</p></article>`;
+    const fetchHtml = vi.fn(async (url: string) => {
+      const path = new URL(url).pathname;
+      if (path === "/inventory/")
+        return response(
+          `${card("teaser")}<a class="next page-numbers" href="/inventory/page/2/">Next</a>`,
+        );
+      if (path === "/inventory/page/2/") return response(card("truck"));
+      return response(`<div class="stm-single-car-page">
+        <span data-cg-vin="${vin}" data-cg-price="18800"></span>
+        ${path.includes("teaser") ? "Listed price is a down payment" : "Sale price $18,800"}
+      </div>`);
+    });
+    const deals = await crawlDealerCms(site, { load, fetchHtml });
+    expect(deals).toMatchObject([
+      {
+        source_deal_id: `highway-12-auto-${vin}`,
+        ask_price: 18800,
+        condition: "unknown",
+        location_state: "AR",
+        location_city: "Rogers",
+        source_url: "https://highway12autosales.com/listings/truck/",
+      },
+    ]);
+  });
   it("walks Legacy's inventory pages and keeps only photographed available stock", async () => {
     const site = dealerCmsSiteFor("https://legacymotorsjoplin.com")!;
     const photo = "https://legacymotorsjoplin.com/storage/1/vehicle.webp";

@@ -78,6 +78,7 @@ export const SITE_TYPE_META: Record<
 // prettier-ignore
 export const CURATED_SITES: CuratedSite[] = [
   { url: "https://legacymotorsjoplin.com", name: "Legacy Motors Joplin", city: "Joplin", state: "MO", type: "independent_dealer", inventoryUrl: "/api/vehicles?include=photos" },
+  { url: "https://highway12autosales.com", name: "Highway 12 Auto Sales", city: "Rogers", state: "AR", type: "independent_dealer", inventoryUrl: "/inventory/" },
   { url: "https://hrmautollc.com", name: "HRM Auto", city: "Macon", state: "GA", type: "independent_dealer", inventoryUrl: "/inventory" },
   { url: "https://www.connectautosales.com", name: "Connect Auto Sales", city: "Dearborn Heights", state: "MI", type: "independent_dealer", inventoryUrl: "/inventory" },
   { url: "https://117autosales.com", name: "117 Auto Sales", city: "Dunn", state: "NC", type: "independent_dealer", inventoryUrl: "/inventory/?v_title=rebuilt" },
