@@ -4,6 +4,11 @@ import type { BuyerScope } from "./buyer-scope";
 /** Public normalization never creates refreshExisting; it is an operator-only queue hint. */
 export interface ScrapeRunScope extends BuyerScope {
   refreshExisting?: boolean;
+  dealerIntake?: boolean;
+}
+
+export function targetsDealer(scope?: ScrapeRunScope) {
+  return Boolean(scope?.dealerHosts?.length || scope?.dealerSourceIds?.length);
 }
 
 const storage = new AsyncLocalStorage<ScrapeRunScope>();

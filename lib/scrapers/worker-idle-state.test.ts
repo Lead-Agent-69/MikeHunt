@@ -30,9 +30,7 @@ describe("scoped worker quota pause", () => {
     expect(loop.indexOf("await refreshStorageBudget(supabase)")).toBeLessThan(
       loop.indexOf("await claimNextScopedScrapeJob"),
     );
-    expect(loop).toContain(
-      "const capacity = writeCapacity(effectiveWriteQuota())",
-    );
+    expect(loop).toContain("const capacity = writeCapacity(quota)");
     expect(loop.replace(/\s+/g, "")).toContain(
       "recordPendingCapacityWait(supabase,effectiveWriteQuota(),now,waiting,)",
     );

@@ -7,6 +7,12 @@ export type WriteQuota = {
   maxTouches: number;
 };
 
+export function generalInsertCapacity(quota: WriteQuota) {
+  const total = writeCapacity({ ...quota, inserts: 0 }).insertsRemaining;
+  const reserved = Math.min(100, Math.floor(total / 4));
+  return Math.max(0, writeCapacity(quota).insertsRemaining - reserved);
+}
+
 /** Independent budgets: exhausting new-row capacity must not stop verified refreshes. */
 export function writeCapacity(quota: WriteQuota) {
   const remaining = (limit: number, used: number, reserve: boolean) => {

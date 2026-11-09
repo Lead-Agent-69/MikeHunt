@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { writeCapacity } from "./write-capacity";
+import { generalInsertCapacity, writeCapacity } from "./write-capacity";
 const quota = {
   inserts: 1000,
   updates: 236,
@@ -36,4 +36,15 @@ it("fails closed for invalid capacities and does not mutate counters", () => {
     }).paused,
   ).toBe(true);
   expect(quota.inserts).toBe(1000);
+});
+
+it("reserves the last 100 available inserts for dealer jobs within the same limit", () => {
+  const warning = { ...quota, maxInserts: 500, inserts: 299 };
+  expect(generalInsertCapacity(warning)).toBe(1);
+  expect(generalInsertCapacity({ ...warning, inserts: 300 })).toBe(0);
+  expect(writeCapacity({ ...warning, inserts: 300 }).insertsRemaining).toBe(
+    100,
+  );
+  expect(writeCapacity({ ...warning, inserts: 400 }).insertsRemaining).toBe(0);
+  expect(generalInsertCapacity({ ...warning, maxInserts: 0 })).toBe(0);
 });

@@ -25,6 +25,7 @@ import { curatedRingStates } from "../lib/scrapers/curated-rotation";
 import {
   claimNextRefreshScopedScrapeJob,
   claimNextScopedScrapeJob,
+  claimNextTargetedDealerJob,
   recoveredClaimError,
   scopedWorkerIdleState,
 } from "../lib/scrapers/job-queue";
@@ -41,7 +42,11 @@ import {
   dailyCapacityWait,
   storageCapacityWait,
 } from "../lib/scrapers/job-wait";
-import { writeCapacity } from "../lib/scrapers/write-capacity";
+import {
+  generalInsertCapacity,
+  writeCapacity,
+} from "../lib/scrapers/write-capacity";
+import { getScrapeRunScope } from "../lib/scrapers/run-scope-context";
 import {
   isAutomationAllowedSource,
   advanceSweep,
@@ -405,7 +410,13 @@ async function initializeRuntime(): Promise<void> {
       void writeStatus();
     },
     beforeWrite: async () => waitUntilWritable(),
-    allowInsert: async (client) => (await refreshStorageBudget(client)).allowed,
+    insertCapacity: async (client) => {
+      await refreshStorageBudget(client);
+      const quota = effectiveWriteQuota();
+      return getScrapeRunScope()?.dealerIntake
+        ? writeCapacity(quota).insertsRemaining
+        : generalInsertCapacity(quota);
+    },
   });
   await cache.load();
   currentStatus = {
@@ -869,13 +880,16 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
       // Keep ordinary buyer searches queued until inserts can add their matches. An
       // operator-marked refresh may still renew known inventory through the separate
       // update/touch budgets, so a busy intake day cannot make a proven source stale.
-      const capacity = writeCapacity(effectiveWriteQuota());
+      const quota = effectiveWriteQuota();
+      const capacity = writeCapacity(quota);
       job =
-        capacity.insertsRemaining > 0
+        generalInsertCapacity(quota) > 0
           ? await claimNextScopedScrapeJob(supabase, WORKER_ID)
-          : capacity.updatesRemaining + capacity.touchesRemaining > 0
-            ? await claimNextRefreshScopedScrapeJob(supabase, WORKER_ID)
-            : null;
+          : null;
+      if (!job && capacity.insertsRemaining > 0)
+        job = await claimNextTargetedDealerJob(supabase, WORKER_ID);
+      if (!job && capacity.updatesRemaining + capacity.touchesRemaining > 0)
+        job = await claimNextRefreshScopedScrapeJob(supabase, WORKER_ID);
       currentStatus.lastError = recoveredClaimError(
         currentStatus.lastError,
         claimFailures,

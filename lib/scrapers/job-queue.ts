@@ -126,17 +126,41 @@ export async function claimNextRefreshScopedScrapeJob(
   supabase: SupabaseClient,
   workerId: string,
 ): Promise<ScopedScrapeJob | null> {
-  const { data: candidate, error: candidateError } = await supabase
+  return claimSpecialJob(supabase, workerId, "refresh");
+}
+
+export async function claimNextTargetedDealerJob(
+  supabase: SupabaseClient,
+  workerId: string,
+): Promise<ScopedScrapeJob | null> {
+  return claimSpecialJob(supabase, workerId, "dealer");
+}
+
+async function claimSpecialJob(
+  supabase: SupabaseClient,
+  workerId: string,
+  kind: "refresh" | "dealer",
+): Promise<ScopedScrapeJob | null> {
+  const pending = supabase
     .from("scrape_jobs")
     .select("*")
-    .eq("status", "pending")
-    .contains("scope", { refreshExisting: true })
+    .eq("status", "pending");
+  const matching =
+    kind === "refresh"
+      ? pending.contains("scope", { refreshExisting: true })
+      : pending
+          .eq("dry_run", false)
+          .eq("source_ids", "{curated_dealers}")
+          .or(
+            "scope->dealerHosts->>0.not.is.null,scope->dealerSourceIds->>0.not.is.null",
+          );
+  const { data: candidate, error: candidateError } = await matching
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (candidateError)
     throw new Error(
-      `Could not inspect refresh queue: ${candidateError.message}`,
+      `Could not inspect ${kind} queue: ${candidateError.message}`,
     );
   if (!candidate) return null;
 
@@ -155,7 +179,7 @@ export async function claimNextRefreshScopedScrapeJob(
     .eq("status", "pending")
     .select("*")
     .maybeSingle();
-  if (error) throw new Error(`Could not claim refresh job: ${error.message}`);
+  if (error) throw new Error(`Could not claim ${kind} job: ${error.message}`);
   return (data || null) as ScopedScrapeJob | null;
 }
 
