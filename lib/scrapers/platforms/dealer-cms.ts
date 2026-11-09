@@ -51,10 +51,21 @@ export interface DealerCmsSite {
     | "117-auto"
     | "ridgeline"
     | "connect-auto"
-    | "hrm";
+    | "hrm"
+    | "legacy-joplin";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
+  {
+    sourceId: "legacy-motors-joplin",
+    name: "Legacy Motors Joplin",
+    baseUrl: "https://legacymotorsjoplin.com",
+    inventoryUrl: "https://legacymotorsjoplin.com/api/vehicles?include=photos",
+    city: "Joplin",
+    state: "MO",
+    defaultCondition: "unknown",
+    layout: "legacy-joplin",
+  },
   {
     sourceId: "hrm-auto",
     name: "HRM Auto",
@@ -1134,6 +1145,7 @@ async function crawlRepairableInventory(
 
 /** Walk every inventory page of one site and return deals (does not save). */
 export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
+  if (site.layout === "legacy-joplin") return crawlLegacyJoplin(site, deps);
   if (site.layout === "hrm") return crawlHrmAuto(site, deps);
   if (site.layout === "connect-auto") return crawlConnectAuto(site, deps);
   if (site.layout === "117-auto" || site.layout === "ridgeline")
@@ -1215,6 +1227,124 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,
   );
   return Array.from(byId.values());
+}
+
+type LegacyVehicle = {
+  stock_number?: string;
+  vin?: string;
+  year?: number;
+  make?: string;
+  model?: string;
+  title?: string;
+  description?: string;
+  mileage?: number;
+  status?: string;
+  price?: string;
+  photos?: { url?: string }[];
+};
+
+async function crawlLegacyJoplin(site: DealerCmsSite, deps: DealerCmsDeps) {
+  const deals = new Map<string, Partial<Deal>>();
+  for (let page = 1; page <= 15; page++) {
+    const url = new URL(site.inventoryUrl);
+    url.searchParams.set("page", String(page));
+    const result = await deps.fetchHtml(url.href);
+    if (!result.ok)
+      throw new Error(
+        `${site.name} inventory page ${page}: ${result.skipped ?? result.status}`,
+      );
+    const payload: {
+      data?: LegacyVehicle[];
+      meta?: { current_page?: number; last_page?: number };
+    } = JSON.parse(result.body);
+    const lastPage = payload.meta?.last_page;
+    if (
+      !Array.isArray(payload.data) ||
+      payload.meta?.current_page !== page ||
+      typeof lastPage !== "number" ||
+      !Number.isInteger(lastPage) ||
+      lastPage < page ||
+      lastPage > 15
+    )
+      throw new Error(`${site.name} incomplete inventory pagination`);
+    for (const row of payload.data) {
+      if (row?.status !== "available") continue;
+      const { stock_number: stock, vin, year, make, model, title } = row;
+      if (
+        !stock ||
+        !/^[\w-]+$/.test(stock) ||
+        !vin ||
+        !isValidVin(vin) ||
+        !Number.isInteger(year) ||
+        !make ||
+        !model ||
+        !title
+      )
+        continue;
+      const price = parsePrice(`$${row.price ?? ""}`);
+      if (!price) continue;
+      const description = clean(
+        deps
+          .load(row.description || "")
+          .root()
+          .text(),
+      );
+      const disclosed = disclosedPriceEvidence(description, price);
+      if (
+        disclosed &&
+        (disclosed.kind !== "asking" ||
+          disclosed.askingPrice !== Math.round(price))
+      )
+        continue;
+      const images = (Array.isArray(row.photos) ? row.photos : []).flatMap(
+        (photo) =>
+          typeof photo?.url === "string" &&
+          photo.url.startsWith(`${site.baseUrl}/storage/`)
+            ? [photo.url]
+            : [],
+      );
+      if (!images.length) continue;
+      const titleClaims =
+        description.match(/\b(?:rebuilt|salvage|clean|clear)\s+title\b/gi) ??
+        [];
+      const brands = new Set(titleClaims.map(titleBrand));
+      const condition = brands.size === 1 ? Array.from(brands)[0] : undefined;
+      const normalizedVin = normalizeVin(vin);
+      const deal = cardToDeal(
+        {
+          id: normalizedVin,
+          url: new URL(`/vehicles/${stock}`, site.baseUrl).href,
+          title,
+          year,
+          make,
+          model,
+          vin: normalizedVin,
+          condition,
+          price,
+          sold: false,
+          mileage: parseMiles(`Mileage: ${row.mileage ?? ""}`),
+        },
+        site,
+        result.observedAt,
+      );
+      if (deal)
+        deals.set(normalizedVin, {
+          ...deal,
+          images: Array.from(new Set(images)),
+          description: stripContactInfo(description),
+          options: {
+            priceEvidence: {
+              kind: "asking",
+              askingPrice: price,
+              evidenceText: `Legacy Motors public inventory price $${price}`,
+              checkedAt: result.observedAt,
+            },
+          },
+        });
+    }
+    if (page === lastPage) break;
+  }
+  return Array.from(deals.values());
 }
 
 type HrmVehicle = {
