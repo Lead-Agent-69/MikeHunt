@@ -70,10 +70,8 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary mobile navigation"
-      className="pointer-events-none fixed bottom-0 left-0 z-50 flex w-[100dvw] max-w-[100dvw] justify-center lg:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center lg:hidden"
       style={{
-        height: "calc(80px + env(safe-area-inset-bottom))",
-        top: "calc(100dvh - 80px - env(safe-area-inset-bottom))",
         paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
       }}
     >

@@ -52,10 +52,22 @@ export interface DealerCmsSite {
     | "ridgeline"
     | "connect-auto"
     | "hrm"
-    | "legacy-joplin";
+    | "legacy-joplin"
+    | "highway-12";
 }
 
 export const DEALER_CMS_SITES: DealerCmsSite[] = [
+  {
+    sourceId: "highway-12-auto",
+    name: "Highway 12 Auto Sales",
+    baseUrl: "https://highway12autosales.com",
+    inventoryUrl: "https://highway12autosales.com/inventory/",
+    city: "Rogers",
+    state: "AR",
+    defaultCondition: "unknown",
+    detailPattern: /\/listings\/([^/?#]+)/,
+    layout: "highway-12",
+  },
   {
     sourceId: "legacy-motors-joplin",
     name: "Legacy Motors Joplin",
@@ -592,7 +604,7 @@ function cardPhoto($: CheerioAPI, card: any, pageUrl: string) {
 
 function nextListingPage($: CheerioAPI, pageUrl: string) {
   const links = $(
-    'a[rel~="next"], .pagination a.next, .pagination .next a, a[aria-label="Next"]',
+    'a[rel~="next"], .pagination a.next, .pagination .next a, a.next.page-numbers, a[aria-label="Next"]',
   );
   for (const node of links.toArray()) {
     const link = $(node);
@@ -842,9 +854,14 @@ export function cardToDeal(
     make: card.make,
     model: card.model,
     ask_price: card.price,
-    ...(["dg-native", "danda", "philips", "117-auto", "ridgeline"].includes(
-      site.layout ?? "",
-    )
+    ...([
+      "dg-native",
+      "danda",
+      "philips",
+      "117-auto",
+      "ridgeline",
+      "highway-12",
+    ].includes(site.layout ?? "")
       ? {
           options: {
             priceEvidence: {
@@ -1166,7 +1183,7 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     visited.add(url);
     const res = await deps.fetchHtml(url);
     if (!res.ok) {
-      if (n === 1)
+      if (n === 1 || site.layout === "highway-12")
         throw new Error(`${site.name} inventory ${res.skipped ?? res.status}`);
       break;
     }
@@ -1205,6 +1222,12 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
     if (n === 1)
       pages = site.singlePage ? 1 : plannedPages(parsed, site.maxPages ?? 15);
     nextUrl = site.singlePage ? undefined : parsed.nextUrl;
+    if (
+      site.layout === "highway-12" &&
+      nextUrl &&
+      !/^\/inventory\/page\/\d+\/$/.test(new URL(nextUrl).pathname)
+    )
+      throw new Error(`${site.name} unexpected inventory pagination`);
     if (nextUrl && !visited.has(nextUrl)) pages = Math.max(pages, n + 1);
     let fresh = 0;
     for (const card of parsed.cards) {
@@ -1212,7 +1235,28 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
         offSite++;
         continue;
       }
-      const deal = cardToDeal(card, site, res.observedAt);
+      let deal = cardToDeal(card, site, res.observedAt);
+      if (deal && site.layout === "highway-12") {
+        if (!card.image) continue;
+        const detail = await deps.fetchHtml(card.url);
+        if (!detail.ok)
+          throw new Error(
+            `${site.name} vehicle detail ${detail.skipped ?? detail.status}`,
+          );
+        const $detail = deps.load(detail.body);
+        const fields = $detail("[data-cg-vin][data-cg-price]");
+        if (fields.length !== 1) continue;
+        const vin = normalizeVin(fields.attr("data-cg-vin") ?? "");
+        const price = parsePrice(`$${fields.attr("data-cg-price") ?? ""}`);
+        if (!isValidVin(vin) || !price || price !== card.price) continue;
+        const terms = disclosedPriceEvidence(
+          $detail(".stm-single-car-page").text(),
+          price,
+        );
+        if (terms && (terms.kind !== "asking" || terms.askingPrice !== price))
+          continue;
+        deal = cardToDeal({ ...card, id: vin, vin }, site, detail.observedAt);
+      }
       if (!deal) {
         if (card.sold) sold++;
         continue;
@@ -1221,7 +1265,8 @@ export async function crawlDealerCms(site: DealerCmsSite, deps: DealerCmsDeps) {
       byId.set(deal.source_deal_id!, deal);
     }
     // A page that adds nothing new means the site ignored ?page= (or we ran past the end).
-    if (n > 1 && fresh === 0) break;
+    if (n > 1 && fresh === 0 && !(site.layout === "highway-12" && nextUrl))
+      break;
   }
   log(
     `[DealerCMS] ${site.name}: ${byId.size} listings over ${visited.size} attempted page(s), ${sold} sold/on-hold skipped${offSite ? `, ${offSite} off-site links dropped` : ""}`,

@@ -34,28 +34,30 @@ import {
   TITLE_DAMAGE_LABELS,
 } from "@/lib/deals/title-badge-model";
 
-export const MarketListingCard = memo(function MarketListingCard(props: {
+type ListingCardProps = {
   row: MarketListing;
   flipDesk: boolean;
-  onPhotosUnavailable?: (id: string) => void;
-}) {
-  return (
-    <ListingCard
-      key={`${props.row.id}:${JSON.stringify(props.row.images || [])}`}
-      {...props}
-    />
-  );
+  photoKey?: string;
+  prioritizePhoto?: boolean;
+  onPhotosUnavailable?: (id: string, key: string) => void;
+};
+
+export const MarketListingCard = memo(function MarketListingCard(
+  props: ListingCardProps,
+) {
+  const key =
+    props.photoKey ??
+    `${props.row.id}:${JSON.stringify(props.row.images || [])}`;
+  return <ListingCard key={key} {...props} photoKey={key} />;
 });
 
 function ListingCard({
   row,
   flipDesk,
+  photoKey,
+  prioritizePhoto,
   onPhotosUnavailable,
-}: {
-  row: MarketListing;
-  flipDesk: boolean;
-  onPhotosUnavailable?: (id: string) => void;
-}) {
+}: ListingCardProps & { photoKey: string }) {
   const gallery = useListingPhotos(row.images, row.id);
   const setPhoto = gallery.select;
   const [preview, setPreview] = useState(false);
@@ -78,8 +80,8 @@ function ListingCard({
   };
   const photos = gallery.images;
   useEffect(() => {
-    if (gallery.exhausted) onPhotosUnavailable?.(row.id);
-  }, [gallery.exhausted, onPhotosUnavailable, row.id]);
+    if (gallery.exhausted) onPhotosUnavailable?.(row.id, photoKey);
+  }, [gallery.exhausted, onPhotosUnavailable, photoKey, row.id]);
   const index = gallery.index;
   const photoNavigation = usePhotoNavigation(
     (offset) => setPhoto((index + offset + photos.length) % photos.length),
@@ -164,7 +166,8 @@ function ListingCard({
             <img
               src={proxiedImage(photos[index])}
               alt={row.title}
-              loading="lazy"
+              loading={prioritizePhoto ? "eager" : "lazy"}
+              fetchPriority={prioritizePhoto ? "high" : undefined}
               decoding="async"
               className="h-full w-full object-contain"
               onError={gallery.reject}
