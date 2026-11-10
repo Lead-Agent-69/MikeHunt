@@ -522,6 +522,44 @@ export class LocalScraperCache {
     });
   }
 
+  async hideUnavailableDealerListings(
+    supabase: SupabaseClient,
+    observations: ReadonlyMap<string, string>,
+  ): Promise<number> {
+    return this.exclusive(async () => {
+      this.rollDay();
+      if (this.cacheOnly) return 0;
+      let remaining = Math.max(
+        0,
+        Math.floor(this.maxDailyUpdates * 0.8) - this.state.quota.updates,
+      );
+      let hidden = 0;
+      for (const [sourceDealId, observedAt] of Array.from(observations)) {
+        if (!remaining || (this.beforeWrite && !(await this.beforeWrite())))
+          break;
+        const { data, error } = await supabase
+          .from("deals")
+          .update({ active: false, last_seen_at: observedAt })
+          .eq("source", "independent_dealer")
+          .eq("source_deal_id", sourceDealId)
+          .eq("active", true)
+          .lt("last_seen_at", observedAt)
+          .select("id");
+        if (error)
+          throw new Error(
+            `Dealer availability update failed: ${error.message}`,
+          );
+        if (!data?.length) continue;
+        const entry = this.state.entries[`independent_dealer|${sourceDealId}`];
+        if (entry) entry.synced = false;
+        remaining--;
+        hidden++;
+        this.state.quota.updates++;
+        await this.save();
+      }
+      return hidden;
+    });
+  }
   pendingRecoveryDue(now = Date.now()) {
     return (
       !this.cacheOnly &&
