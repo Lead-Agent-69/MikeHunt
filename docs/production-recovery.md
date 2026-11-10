@@ -67,3 +67,31 @@ production listing cleanup still requires its own explicit permanent-deletion ap
 - [Supabase CLI backup and restore](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
 - Local synthetic rehearsal: `node scripts/test-retention-restore.mjs`
 - Protected deletion regression: `node scripts/test-protected-retention.mjs`
+
+## Listing archive canary
+
+The private archive schema provides a manual 100-row prepare, commit and
+restore path. The existing retention job stays disabled. Its prune function
+is not the archive entry point.
+
+1. Verify the production schema and permissions on an isolated restore. Audit
+   protected references outside foreign keys, including snapshot and VIN-based
+   relationships. Verify that the collector can reconcile a newly observed
+   archived listing without replacing its original ID.
+2. Use `inventory_archive.prepare_canary()` to export the 100 full rows locally.
+   Stop if the count differs. Create a versioned manifest with the batch UUID,
+   original listing IDs, timestamps and payload checksum. Encrypt the rows and
+   manifest using the approved recovery identity's public recipient. Verify the
+   downloaded off-device ciphertext, then rehearse restore from that copy.
+3. For the single production commit, use read committed and set a statement
+   timeout of at most 30 seconds before the call. Pass the verified batch UUID,
+   ciphertext SHA-256 and the original JSON array to
+   `inventory_archive.commit_canary`. A missing row, changed observation,
+   protected reference or timeout must leave the whole batch uncommitted.
+4. Compare protected counts and fingerprints and measure allocated and reusable
+   capacity separately. Use `inventory_archive.restore_listing` with the verified
+   original JSON row to restore its original UUID. An identity conflict stops
+   the restore. Keep the external encrypted batch even after restoring a row.
+
+The SQL only validates the format of the ciphertext checksum. The off-device
+download and restore receipt are required operator checks before commitment.
