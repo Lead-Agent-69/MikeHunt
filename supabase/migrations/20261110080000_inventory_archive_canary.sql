@@ -7,6 +7,9 @@ GRANT USAGE ON SCHEMA inventory_archive TO service_role;
 CREATE TABLE inventory_archive.listings (
   deal_id uuid PRIMARY KEY,
   batch_id uuid NOT NULL,
+  source text NOT NULL,
+  source_deal_id text NOT NULL,
+  UNIQUE (source, source_deal_id),
   payload_sha256 text NOT NULL CHECK (payload_sha256 ~ '^[0-9a-f]{64}$'),
   ciphertext_sha256 text NOT NULL CHECK (ciphertext_sha256 ~ '^[0-9a-f]{64}$'),
   last_seen_at timestamptz NOT NULL,
@@ -53,7 +56,9 @@ SET timezone = 'UTC' SET extra_float_digits = 3 AS $$
   SELECT coalesce(jsonb_agg(to_jsonb(candidate) ORDER BY candidate.last_seen_at, candidate.id), '[]'::jsonb)
   FROM (
     SELECT d.* FROM public.deals d
-    WHERE d.last_seen_at < statement_timestamp() - interval '30 days'
+    WHERE d.source IS NOT NULL AND d.source_deal_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM inventory_archive.listings a WHERE a.deal_id = d.id)
+      AND d.last_seen_at < statement_timestamp() - interval '30 days'
       AND NOT inventory_archive.has_references(d.id)
     ORDER BY d.last_seen_at, d.id LIMIT 100
   ) candidate;
@@ -88,6 +93,10 @@ BEGIN
     RAISE EXCEPTION 'Canary row IDs must be present and distinct';
   END IF;
 
+  -- The insert trigger takes the shared side before any upsert can wait on
+  -- the live unique index. Acquire the exclusive side before locking rows.
+  PERFORM pg_advisory_xact_lock(726513, 1);
+
   -- Serialize writes against the listing and FK-based saves, then recheck the
   -- complete row and all references under a fresh read-committed snapshot.
   FOR listing IN SELECT d.* FROM public.deals d WHERE d.id = ANY(ids) ORDER BY d.id FOR UPDATE LOOP
@@ -100,8 +109,8 @@ BEGIN
        OR inventory_archive.has_references(listing.id) THEN
       RAISE EXCEPTION 'Canary eligibility changed';
     END IF;
-    INSERT INTO inventory_archive.listings (deal_id, batch_id, payload_sha256, ciphertext_sha256, last_seen_at)
-    VALUES (listing.id, p_batch, encode(sha256(convert_to(expected::text, 'UTF8')), 'hex'),
+    INSERT INTO inventory_archive.listings (deal_id, batch_id, source, source_deal_id, payload_sha256, ciphertext_sha256, last_seen_at)
+    VALUES (listing.id, p_batch, listing.source, listing.source_deal_id, encode(sha256(convert_to(expected::text, 'UTF8')), 'hex'),
             p_ciphertext_sha256, listing.last_seen_at);
   END LOOP;
   IF locked_count <> 100 THEN RAISE EXCEPTION 'Canary listing missing'; END IF;
@@ -141,6 +150,26 @@ BEGIN
   RETURN listing_id;
 END;
 $$;
+
+CREATE FUNCTION inventory_archive.reuse_deal_id()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' AS $$
+DECLARE
+  original_id uuid;
+BEGIN
+  IF current_setting('transaction_isolation') <> 'read committed' THEN
+    RAISE EXCEPTION 'Listing insert requires read committed for archive identity lookup';
+  END IF;
+  PERFORM pg_advisory_xact_lock_shared(726513, 1);
+  SELECT a.deal_id INTO original_id FROM inventory_archive.listings a
+  WHERE a.source = NEW.source AND a.source_deal_id = NEW.source_deal_id;
+  IF original_id IS NOT NULL THEN NEW.id := original_id; END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER reuse_archived_deal_id
+BEFORE INSERT ON public.deals
+FOR EACH ROW EXECUTE FUNCTION inventory_archive.reuse_deal_id();
 
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA inventory_archive FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA inventory_archive TO service_role;

@@ -25,6 +25,7 @@ DECLARE
   checksum text := repeat('a',64);
   first_id uuid := (payload->0->>'id')::uuid;
   item jsonb;
+  returned_id uuid;
 BEGIN
   IF jsonb_array_length(payload) <> 100 THEN RAISE EXCEPTION 'Wrong candidate count'; END IF;
   UPDATE public.deals SET last_seen_at = now() WHERE id = first_id;
@@ -68,10 +69,26 @@ BEGIN
   FOR item IN SELECT value FROM jsonb_array_elements(payload) LOOP
     PERFORM inventory_archive.restore_listing(item);
   END LOOP;
+
   IF (SELECT count(*) FROM public.deals) <> 102
      OR (SELECT count(*) FROM inventory_archive.listings) <> 0 THEN
     RAISE EXCEPTION 'Restore lost archive rows';
   END IF;
+  payload := inventory_archive.prepare_canary();
+  PERFORM inventory_archive.commit_canary(gen_random_uuid(), checksum, payload);
+  item := payload->0;
+  INSERT INTO public.deals (source, source_deal_id, last_seen_at, ask_price)
+  VALUES (item->>'source', item->>'source_deal_id', now(), 125)
+  ON CONFLICT (source, source_deal_id) DO UPDATE
+  SET last_seen_at = excluded.last_seen_at, ask_price = excluded.ask_price
+  RETURNING id INTO returned_id;
+  IF returned_id IS DISTINCT FROM (item->>'id')::uuid THEN
+    RAISE EXCEPTION 'Collector upsert replaced an archived identity';
+  END IF;
+  IF (SELECT count(*) FROM public.price_history) <> 1 THEN
+    RAISE EXCEPTION 'Collector upsert changed protected price history';
+  END IF;
+
 END;
 $$;
 RESET ROLE;
