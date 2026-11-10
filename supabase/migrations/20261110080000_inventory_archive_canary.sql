@@ -110,7 +110,7 @@ BEGIN
       RAISE EXCEPTION 'Canary eligibility changed';
     END IF;
     INSERT INTO inventory_archive.listings (deal_id, batch_id, source, source_deal_id, payload_sha256, ciphertext_sha256, last_seen_at)
-    VALUES (listing.id, p_batch, listing.source, listing.source_deal_id, encode(sha256(convert_to(expected::text, 'UTF8')), 'hex'),
+    VALUES (listing.id, p_batch, listing.source::text, listing.source_deal_id, encode(sha256(convert_to(expected::text, 'UTF8')), 'hex'),
             p_ciphertext_sha256, listing.last_seen_at);
   END LOOP;
   IF locked_count <> 100 THEN RAISE EXCEPTION 'Canary listing missing'; END IF;
@@ -161,7 +161,7 @@ BEGIN
   END IF;
   PERFORM pg_advisory_xact_lock_shared(726513, 1);
   SELECT a.deal_id INTO original_id FROM inventory_archive.listings a
-  WHERE a.source = NEW.source AND a.source_deal_id = NEW.source_deal_id;
+  WHERE a.source = NEW.source::text AND a.source_deal_id = NEW.source_deal_id;
   IF original_id IS NOT NULL THEN NEW.id := original_id; END IF;
   RETURN NEW;
 END;

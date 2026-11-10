@@ -1,4 +1,7 @@
 -- Run on a disposable database after the protected retention fixture.
+CREATE TYPE public.fixture_listing_source AS ENUM ('fixture');
+ALTER TABLE public.deals ALTER COLUMN source TYPE public.fixture_listing_source
+  USING source::public.fixture_listing_source;
 CREATE TABLE public.price_history (
   deal_id uuid NOT NULL REFERENCES public.deals(id) ON DELETE CASCADE,
   amount integer NOT NULL
@@ -78,7 +81,7 @@ BEGIN
   PERFORM inventory_archive.commit_canary(gen_random_uuid(), checksum, payload);
   item := payload->0;
   INSERT INTO public.deals (source, source_deal_id, last_seen_at, ask_price)
-  VALUES (item->>'source', item->>'source_deal_id', now(), 125)
+  VALUES ((item->>'source')::public.fixture_listing_source, item->>'source_deal_id', now(), 125)
   ON CONFLICT (source, source_deal_id) DO UPDATE
   SET last_seen_at = excluded.last_seen_at, ask_price = excluded.ask_price
   RETURNING id INTO returned_id;
