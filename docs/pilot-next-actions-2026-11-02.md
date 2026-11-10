@@ -228,3 +228,10 @@ Unique application query keys and Vercel MISS do not prove physically cold datab
 - [ ] Every release: focused regressions → full required gate → exact-head CI → merge → deployment → production proof. Collector releases additionally need matching running-image provenance and retained rollback.
 
 Owner/device acceptance and genuine provider access requirements remain explicit dependencies. They do not stop independent code fixes. No paid services, raised quotas, fabricated coverage/freshness or permanent user-history loss are authorized by this register.
+
+## 2026-11-10 targeted verification
+
+- Desktop Chrome displayed Legacy Motors in live Market. The 2020 Ram 2500 photo preview loaded all 19 distinct images, and Escape dismissed the preview. Three-batch, mobile-emulation, and Saved acceptance were outside this completed check.
+- The existing Pixel 9 Pro emulator booted, but the restored snapshot showed Google Play sign-in and no DealerHunt launcher entry or installed WebAPK. Live hostname connectivity timed out. Signed-in standalone dock and gallery acceptance remains open.
+- Production job `453d7b73-723e-4b26-8916-e5c9d14e41b5` completed the Missouri Legacy Motors scope with 20 photo-eligible and 20 verified persisted observations. Market returned all 20 existing listings. The Ram retained its November 9 first-seen time and advanced its last-seen time to November 10 at 01:02 CST. This proves refresh through Market. The run did not establish a fresh insert.
+- The owner confirmed independent key retrieval. The synthetic restore previously passed. A repeat isolated restore from the actual encrypted artifact and its recorded checksum is still pending. Keep the 100-listing production canary and scheduled archival gated on that restore and the protected archive path.
