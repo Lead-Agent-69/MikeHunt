@@ -35,6 +35,7 @@ import {
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
 import { getLocalWriteContext } from "@/lib/scrapers/local-write-context";
+import { trackScrapeWrite } from "../source-run-context";
 import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
 import { matchesCuratedTarget } from "../curated-targets";
 import {
@@ -2175,9 +2176,9 @@ export async function scrapeDealerCms(
     for (const deal of deals) {
       if (deal.source_deal_id) unavailable.delete(deal.source_deal_id);
     }
-    await writeContext.cache.hideUnavailableDealerListings(
-      writeContext.supabase,
-      unavailable,
+    const { cache, supabase } = writeContext;
+    await trackScrapeWrite((signal) =>
+      cache.hideUnavailableDealerListings(supabase, unavailable, signal),
     );
   }
   return deals.length ? await upsertDeals(deals) : 0;

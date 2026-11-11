@@ -67,7 +67,9 @@ export function publicScopedScrapeSummary(
               row?.source === "curated_dealers" &&
               row?.error === DEALER_ACCESS_BLOCKED
                 ? DEALER_ACCESS_BLOCKED
-                : "This source could not be checked. Try again later or choose another source.",
+                : count(row?.dealsSaved) > 0
+                  ? "Some listings were saved before this source check stopped."
+                  : "This source could not be checked. Try again later or choose another source.",
           }),
     })),
   };

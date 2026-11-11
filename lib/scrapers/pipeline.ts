@@ -2,6 +2,7 @@
 // Persistence helpers for scraped deals.
 
 import { createServerComponentClient } from "@/lib/supabase";
+import { setTimeout as sleep } from "node:timers/promises";
 import { preserveListingPhotos } from "./preserve-listing-photos";
 import { preserveExistingDealerListingIds } from "./dealer-listing-id";
 import { reportedListingPhotos } from "@/lib/search/customer-inventory";
@@ -54,6 +55,7 @@ import {
 import {
   getScrapeSourceId,
   recordScrapePersistence,
+  trackScrapeWrite,
 } from "./source-run-context";
 
 /** Columns added by 20261010210000 (Ren sign pending). Stripped until hosted has them. */
@@ -621,166 +623,180 @@ export async function upsertDeals(deals: Partial<Deal>[]): Promise<number> {
   if (!(await columnsExist(getSupabase() as any, "deals", QUALITY_COLUMNS)))
     rowsToWrite = stripColumns(rows as any[], QUALITY_COLUMNS) as typeof rows;
 
-  const SELECT_COLS =
-    "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at, location_state, condition, damage_type, options";
-  const sb = getSupabase();
-  // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
-  // salvage below still run; this only adds throttle beside them.
-  async function upsertWithBackoff(batch: unknown[]) {
-    let attempt = 0;
-    for (;;) {
-      const res = await sb
-        .from("deals")
-        .upsert(batch as never[], {
-          onConflict: "source,source_deal_id",
-          ignoreDuplicates: false,
-        })
-        .select(SELECT_COLS);
-      const status = (res.error as { status?: number } | null)?.status;
-      if (!res.error || (status !== 429 && (status || 0) < 500) || attempt >= 1)
-        return res;
-      attempt++;
-      console.warn(
-        `[upsertDeals] Supabase throttled (${status}) — pausing 60s before retry`,
-      );
-      await new Promise((r) => setTimeout(r, 60_000));
-    }
-  }
-  const sleep2s = () => new Promise((r) => setTimeout(r, 2000));
-  let upsertedRows: any[] | null = null;
-  let error: { message: string } | null = null;
-  let localPriceChangedKeys: Set<string> | null = null;
-  let renewed = 0;
-  if (localContext) {
-    const result = await localContext.cache.persistRows(
-      rowsToWrite as any[],
-      sb,
-      SELECT_COLS,
-    );
-    upsertedRows = result.rows;
-    localPriceChangedKeys = result.priceChangedKeys;
-    renewed = result.touches;
-    if (result.touches)
-      console.log(
-        `[LocalCache] ${source}: last_seen_at bumped on ${result.touches} unchanged rows`,
-      );
-    if (result.paused)
-      console.warn(
-        "[LocalCache] daily write threshold reached; new source jobs will pause",
-      );
-  } else {
-    const response = await upsertWithBackoff(rowsToWrite);
-    upsertedRows = response.data;
-    error = response.error;
-    if (!error) await sleep2s();
-  }
-
-  // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
-  // below would then drop EVERY row (they all carry it) — that exact bug once killed all ingestion. So
-  // when the error names a missing column, strip it from every row and retry the batch. Loop for several.
-  let healedRows: any[] = rowsToWrite;
-  let heals = 0;
-  while (error && heals < 8) {
-    const col = error.message.match(
-      /Could not find the '([^']+)' column|'([^']+)' column of/i,
-    );
-    const bad = col?.[1] || col?.[2];
-    if (!bad) break;
-    heals++;
-    console.warn(
-      `[upsertDeals] unknown column '${bad}' — stripping it and retrying the batch (heal ${heals})`,
-    );
-    healedRows = healedRows.map((r) => {
-      const c = { ...r };
-      delete c[bad];
-      return c;
-    });
-    const retry = await upsertWithBackoff(healedRows);
-    error = retry.error;
-    upsertedRows = retry.data;
-    if (!error) await sleep2s();
-  }
-
-  if (error) {
-    // A batch fails atomically, so one bad row (e.g. an enum/type violation) would otherwise lose
-    // the whole batch. Fall back to per-row upserts: keep the good rows, skip + log the offenders.
-    console.warn(
-      `[upsertDeals] batch failed (${error.message}); retrying per-row to salvage good rows`,
-    );
-    const salvaged: any[] = [];
-    for (const row of healedRows) {
-      const { data, error: rowErr } = await sb
-        .from("deals")
-        .upsert([row], {
-          onConflict: "source,source_deal_id",
-          ignoreDuplicates: false,
-        })
-        .select(SELECT_COLS);
-      if (rowErr)
+  return trackScrapeWrite(async (signal) => {
+    const SELECT_COLS =
+      "id, source, source_deal_id, ask_price, updated_at, vin, make, model, year, true_net_profit, deal_verdict, lat, lng, active, auction_end_at, location_state, condition, damage_type, options";
+    const sb = getSupabase();
+    // Supabase free-tier guard: 429/5xx → pause 60s once, then retry. Schema-heal / per-row
+    // salvage below still run; this only adds throttle beside them.
+    async function upsertWithBackoff(batch: unknown[]) {
+      let attempt = 0;
+      for (;;) {
+        signal?.throwIfAborted();
+        const res = await sb
+          .from("deals")
+          .upsert(batch as never[], {
+            onConflict: "source,source_deal_id",
+            ignoreDuplicates: false,
+          })
+          .select(SELECT_COLS);
+        const status = (res.error as { status?: number } | null)?.status;
+        if (
+          !res.error ||
+          (status !== 429 && (status || 0) < 500) ||
+          attempt >= 1
+        )
+          return res;
+        attempt++;
         console.warn(
-          `[upsertDeals] skipped ${row.source}/${row.source_deal_id}: ${rowErr.message}`,
+          `[upsertDeals] Supabase throttled (${status}) — pausing 60s before retry`,
         );
-      else if (data) salvaged.push(...data);
+        await sleep(60_000, undefined, { signal });
+      }
     }
-    upsertedRows = salvaged;
-    error = null;
-  }
+    const sleep2s = () => new Promise((r) => setTimeout(r, 2000));
+    let upsertedRows: any[] | null = null;
+    let error: { message: string } | null = null;
+    let localPriceChangedKeys: Set<string> | null = null;
+    let localWriteError: Error | undefined;
+    let renewed = 0;
+    if (localContext) {
+      const result = await localContext.cache.persistRows(
+        rowsToWrite as any[],
+        sb,
+        SELECT_COLS,
+        { signal },
+      );
+      upsertedRows = result.rows;
+      localPriceChangedKeys = result.priceChangedKeys;
+      localWriteError = result.writeError;
+      renewed = result.touches;
+      if (result.touches)
+        console.log(
+          `[LocalCache] ${source}: last_seen_at bumped on ${result.touches} unchanged rows`,
+        );
+      if (result.paused)
+        console.warn(
+          "[LocalCache] daily write threshold reached; new source jobs will pause",
+        );
+    } else {
+      const response = await upsertWithBackoff(rowsToWrite);
+      upsertedRows = response.data;
+      error = response.error;
+      if (!error) await sleep2s();
+    }
 
-  const returnedRows = upsertedRows || [];
+    // Self-heal a schema mismatch: a non-existent column rejects the WHOLE batch, and the per-row retry
+    // below would then drop EVERY row (they all carry it) — that exact bug once killed all ingestion. So
+    // when the error names a missing column, strip it from every row and retry the batch. Loop for several.
+    let healedRows: any[] = rowsToWrite;
+    let heals = 0;
+    while (error && !signal?.aborted && heals < 8) {
+      const col = error.message.match(
+        /Could not find the '([^']+)' column|'([^']+)' column of/i,
+      );
+      const bad = col?.[1] || col?.[2];
+      if (!bad) break;
+      heals++;
+      console.warn(
+        `[upsertDeals] unknown column '${bad}' — stripping it and retrying the batch (heal ${heals})`,
+      );
+      healedRows = healedRows.map((r) => {
+        const c = { ...r };
+        delete c[bad];
+        return c;
+      });
+      const retry = await upsertWithBackoff(healedRows);
+      error = retry.error;
+      upsertedRows = retry.data;
+      if (!error) await sleep2s();
+    }
 
-  logPipelineOutcome(sourceAdapterId, source, {
-    input: deals.length,
-    normalized: candidates.length,
-    scoped: scopedDeals.length,
-    qualityAccepted: report.validDeals.length,
-    vehicleAccepted: inScopeDeals.length,
-    fieldAccepted,
-    photoAccepted,
-    persisted: returnedRows.length,
-    renewed,
+    if (error && !signal?.aborted) {
+      // A batch fails atomically, so one bad row (e.g. an enum/type violation) would otherwise lose
+      // the whole batch. Fall back to per-row upserts: keep the good rows, skip + log the offenders.
+      console.warn(
+        `[upsertDeals] batch failed (${error.message}); retrying per-row to salvage good rows`,
+      );
+      const salvaged: any[] = [];
+      for (const row of healedRows) {
+        if (signal?.aborted) break;
+        const { data, error: rowErr } = await sb
+          .from("deals")
+          .upsert([row], {
+            onConflict: "source,source_deal_id",
+            ignoreDuplicates: false,
+          })
+          .select(SELECT_COLS);
+        if (rowErr)
+          console.warn(
+            `[upsertDeals] skipped ${row.source}/${row.source_deal_id}: ${rowErr.message}`,
+          );
+        else if (data) salvaged.push(...data);
+      }
+      upsertedRows = salvaged;
+      error = null;
+    }
+
+    const returnedRows = upsertedRows || [];
+
+    logPipelineOutcome(sourceAdapterId, source, {
+      input: deals.length,
+      normalized: candidates.length,
+      scoped: scopedDeals.length,
+      qualityAccepted: report.validDeals.length,
+      vehicleAccepted: inScopeDeals.length,
+      fieldAccepted,
+      photoAccepted,
+      persisted: returnedRows.length,
+      renewed,
+    });
+
+    // Insert price history for deals that have a price
+    const priceHistoryRows = returnedRows
+      .filter(
+        (r) =>
+          !localPriceChangedKeys ||
+          localPriceChangedKeys.has(`${r.source}|${r.source_deal_id}`),
+      )
+      .filter((r) => typeof r.ask_price === "number")
+      .map((r) => ({
+        deal_id: r.id,
+        price: r.ask_price,
+        observed_at: r.updated_at,
+      }));
+
+    if (priceHistoryRows.length > 0) {
+      const { error: priceError } = await getSupabase()
+        .from("price_history")
+        .insert(priceHistoryRows);
+
+      if (priceError) {
+        console.warn("[upsertDeals] Price history insert warning:", priceError);
+      }
+    }
+
+    if (localWriteError) throw localWriteError;
+    if (signal?.aborted) return returnedRows.length;
+
+    // Mark duplicate deals by VIN
+    const vinRows = returnedRows.filter((r) => r.vin);
+    if (vinRows.length > 0) {
+      await markDuplicatesByVin(vinRows.map((r) => r.vin as string));
+    }
+
+    // Evaluate against user_saved_searches
+    const liveRows = returnedRows.filter(
+      (row) => row.active !== false && isWithinAuctionWindow(row),
+    );
+    if (liveRows.length > 0 && !signal?.aborted) {
+      await matchUserSearches(liveRows);
+    }
+
+    // Report rows actually accepted by the persistence layer. This keeps run receipts honest when
+    // database recovery skips a malformed row or an upsert returns fewer records than attempted.
+    return returnedRows.length;
   });
-
-  // Insert price history for deals that have a price
-  const priceHistoryRows = returnedRows
-    .filter(
-      (r) =>
-        !localPriceChangedKeys ||
-        localPriceChangedKeys.has(`${r.source}|${r.source_deal_id}`),
-    )
-    .filter((r) => typeof r.ask_price === "number")
-    .map((r) => ({
-      deal_id: r.id,
-      price: r.ask_price,
-      observed_at: r.updated_at,
-    }));
-
-  if (priceHistoryRows.length > 0) {
-    const { error: priceError } = await getSupabase()
-      .from("price_history")
-      .insert(priceHistoryRows);
-
-    if (priceError) {
-      console.warn("[upsertDeals] Price history insert warning:", priceError);
-    }
-  }
-
-  // Mark duplicate deals by VIN
-  const vinRows = returnedRows.filter((r) => r.vin);
-  if (vinRows.length > 0) {
-    await markDuplicatesByVin(vinRows.map((r) => r.vin as string));
-  }
-
-  // Evaluate against user_saved_searches
-  const liveRows = returnedRows.filter(
-    (row) => row.active !== false && isWithinAuctionWindow(row),
-  );
-  if (liveRows.length > 0) {
-    await matchUserSearches(liveRows);
-  }
-
-  // Report rows actually accepted by the persistence layer. This keeps run receipts honest when
-  // database recovery skips a malformed row or an upsert returns fewer records than attempted.
-  return returnedRows.length;
 }
 
 async function markDuplicatesByVin(vins: string[]): Promise<void> {

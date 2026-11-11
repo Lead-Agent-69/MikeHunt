@@ -17,6 +17,12 @@ interface ScrapeRunContext {
   sourceId: string;
   persistence: ScrapePersistenceReceipt;
   onPersistence?: (receipt: ScrapePersistenceReceipt) => void;
+  writeGate?: ScrapeWriteGate;
+}
+
+export interface ScrapeWriteGate {
+  signal: AbortSignal;
+  pending: Set<Promise<unknown>>;
 }
 
 const storage = new AsyncLocalStorage<ScrapeRunContext>();
@@ -45,12 +51,29 @@ export function withScrapeRunReceipt<T>(
   sourceId: string,
   run: () => Promise<T>,
   onPersistence?: (receipt: ScrapePersistenceReceipt) => void,
+  writeGate?: ScrapeWriteGate,
 ): Promise<{ result: T; receipt: ScrapePersistenceReceipt }> {
-  const context = createContext(sourceId, onPersistence);
+  const context = { ...createContext(sourceId, onPersistence), writeGate };
   return storage.run(context, async () => {
     const result = await run();
     return { result, receipt: { ...context.persistence } };
   });
+}
+
+/** Track persistence independently of an adapter that may ignore cancellation. */
+export async function trackScrapeWrite<T>(
+  write: (signal?: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const gate = storage.getStore()?.writeGate;
+  if (!gate) return write();
+  gate.signal.throwIfAborted();
+  const pending = write(gate.signal);
+  gate.pending.add(pending);
+  try {
+    return await pending;
+  } finally {
+    gate.pending.delete(pending);
+  }
 }
 
 /** Record discovered and stored rows without coupling individual adapters to executor accounting. */

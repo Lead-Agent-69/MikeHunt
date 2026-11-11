@@ -12,8 +12,11 @@ import {
 } from "./circuit-breaker";
 import {
   type ScrapePersistenceReceipt,
+  type ScrapeWriteGate,
   withScrapeRunReceipt,
 } from "../source-run-context";
+
+const WRITE_SETTLEMENT_TIMEOUT_MS = 45_000;
 
 export interface ExecutorOptions {
   maxRetries?: number;
@@ -102,13 +105,7 @@ export class ScraperExecutor {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       if (abortSignal?.aborted) {
-        return {
-          success: false,
-          dealsFound: 0,
-          dealsSaved: 0,
-          durationMs: Date.now() - start,
-          error: "Aborted by user",
-        };
+        break;
       }
 
       try {
@@ -167,7 +164,7 @@ export class ScraperExecutor {
       guard.snapshot().remainingDeals,
     );
     guard.trackDeals(foundBeforeFailure);
-    breaker.recordFailure(scraper.id);
+    if (!abortSignal?.aborted) breaker.recordFailure(scraper.id);
     return {
       success: false,
       dealsFound: foundBeforeFailure,
@@ -178,9 +175,11 @@ export class ScraperExecutor {
         ? { intake: partialReceipt.intake }
         : {}),
       durationMs,
-      error: abortSignal?.aborted
-        ? "Aborted by user"
-        : lastError?.message || "Unknown error",
+      error:
+        abortSignal?.aborted &&
+        !lastError?.message.includes("database write remains unconfirmed")
+          ? "Aborted by user"
+          : lastError?.message || "Unknown error",
     };
   }
 
@@ -194,6 +193,10 @@ export class ScraperExecutor {
     receipt: ScrapePersistenceReceipt;
   }> {
     const controller = new AbortController();
+    const gate: ScrapeWriteGate = {
+      signal: controller.signal,
+      pending: new Set(),
+    };
     let timeoutId: ReturnType<typeof setTimeout>;
     let onAbort: () => void;
     const stopped = new Promise<never>((_, reject) => {
@@ -212,7 +215,7 @@ export class ScraperExecutor {
       if (abortSignal?.aborted) onAbort();
     });
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         stopped,
         Promise.resolve().then(() => {
           controller.signal.throwIfAborted();
@@ -225,9 +228,35 @@ export class ScraperExecutor {
                 deadlineAt: Date.now() + timeoutMs,
               }),
             onPersistence,
+            gate,
           );
         }),
       ]);
+      controller.signal.throwIfAborted();
+      return result;
+    } catch (error) {
+      if (controller.signal.aborted && gate.pending.size) {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          const settled = await Promise.race([
+            Promise.allSettled(gate.pending).then(() => true),
+            new Promise<boolean>((resolve) => {
+              timer = setTimeout(
+                () => resolve(false),
+                WRITE_SETTLEMENT_TIMEOUT_MS,
+              );
+            }),
+          ]);
+          if (!settled) {
+            throw new Error(
+              `${(error as Error).message}. A database write remains unconfirmed.`,
+            );
+          }
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+      throw error;
     } finally {
       clearTimeout(timeoutId!);
       abortSignal?.removeEventListener("abort", onAbort!);

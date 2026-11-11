@@ -5,9 +5,60 @@ import { CircuitBreakerRegistry } from "./circuit-breaker";
 import {
   getScrapeSourceId,
   recordScrapePersistence,
+  trackScrapeWrite,
 } from "../source-run-context";
 
 describe("ScraperExecutor", () => {
+  it("waits for in-flight writes and reports their confirmed rows after timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      let finishWrite!: () => void;
+      const finished = new Promise<void>((resolve) => {
+        finishWrite = resolve;
+      });
+      const lateWrite = vi.fn(async () => 1);
+      const scraper = new ScraperRegistry().register({
+        id: "settling",
+        name: "Settling",
+        type: "dealer",
+        priority: "medium",
+        frequencyMinutes: 60,
+        requiresAuth: false,
+        stealthRequired: false,
+        enabled: true,
+        estimatedDealsPerRun: 10,
+        fn: async () => {
+          await trackScrapeWrite(async () => {
+            await finished;
+            recordScrapePersistence(10, 4);
+          });
+          await trackScrapeWrite(lateWrite);
+          return 10;
+        },
+      });
+      const resolved = vi.fn();
+      const task = new ScraperExecutor()
+        .execute(scraper, { timeoutMs: 20 })
+        .then((result) => {
+          resolved();
+          return result;
+        });
+      await vi.advanceTimersByTimeAsync(20);
+      expect(resolved).not.toHaveBeenCalled();
+      finishWrite();
+      expect(await task).toMatchObject({
+        success: false,
+        dealsFound: 10,
+        dealsSaved: 4,
+        persistenceVerified: true,
+        error: expect.stringContaining("timed out"),
+      });
+      expect(lateWrite).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("aborts timed-out work without starting overlapping retries", async () => {
     const scraper = new ScraperRegistry().register({
       id: "timeout",

@@ -1104,7 +1104,9 @@ async function runQueuedJobLoop(mode: ScraperExecutionMode): Promise<void> {
           status: succeeded ? "completed" : "failed",
           error_message: succeeded
             ? null
-            : "None of the selected sources could be checked. Please retry or choose another source.",
+            : summary.totalSaved > 0
+              ? "Some listings were saved before the search stopped. You can retry for the rest."
+              : "None of the selected sources could be checked. Please retry or choose another source.",
           listings_found: summary.totalDeals,
           listings_saved: summary.totalSaved,
           // Ban-risk metrics (403/429 per domain, paused domains) ride along for /status.

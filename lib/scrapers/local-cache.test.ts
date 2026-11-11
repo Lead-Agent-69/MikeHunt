@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { createStorageBudgetChecker } from "./storage-budget";
 import { withSweepPlan } from "./sweep-plan";
-import { withScrapeRunScope } from "./run-scope-context";
+import { getScrapeRunScope, withScrapeRunScope } from "./run-scope-context";
 import {
   DEFAULT_MAX_DAILY_INSERTS,
   LocalScraperCache,
@@ -329,6 +329,58 @@ const row = (id: string, ask_price = 10000) => ({
 });
 
 describe("LocalScraperCache", () => {
+  it("keeps confirmed writes and buffers later batches when cancellation arrives mid-write", async () => {
+    const { cache, dir } = await makeCache({ batchSize: 1 });
+    const controller = new AbortController();
+    const db = fakeSupabase([], { beforeUpsert: () => controller.abort() });
+    const result = await cache.persistRows(
+      [row("confirmed"), row("deferred")],
+      db.client,
+      "*",
+      { signal: controller.signal },
+    );
+    expect(result).toMatchObject({ saved: 1, inserts: 1, skipped: 1 });
+    expect(db.writes).toHaveLength(1);
+    const disk = JSON.parse(
+      await readFile(path.join(dir, "local-scraper-cache.json"), "utf8"),
+    );
+    expect(disk.entries["test|confirmed"].synced).toBe(true);
+    expect(disk.entries["test|deferred"].synced).toBe(false);
+  });
+
+  it("returns confirmed rows and the error when a later batch fails", async () => {
+    const { cache } = await makeCache({ batchSize: 1 });
+    const db = fakeSupabase();
+    const client = {
+      from: () => {
+        const table = db.client.from();
+        return {
+          ...table,
+          upsert: (batch: Record<string, unknown>[]) =>
+            batch[0].source_deal_id === "deferred"
+              ? {
+                  select: async () => ({
+                    data: null,
+                    error: { message: "statement timeout" },
+                  }),
+                }
+              : table.upsert(batch),
+        };
+      },
+    } as typeof db.client;
+    const result = await cache.persistRows(
+      [row("confirmed"), row("deferred")],
+      client,
+      "*",
+    );
+    expect(result.saved).toBe(1);
+    expect(result.rows.map((entry) => entry.source_deal_id)).toEqual([
+      "confirmed",
+    ]);
+    expect(result.writeError?.message).toContain("statement timeout");
+    expect(cache.getQuota().inserts).toBe(1);
+  });
+
   it("persists hourly pending-intake claims before work, including after restart or failure", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-27T10:00:00Z"));
@@ -439,6 +491,28 @@ describe("LocalScraperCache", () => {
     await offline.persistRows([pendingDealer("offline")], db.client, "*");
     expect(await offline.publishPendingDealers(db.client, ["IL"])).toBe(0);
     expect(db.reads).toHaveLength(reads);
+  });
+
+  it("uses the dealer reserve for automatic recovery without widening its market", async () => {
+    const { cache, dir } = await makeCache({ cacheOnly: true });
+    const db = fakeSupabase();
+    const match = pendingDealer("market");
+    await cache.persistRows(
+      [match, { ...pendingDealer("away"), location_state: "CA" }],
+      db.client,
+      "*",
+    );
+    const worker = new LocalScraperCache({
+      path: dir,
+      insertCapacity: async () => (getScrapeRunScope()?.dealerIntake ? 1 : 0),
+    });
+    await worker.load();
+    expect(await worker.publishPendingDealers(db.client, ["IL"])).toBe(1);
+    expect(db.writes.flat().map((entry) => entry.source_deal_id)).toEqual([
+      match.source_deal_id,
+    ]);
+    expect(db.writes[0][0].last_seen_at).toBe(match.last_seen_at);
+    expect(getScrapeRunScope()).toBeUndefined();
   });
   it("keeps storage and paused-write protections during pending recovery", async () => {
     for (const guards of [
