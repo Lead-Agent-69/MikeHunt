@@ -4,7 +4,7 @@ import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { US_STATES } from "@/lib/geo/us-states";
 import { getSweepPlan } from "./sweep-plan";
-import { getScrapeRunScope } from "./run-scope-context";
+import { getScrapeRunScope, withScrapeRunScope } from "./run-scope-context";
 import { writeCapacity } from "./write-capacity";
 import { maintainListingPhotos } from "./photo-maintenance";
 import { pendingDealerIntake } from "./pending-dealer-intake";
@@ -59,6 +59,7 @@ export interface PersistResult {
   touches: number;
   priceChangedKeys: Set<string>;
   paused: boolean;
+  writeError?: Error;
 }
 
 /**
@@ -525,6 +526,7 @@ export class LocalScraperCache {
   async hideUnavailableDealerListings(
     supabase: SupabaseClient,
     observations: ReadonlyMap<string, string>,
+    signal?: AbortSignal,
   ): Promise<number> {
     return this.exclusive(async () => {
       this.rollDay();
@@ -535,7 +537,12 @@ export class LocalScraperCache {
       );
       let hidden = 0;
       for (const [sourceDealId, observedAt] of Array.from(observations)) {
-        if (!remaining || (this.beforeWrite && !(await this.beforeWrite())))
+        if (
+          !remaining ||
+          signal?.aborted ||
+          (this.beforeWrite && !(await this.beforeWrite())) ||
+          signal?.aborted
+        )
           break;
         const { data, error } = await supabase
           .from("deals")
@@ -592,11 +599,14 @@ export class LocalScraperCache {
       Math.min(25, capacity.insertsRemaining),
     );
     if (!rows.length) return 0;
-    const result = await this.persistRows(
-      rows,
-      supabase,
-      "source,source_deal_id",
-      { insertOnly: true },
+    // This path already filters recent dealer observations against the actual
+    // buyer markets. Admit it through the dealer reserve just like a targeted job.
+    const result = await withScrapeRunScope(
+      { ...getScrapeRunScope(), dealerIntake: true },
+      () =>
+        this.persistRows(rows, supabase, "source,source_deal_id", {
+          insertOnly: true,
+        }),
     );
     return result.inserts;
   }
@@ -605,9 +615,10 @@ export class LocalScraperCache {
     inputRows: Record<string, any>[],
     supabase: SupabaseClient,
     selectColumns: string,
-    options: { insertOnly?: boolean } = {},
+    options: { insertOnly?: boolean; signal?: AbortSignal } = {},
   ): Promise<PersistResult> {
     return this.exclusive(async () => {
+      options.signal?.throwIfAborted();
       this.rollDay();
       const rows: Record<string, any>[] = inputRows.map((row) => {
         const observation: Record<string, any> = {
@@ -668,7 +679,13 @@ export class LocalScraperCache {
       }
 
       if (!candidates.length) {
-        const touches = await this.touchRows(toTouch, supabase, rows);
+        const touches = await this.touchRows(
+          toTouch,
+          supabase,
+          rows,
+          undefined,
+          options.signal,
+        );
         await this.save();
         return {
           rows: [],
@@ -850,8 +867,14 @@ export class LocalScraperCache {
       let updates = 0;
       const priceChangedKeys = new Set<string>();
       const returnedRows: Record<string, any>[] = [];
+      let writeError: Error | undefined;
       for (let offset = 0; offset < accepted.length; offset += this.batchSize) {
-        if (this.beforeWrite && !(await this.beforeWrite())) break;
+        if (
+          options.signal?.aborted ||
+          (this.beforeWrite && !(await this.beforeWrite())) ||
+          options.signal?.aborted
+        )
+          break;
         const batch = accepted.slice(offset, offset + this.batchSize);
         const { data, error } = await supabase
           .from("deals")
@@ -864,7 +887,11 @@ export class LocalScraperCache {
             },
           )
           .select(selectColumns);
-        if (error) throw new Error(`Local deal batch failed: ${error.message}`);
+        if (error) {
+          writeError = new Error(`Local deal batch failed: ${error.message}`);
+          if (!saved || options.insertOnly) throw writeError;
+          break;
+        }
         const returned = (data || []) as Record<string, any>[];
         const byKey = new Map(
           batch.map((item) => [
@@ -899,7 +926,10 @@ export class LocalScraperCache {
         this.state.quota.inserts += batchInserts;
         this.state.quota.updates += batchUpdates;
         await this.save();
-        if (offset + this.batchSize < accepted.length)
+        if (
+          !options.signal?.aborted &&
+          offset + this.batchSize < accepted.length
+        )
           await new Promise((resolve) => setTimeout(resolve, 1000));
       }
 
@@ -908,6 +938,7 @@ export class LocalScraperCache {
         supabase,
         rows,
         observationGuards,
+        options.signal,
       );
 
       await this.save();
@@ -923,6 +954,7 @@ export class LocalScraperCache {
         touches,
         priceChangedKeys,
         paused,
+        ...(writeError ? { writeError } : {}),
       };
     });
   }
@@ -936,6 +968,7 @@ export class LocalScraperCache {
     supabase: SupabaseClient,
     observations = rows,
     guards = new Map<string, ObservationGuard>(),
+    signal?: AbortSignal,
   ): Promise<number> {
     if (!rows.length || this.cacheOnly) return 0;
     let available = Math.max(
@@ -961,8 +994,9 @@ export class LocalScraperCache {
     }
     for (const { source, ids, guard } of Array.from(bySource.values())) {
       for (const batch of listingIdBatches(ids)) {
-        if (available <= 0) return touched;
+        if (available <= 0 || signal?.aborted) return touched;
         if (this.beforeWrite && !(await this.beforeWrite())) return touched;
+        if (signal?.aborted) return touched;
         const chunk = batch.slice(0, available);
         const seenAt = guard?.observedAt || new Date().toISOString();
         let confirmed: number | undefined;
