@@ -108,7 +108,7 @@ function expiryClient(
 ) {
   const calls: unknown[][] = [];
   const query: any = {};
-  for (const method of ["eq", "lte", "order", "in"])
+  for (const method of ["eq", "lt", "lte", "order", "in"])
     query[method] = (...args: unknown[]) => {
       calls.push([method, ...args]);
       return query;
@@ -1489,4 +1489,32 @@ describe("LocalScraperCache", () => {
     expect(cache.getQuota().maxInserts).toBe(DEFAULT_MAX_DAILY_INSERTS);
     expect(DEFAULT_MAX_DAILY_INSERTS).toBe(1250);
   });
+});
+
+it("hides only the older matching dealer listing and charges confirmed changes", async () => {
+  const { cache } = await makeCache({ maxDailyUpdates: 10 });
+  const { client, calls } = expiryClient({ changed: 1 });
+  const id = "legacy-motors-joplin-1HGCM82633A004352";
+  const observedAt = "2026-11-10T08:00:00.000Z";
+  expect(
+    await cache.hideUnavailableDealerListings(
+      client,
+      new Map([[id, observedAt]]),
+    ),
+  ).toBe(1);
+  expect(calls).toEqual([
+    ["update", { active: false, last_seen_at: observedAt }],
+    ["eq", "source", "independent_dealer"],
+    ["eq", "source_deal_id", id],
+    ["eq", "active", true],
+    ["lt", "last_seen_at", observedAt],
+  ]);
+  const newer = expiryClient({ changed: 0 });
+  expect(
+    await cache.hideUnavailableDealerListings(
+      newer.client,
+      new Map([[id, observedAt]]),
+    ),
+  ).toBe(0);
+  expect(cache.getQuota().updates).toBe(1);
 });

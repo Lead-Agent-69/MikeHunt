@@ -974,6 +974,7 @@ export interface DealerCmsDeps {
   }>;
   load: (html: string) => CheerioAPI;
   log?: (msg: string) => void;
+  onUnavailable?: (sourceDealId: string, observedAt: string) => void;
 }
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
@@ -1313,7 +1314,21 @@ async function crawlLegacyJoplin(site: DealerCmsSite, deps: DealerCmsDeps) {
     )
       throw new Error(`${site.name} incomplete inventory pagination`);
     for (const row of payload.data) {
-      if (row?.status !== "available") continue;
+      if (row?.status !== "available") {
+        if (
+          (row?.status === "sold" || row?.status === "removed") &&
+          row.vin &&
+          isValidVin(row.vin) &&
+          result.observedAt &&
+          Number.isFinite(Date.parse(result.observedAt))
+        ) {
+          deps.onUnavailable?.(
+            `${site.sourceId}-${normalizeVin(row.vin)}`,
+            result.observedAt,
+          );
+        }
+        continue;
+      }
       const { stock_number: stock, vin, year, make, model, title } = row;
       if (
         !stock ||

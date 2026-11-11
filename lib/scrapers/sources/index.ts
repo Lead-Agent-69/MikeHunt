@@ -34,6 +34,7 @@ import {
   SITE_TYPE_DEFAULTS,
 } from "@/lib/scrapers/curated-sites";
 import { getScrapeRunScope } from "@/lib/scrapers/run-scope-context";
+import { getLocalWriteContext } from "@/lib/scrapers/local-write-context";
 import { buyerListingSearchText } from "@/lib/scrapers/buyer-scope";
 import { matchesCuratedTarget } from "../curated-targets";
 import {
@@ -2084,6 +2085,7 @@ export async function scrapeDealerCms(
 ) {
   execution?.abortSignal?.throwIfAborted();
   const cheerio = await import("cheerio");
+  const unavailable = new Map<string, string>();
   const deals = await crawlDealerCms(site, {
     fetchHtml: (url) => {
       execution?.abortSignal?.throwIfAborted();
@@ -2091,6 +2093,11 @@ export async function scrapeDealerCms(
         freshForMs: 30 * 60_000,
         ...(execution?.abortSignal ? { signal: execution.abortSignal } : {}),
       });
+    },
+    onUnavailable: (id, observedAt) => {
+      const previous = unavailable.get(id);
+      if (!previous || Date.parse(observedAt) > Date.parse(previous))
+        unavailable.set(id, observedAt);
     },
     load: (html) => cheerio.load(html),
     log: (msg) => console.log(msg),
@@ -2162,6 +2169,17 @@ export async function scrapeDealerCms(
   execution?.abortSignal?.throwIfAborted();
   if (Date.now() >= (execution?.deadlineAt ?? Infinity))
     throw new Error("Dealer crawl deadline elapsed before persistence");
+  const writeContext = getLocalWriteContext();
+  if (writeContext?.supabase && !writeContext.cacheOnly && unavailable.size) {
+    // Contradictory statuses from the same crawl leave the listing unchanged.
+    for (const deal of deals) {
+      if (deal.source_deal_id) unavailable.delete(deal.source_deal_id);
+    }
+    await writeContext.cache.hideUnavailableDealerListings(
+      writeContext.supabase,
+      unavailable,
+    );
+  }
   return deals.length ? await upsertDeals(deals) : 0;
 }
 

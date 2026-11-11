@@ -186,3 +186,31 @@ describe("bounded source expansion", () => {
     }
   });
 });
+
+it("reports only explicit, dated Legacy Motors unavailability for a valid VIN", async () => {
+  const legacy = dealerCmsSiteFor("https://legacymotorsjoplin.com")!;
+  const observedAt = "2026-11-10T08:00:00.000Z";
+  const onUnavailable = vi.fn();
+  const deals = await crawlDealerCms(legacy, {
+    load,
+    onUnavailable,
+    fetchHtml: async () => ({
+      ok: true,
+      status: 200,
+      observedAt,
+      body: JSON.stringify({
+        data: [
+          { vin: "1HGCM82633A004352", status: "sold" },
+          { vin: "1HGCM82633A004352", status: "pending" },
+          { vin: "invalid", status: "removed" },
+        ],
+        meta: { current_page: 1, last_page: 1 },
+      }),
+    }),
+  });
+  expect(deals).toEqual([]);
+  expect(onUnavailable).toHaveBeenCalledExactlyOnceWith(
+    "legacy-motors-joplin-1HGCM82633A004352",
+    observedAt,
+  );
+});
