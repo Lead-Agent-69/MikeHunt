@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { matchesCuratedTarget } from "./curated-targets";
 import { planScrapeForBuyerScope } from "./buyer-scope";
 import { vendorIdentity } from "../sources/vendor-identity";
+import { CURATED_SITES } from "./curated-sites";
+import { DEALER_CMS_SITES } from "./platforms/dealer-cms";
 
 describe("explicit dealer collection targets", () => {
   const drive = { url: "https://www.drivenation.com" };
@@ -48,4 +50,21 @@ describe("explicit dealer collection targets", () => {
     ).toBe(false);
     expect(matchesCuratedTarget(drive, [], [])).toBe(true);
   });
+  it.each(DEALER_CMS_SITES)(
+    "can target $sourceId by adapter ID without widening the crawl",
+    ({ sourceId, baseUrl }) => {
+      const expected = new URL(baseUrl).hostname.replace(/^www\./, "");
+      const matches = CURATED_SITES.filter((site) =>
+        matchesCuratedTarget(site, [sourceId]),
+      );
+      expect(
+        matches.map((site) => new URL(site.url).hostname.replace(/^www\./, "")),
+      ).toEqual([expected]);
+      expect(
+        matchesCuratedTarget({ url: `https://${expected}.invalid` }, [
+          sourceId,
+        ]),
+      ).toBe(false);
+    },
+  );
 });
