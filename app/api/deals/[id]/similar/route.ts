@@ -10,7 +10,10 @@ import {
   resolveCallerFlipDesk,
 } from "@/lib/deals/deal-desk-access";
 import { fetchSemanticSimilar } from "@/lib/deals/similar-deals";
-import { similarSegment } from "@/lib/deals/similar-prefilters";
+import {
+  SIMILAR_MIN_RESULTS,
+  similarSegment,
+} from "@/lib/deals/similar-prefilters";
 import { rateLimit, tooManyRequests } from "@/lib/rate-limit";
 import { titleSourceOf } from "@/lib/deals/title-category";
 import {
@@ -21,11 +24,40 @@ import {
 // Output depends on the caller's desk (profit redaction) — never cache it in a shared layer.
 const NO_STORE = { "Cache-Control": "private, no-store" };
 const json = (body: unknown) => NextResponse.json(body, { headers: NO_STORE });
+const INVENTORY_TIMEOUT_MS = 3_000;
+const SEMANTIC_TIMEOUT_MS = 1_500;
 
-// GET /api/deals/[id]/similar — semantically-similar deals via pgvector, hard-prefiltered to the
-// same segment / price band / year window first (similar_deals_by_id_filtered; legacy RPC +
-// in-memory gate until that migration is applied). Falls back to attribute-based matches under the
-// same filters when embeddings aren't populated yet.
+/** Bound the response even if an upstream client does not settle promptly on abort. */
+async function lookupWithin<T>(
+  requestSignal: AbortSignal,
+  timeoutMs: number,
+  run: (signal: AbortSignal) => PromiseLike<T>,
+): Promise<T | null> {
+  if (requestSignal.aborted) return null;
+  const controller = new AbortController();
+  const signal = AbortSignal.any([requestSignal, controller.signal]);
+  let onAbort!: () => void;
+  const expired = new Promise<null>((resolve) => {
+    onAbort = () => resolve(null);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await Promise.race([expired, run(signal)]);
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+const unavailable = () =>
+  NextResponse.json(
+    { error: "Alternatives couldn't be loaded." },
+    { status: 503, headers: NO_STORE },
+  );
+
 function mapRow(d: any) {
   return {
     id: d.id,
@@ -55,7 +87,6 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  // Fans out to up to 4 pgvector RPCs per call.
   const rl = rateLimit(req, {
     key: "deal-similar",
     limit: 30,
@@ -69,46 +100,28 @@ export async function GET(
   const { id } = await params;
   const supabase = createServerComponentClient();
   // Net profit and profit score only go to a saved reseller / dealer desk (fail closed).
-  const flipDesk = await resolveCallerFlipDesk();
-  const shape = (d: any) => {
-    const card = mapRow(d);
-    return flipDesk ? card : redactListingForNonFlipDesk(card);
-  };
+  const desk = lookupWithin(
+    req.signal,
+    INVENTORY_TIMEOUT_MS,
+    resolveCallerFlipDesk,
+  );
 
   const columns = `id,year,make,model,trim,deal_verdict,true_net_profit,sell_estimate,profit_score,location_state,location_city,images,active,vin,title_source:options->>titleSource,${SOURCE_PRICE_FIELDS}`;
-  const { data: base, error: baseError } = await supabase
-    .from("deals")
-    .select(columns)
-    .eq("id", id)
-    .maybeSingle();
-  if (baseError)
-    return NextResponse.json(
-      { error: "Alternatives couldn't be loaded." },
-      { status: 503, headers: NO_STORE },
-    );
+  const reference = await lookupWithin(
+    req.signal,
+    INVENTORY_TIMEOUT_MS,
+    (signal) =>
+      supabase
+        .from("deals")
+        .select(columns)
+        .eq("id", id)
+        .abortSignal(signal)
+        .maybeSingle(),
+  );
+  if (!reference || reference.error) return unavailable();
+  const base = reference.data;
   if (!base?.make || !base?.model) return json({ similar: [], basis: "none" });
-  const segment = similarSegment(base);
-  let semanticRows: any[] = [];
-  // Re-read semantic suggestions: the RPC alone does not prove current availability.
-  try {
-    const semantic = await fetchSemanticSimilar(supabase, id, base);
-    if (semantic?.rows.length) {
-      const hydrated = await applyBuyableInventory(
-        supabase
-          .from("deals")
-          .select(columns)
-          .in(
-            "id",
-            semantic.rows.map((row: any) => row.id),
-          ),
-      );
-      if (!hydrated.error) semanticRows = hydrated.data || [];
-    }
-  } catch {
-    // fall through to attribute-based
-  }
 
-  // Include an attribute pool so vector coverage cannot hide a closer-priced match.
   let q = applyBuyableInventory(supabase.from("deals").select(columns))
     .eq("make", base.make)
     .neq("id", id)
@@ -122,21 +135,55 @@ export async function GET(
     q = q
       .gte("ask_price", Math.ceil(Number(base.ask_price) * 0.6))
       .lte("ask_price", Math.floor(Number(base.ask_price) * 1.4));
-  const { data: rows, error } = await q;
-  if (error && !semanticRows.length)
-    return NextResponse.json(
-      { error: "Alternatives couldn't be loaded." },
-      { status: 503, headers: NO_STORE },
+  const inventory = await lookupWithin(
+    req.signal,
+    INVENTORY_TIMEOUT_MS,
+    (signal) => q.abortSignal(signal),
+  );
+  const rows = inventory?.error ? [] : inventory?.data || [];
+  let ranked = rankAlternatives(base, rows);
+  let basis = "attribute";
+  if (ranked.length < SIMILAR_MIN_RESULTS) {
+    // Only thin searches need vectors. Verify returned IDs against current inventory
+    // within the same deadline as the embedding lookup.
+    const hydrated = await lookupWithin(
+      req.signal,
+      SEMANTIC_TIMEOUT_MS,
+      async (signal) => {
+        const semantic = await fetchSemanticSimilar(supabase, id, base, signal);
+        if (!semantic?.rows.length || signal.aborted) return null;
+        const result = await applyBuyableInventory(
+          supabase
+            .from("deals")
+            .select(columns)
+            .in(
+              "id",
+              semantic.rows.map((row) => row.id),
+            ),
+        ).abortSignal(signal);
+        return result.error ? null : result.data;
+      },
     );
+    if (hydrated?.length) {
+      const supplemented = rankAlternatives(base, [...rows, ...hydrated]);
+      const inventoryIds = new Set(rows.map((row) => row.id));
+      if (supplemented.some(({ row }) => !inventoryIds.has(row.id)))
+        basis = "semantic";
+      ranked = supplemented;
+    }
+  }
+  if ((!inventory || inventory.error) && !ranked.length) return unavailable();
+  const flipDesk = await desk;
   return json({
-    similar: rankAlternatives(base, [...semanticRows, ...(rows || [])]).map(
-      ({ row, matchReasons, priceDifference }) => ({
-        ...shape(row),
+    similar: ranked.map(({ row, matchReasons, priceDifference }) => {
+      const card = mapRow(row);
+      return {
+        ...(flipDesk ? card : redactListingForNonFlipDesk(card)),
         matchReasons,
         priceDifference,
-      }),
-    ),
-    basis: semanticRows.length ? "semantic" : "attribute",
-    filters: { segment, widened: null },
+      };
+    }),
+    basis,
+    filters: { segment: similarSegment(base), widened: null },
   });
 }

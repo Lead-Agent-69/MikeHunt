@@ -34,13 +34,15 @@ export async function fetchSemanticSimilar(
   supabase: SupabaseClient,
   dealId: string,
   source: SimilarSource,
+  signal?: AbortSignal,
 ): Promise<SimilarFetch | null> {
   let filteredMissing = false;
   const filtered = await selectWithWidening<Row>(
     source,
     async (b: SimilarBounds) => {
+      if (signal?.aborted) return null;
       try {
-        const { data, error } = await supabase.rpc(SIMILAR_FILTERED_RPC, {
+        const query = supabase.rpc(SIMILAR_FILTERED_RPC, {
           p_deal_id: dealId,
           p_count: SIMILAR_TIER_FETCH,
           p_min_price: b.minPrice,
@@ -48,13 +50,15 @@ export async function fetchSemanticSimilar(
           p_min_year: b.minYear,
           p_max_year: b.maxYear,
         });
+        const { data, error } = await (signal
+          ? query.abortSignal(signal)
+          : query);
         if (error) {
-          filteredMissing = true;
+          filteredMissing = error.code === "PGRST202" || error.code === "42883";
           return null;
         }
         return (data as Row[]) || [];
       } catch {
-        filteredMissing = true;
         return null;
       }
     },
@@ -62,7 +66,12 @@ export async function fetchSemanticSimilar(
   );
   // A later tier failing keeps the tighter matches already found; only a first-call failure
   // (RPC not deployed / errored) drops to the legacy RPC.
-  if (!filtered.failed || filtered.step !== null || !filteredMissing) {
+  if (
+    signal?.aborted ||
+    !filtered.failed ||
+    filtered.step !== null ||
+    !filteredMissing
+  ) {
     return filtered.rows.length
       ? { rows: filtered.rows, step: filtered.step }
       : null;
@@ -71,10 +80,11 @@ export async function fetchSemanticSimilar(
   // Pre-migration path: one wide legacy fetch, then the same tiers applied in memory.
   let legacy: Row[];
   try {
-    const { data, error } = await supabase.rpc(SIMILAR_LEGACY_RPC, {
+    const query = supabase.rpc(SIMILAR_LEGACY_RPC, {
       p_deal_id: dealId,
       p_count: SIMILAR_LEGACY_FETCH,
     });
+    const { data, error } = await (signal ? query.abortSignal(signal) : query);
     if (error || !data?.length) return null;
     legacy = data as Row[];
   } catch {
