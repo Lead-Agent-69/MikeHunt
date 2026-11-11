@@ -13,7 +13,7 @@ const queryRows = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/server-supabase", () => ({ getServerUser }));
-const attrRows = vi.hoisted(() => ({ value: [] as any[] }));
+const hydratedRows = vi.hoisted(() => ({ value: null as any[] | null }));
 const baseRow = vi.hoisted(() => ({ value: true }));
 const rateLimit = vi.hoisted(() =>
   vi.fn(() => ({ allowed: true, remaining: 29, retryAfter: 0, limit: 30 })),
@@ -25,8 +25,11 @@ vi.mock("@/lib/rate-limit", async (orig) => ({
 vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   createServerComponentClient: () => ({
-    rpc,
+    rpc: (...args: any[]) => ({
+      abortSignal: (signal: AbortSignal) => rpc(...args, signal),
+    }),
     from: (table: string) => {
+      let hydration = false;
       const query: any = {
         maybeSingle: async () => ({
           data:
@@ -44,7 +47,10 @@ vi.mock("@/lib/supabase", () => ({
         }),
         then: (resolve: any) =>
           Promise.resolve({
-            data: queryRows.rows,
+            data:
+              hydration && hydratedRows.value
+                ? hydratedRows.value
+                : queryRows.rows,
             error: queryRows.error,
           }).then(resolve),
       };
@@ -61,8 +67,10 @@ vi.mock("@/lib/supabase", () => ({
         "limit",
         "ilike",
         "or",
+        "abortSignal",
       ])
         query[method] = (...args: any[]) => {
+          if (method === "in") hydration = true;
           queryRows.filters.push({ method, args });
           return query;
         };
@@ -243,7 +251,7 @@ describe("GET /api/deals/[id]/similar desk redaction", () => {
     );
     expect(res.status).toBe(503);
   });
-  it("rechecks semantic suggestions against live inventory", async () => {
+  it("excludes listings no longer active", async () => {
     queryRows.rows = [{ ...ROW, active: false }];
     const res = await GET(
       new NextRequest("https://app.test/api/deals/deal-1/similar"),
@@ -277,7 +285,7 @@ describe("GET /api/deals/[id]/similar caching + rate limit", () => {
     savedMode.value = null;
     rpc.mockReset();
     rateLimit.mockClear();
-    attrRows.value = [];
+    hydratedRows.value = null;
     baseRow.value = true;
     queryRows.rows = [ROW];
     queryRows.error = null;
@@ -310,7 +318,9 @@ describe("GET /api/deals/[id]/similar caching + rate limit", () => {
   });
 
   it("semantic path is private, no-store", async () => {
-    rpc.mockResolvedValue({ data: [ROW], error: null });
+    const semantic = { ...ROW, id: "semantic-match" };
+    rpc.mockResolvedValue({ data: [semantic], error: null });
+    hydratedRows.value = [semantic];
     const res = await call();
     expect((await res.json()).basis).toBe("semantic");
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
@@ -318,10 +328,38 @@ describe("GET /api/deals/[id]/similar caching + rate limit", () => {
 
   it("attribute fallback is private, no-store", async () => {
     rpc.mockResolvedValue({ data: [], error: null });
-    attrRows.value = [{ ...ROW, similarity: undefined }];
     const res = await call();
     expect((await res.json()).basis).toBe("attribute");
     expect(res.headers.get("Cache-Control")).toBe("private, no-store");
+  });
+
+  it("skips embedding searches when enough current matches already qualify", async () => {
+    queryRows.rows = Array.from({ length: 4 }, (_, n) => ({
+      ...ROW,
+      id: `match-${n}`,
+    }));
+    const res = await call();
+    expect((await res.json()).similar).toHaveLength(4);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("returns current matches and aborts a stalled embedding lookup", async () => {
+    vi.useFakeTimers();
+    try {
+      rpc.mockImplementation(() => new Promise(() => {}));
+      const pending = call();
+      await vi.advanceTimersByTimeAsync(1500);
+      const res = await pending;
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({
+        basis: "attribute",
+        similar: [{ id: ROW.id }],
+      });
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc.mock.calls[0][2].aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("none path is private, no-store", async () => {
